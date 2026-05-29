@@ -3,7 +3,9 @@
 import { Card, CardTitle } from "./ui/Card";
 import { MatchInput } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
-import { Printer, FileText, Handshake, Calendar } from "lucide-react";
+import { RoiChart } from "./RoiChart";
+import { NextSteps } from "./NextSteps";
+import { Printer, FileText, Handshake, Calendar, LineChart } from "lucide-react";
 
 export function CustomerReport({ input, result }: { input: MatchInput; result: MatchResult }) {
   const today = new Date().toLocaleDateString("ja-JP", {
@@ -59,8 +61,34 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
         </section>
 
         <section className="mb-5">
+          <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3 flex items-center gap-2">
+            <LineChart className="w-4 h-4" />
+            2. 15年累計コスト 比較シミュレーション
+          </h2>
+          <div className="bg-slate-50 rounded-xl p-3 mb-2">
+            <RoiChart
+              invest={input.invest}
+              bestSubsidyManYen={result.bestSubsidyManYen}
+              saveYenPerYear={result.saveYenPerYear}
+              kwhPerYear={input.kwh}
+            />
+          </div>
+          <div className="text-[11px] text-slate-600 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-2">
+            <div className="bg-red-50 border border-red-100 rounded-md px-2 py-1.5">
+              <strong className="text-red-700">赤線:</strong> 何もしない（旧機器維持・効率低下＆修理費）
+            </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-md px-2 py-1.5">
+              <strong className="text-amber-700">橙線:</strong> 更新（補助金なし）
+            </div>
+            <div className="bg-ehc-50 border border-ehc-200 rounded-md px-2 py-1.5">
+              <strong className="text-ehc-700">緑線:</strong> 更新（補助金あり）← ベスト
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
-            2. 適用可能な補助金制度
+            3. 適用可能な補助金制度
           </h2>
           {result.matched.length ? (
             <ul className="space-y-2">
@@ -83,7 +111,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
 
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
-            3. 今、更新をご検討いただきたい理由
+            4. 今、更新をご検討いただきたい理由
           </h2>
           <ol className="space-y-1.5 text-xs text-slate-700 list-decimal list-inside">
             {result.reasons.map((r, i) => (
@@ -94,7 +122,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
 
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
-            4. EHC 推奨プラン
+            5. EHC 推奨プラン
           </h2>
           <p className="text-xs text-slate-700 leading-relaxed">{result.ehcPlan}</p>
         </section>
@@ -102,7 +130,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3 flex items-center gap-2">
             <Handshake className="w-4 h-4" />
-            5. 補助金獲得サポートと報酬体系
+            6. 補助金獲得サポートと報酬体系
           </h2>
           <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 text-xs space-y-2">
             <p className="text-slate-800 leading-relaxed">
@@ -126,6 +154,13 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
               ※ 設備費・工事費は別途お見積りいたします。
             </p>
           </div>
+        </section>
+
+        <section className="mb-5">
+          <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
+            7. 次のステップ（より詳細なシミュレーションへ）
+          </h2>
+          <NextSteps />
         </section>
 
         <footer className="border-t-2 border-slate-200 pt-4 mt-6 text-xs">

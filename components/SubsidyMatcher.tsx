@@ -7,7 +7,10 @@ import { MatchInput, BizType, SizeType, EquipType, RefriType } from "@/lib/types
 import { matchSubsidies, MatchResult } from "@/lib/match";
 import { ReportTeaser } from "./ReportTeaser";
 import { CustomerReport } from "./CustomerReport";
-import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { SampleCases } from "./SampleCases";
+import { SampleCase } from "@/lib/samples";
+import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon } from "lucide-react";
+import { RoiChart } from "./RoiChart";
 
 const PREFS = ["東京都", "神奈川県", "大阪府", "埼玉県", "千葉県", "愛知県", "北海道", "福岡県", "その他"];
 
@@ -48,6 +51,11 @@ export function SubsidyMatcher() {
   const set = <K extends keyof MatchInput>(key: K, val: MatchInput[K]) =>
     setInput((prev) => ({ ...prev, [key]: val }));
 
+  const applySample = (sample: SampleCase) => {
+    setInput((prev) => ({ ...prev, ...sample.data }));
+    setResult(null);
+  };
+
   const run = () => {
     if (input.bizType === "personal") {
       alert("EHCは業務用専門です。法人・事業者としてご検討ください。");
@@ -62,6 +70,8 @@ export function SubsidyMatcher() {
   return (
     <div className="space-y-5">
       <ReportTeaser />
+
+      <SampleCases onPick={applySample} />
 
       <Card>
         <CardTitle icon={<User className="w-5 h-5" />}>お客様情報（提案書ヘッダー用）</CardTitle>
@@ -173,7 +183,7 @@ export function SubsidyMatcher() {
 
       {result && (
         <div id="result-section" className="space-y-5">
-          <ResultView result={result} />
+          <ResultView result={result} input={input} />
           <CustomerReport input={input} result={result} />
         </div>
       )}
@@ -181,7 +191,7 @@ export function SubsidyMatcher() {
   );
 }
 
-function ResultView({ result }: { result: MatchResult }) {
+function ResultView({ result, input }: { result: MatchResult; input: MatchInput }) {
   return (
     <div className="space-y-5 no-print">
       <Card>
@@ -191,6 +201,27 @@ function ResultView({ result }: { result: MatchResult }) {
           <RoiBox label="投資回収期間" value={result.yearsToRecover !== null ? `${result.yearsToRecover} 年` : "計算不能"} accent="amber" />
           <RoiBox label="年間電気代削減" value={`¥${result.saveYenPerYear.toLocaleString("ja-JP")}`} accent="blue" />
           <RoiBox label="15年間累計削減" value={`¥${result.total15YearsYen.toLocaleString("ja-JP")}`} accent="purple" />
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle icon={<LineChartIcon className="w-5 h-5" />}>15年累計コスト 比較</CardTitle>
+        <RoiChart
+          invest={input.invest}
+          bestSubsidyManYen={result.bestSubsidyManYen}
+          saveYenPerYear={result.saveYenPerYear}
+          kwhPerYear={input.kwh}
+        />
+        <div className="text-[11px] text-slate-600 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-3">
+          <div className="bg-red-50 border border-red-100 rounded-md px-2 py-1.5">
+            <strong className="text-red-700">赤線:</strong> 何もしない（旧機器維持）
+          </div>
+          <div className="bg-amber-50 border border-amber-100 rounded-md px-2 py-1.5">
+            <strong className="text-amber-700">橙線:</strong> 更新（補助金なし）
+          </div>
+          <div className="bg-ehc-50 border border-ehc-200 rounded-md px-2 py-1.5">
+            <strong className="text-ehc-700">緑線:</strong> 更新（補助金あり）← ベスト
+          </div>
         </div>
       </Card>
 
