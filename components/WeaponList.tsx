@@ -1,15 +1,27 @@
 import { Card, CardTitle } from "./ui/Card";
 import { WEAPONS } from "@/lib/weapons";
+import { TrendingUp, Zap } from "lucide-react";
 
 export function WeaponList() {
   return (
     <Card>
-      <CardTitle>営業武器集（法律・値上がり・老朽化）</CardTitle>
-      <div className="space-y-2.5">
+      <CardTitle icon={<TrendingUp className="w-5 h-5" />}>
+        業界トピックス & 更新メリット
+      </CardTitle>
+      <div className="space-y-3">
         {WEAPONS.map((w, i) => (
-          <div key={i} className="bg-red-50 border-l-4 border-ehc-danger px-3.5 py-3 rounded text-sm">
-            <div className="font-bold text-ehc-danger mb-1">⚡ {w.title}</div>
-            <div>{w.body}</div>
+          <div
+            key={i}
+            className="bg-gradient-to-r from-amber-50 to-white border border-amber-100 px-4 py-3.5 rounded-xl text-sm hover:shadow-card transition-shadow"
+          >
+            <div className="font-bold text-amber-800 mb-1.5 flex items-center gap-2">
+              <Zap className="w-4 h-4 text-amber-600 flex-shrink-0" />
+              {w.title}
+            </div>
+            <div
+              className="text-slate-700 text-xs leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: w.body }}
+            />
           </div>
         ))}
       </div>

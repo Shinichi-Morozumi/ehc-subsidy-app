@@ -28,25 +28,39 @@ export function Tabs({
 
 export function TabsList({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("flex gap-1 mb-4 border-b-2 border-ehc-light flex-wrap", className)}>
+    <div
+      className={cn(
+        "flex gap-1 mb-5 p-1.5 bg-white rounded-2xl shadow-soft border border-slate-100 overflow-x-auto",
+        className
+      )}
+    >
       {children}
     </div>
   );
 }
 
-export function TabsTrigger({ value, children }: { value: string; children: React.ReactNode }) {
+export function TabsTrigger({
+  value,
+  icon,
+  children,
+}: {
+  value: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   const ctx = useContext(TabsContext)!;
   const isActive = ctx.active === value;
   return (
     <button
       onClick={() => ctx.setActive(value)}
       className={cn(
-        "px-4 py-2 text-sm cursor-pointer border-b-[3px] -mb-[2px] transition-colors",
+        "px-4 py-2.5 text-sm cursor-pointer rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 flex-shrink-0",
         isActive
-          ? "text-ehc-primary border-ehc-accent font-semibold"
-          : "text-gray-600 border-transparent hover:text-ehc-primary"
+          ? "bg-gradient-to-r from-ehc-700 to-ehc-600 text-white shadow-card font-semibold"
+          : "text-slate-600 hover:text-ehc-700 hover:bg-slate-50 font-medium"
       )}
     >
+      {icon && <span className="w-4 h-4 flex items-center">{icon}</span>}
       {children}
     </button>
   );
@@ -55,5 +69,5 @@ export function TabsTrigger({ value, children }: { value: string; children: Reac
 export function TabsContent({ value, children }: { value: string; children: React.ReactNode }) {
   const ctx = useContext(TabsContext)!;
   if (ctx.active !== value) return null;
-  return <div>{children}</div>;
+  return <div className="animate-fade-in">{children}</div>;
 }

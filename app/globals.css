@@ -3,13 +3,71 @@
 @tailwind utilities;
 
 :root {
-  --background: #f7f8fa;
-  --foreground: #1a1a1a;
+  --bg-page: #fafafa;
+  --bg-card: #ffffff;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --border-soft: #e2e8f0;
 }
 
 html, body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg-page);
+  color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+
+.tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 400;
+  padding: 8px 10px;
+  border-radius: 6px;
+  width: 240px;
+  z-index: 50;
+  line-height: 1.5;
+  box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.2);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+.tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: #1e293b transparent transparent transparent;
+}
+.tooltip-trigger:hover .tooltip,
+.tooltip-trigger:focus-within .tooltip { opacity: 1; }
+
+@media print {
+  body { background: #fff; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  .print-container { padding: 0 !important; max-width: 100% !important; }
+  .animate-fade-in { animation: none !important; }
+  .shadow-card, .shadow-soft, .shadow-lift { box-shadow: none !important; }
+  .rounded-2xl, .rounded-xl { border-radius: 4px !important; }
+  @page { margin: 1.5cm; size: A4; }
+  h1, h2, h3 { page-break-after: avoid; }
+  .page-break { page-break-after: always; }
+}
+.print-only { display: none; }

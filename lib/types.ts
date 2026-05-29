@@ -50,4 +50,7 @@ export interface MatchInput {
   kwh: number;
   invest: number;
   co2: number;
+  customerCompany: string;
+  customerContact: string;
+  ehcStaff: string;
 }
