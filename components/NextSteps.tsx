@@ -70,7 +70,7 @@ export function NextSteps() {
           <div className="text-xs text-emerald-100">EHC担当者がご訪問し、最適プランをご提案します</div>
         </div>
         <a
-          href="mailto:info@ehc-sol.co.jp?subject=【補助金マッチング】現地調査のご依頼"
+          href="mailto:info@ehcjpn.com?subject=【補助金マッチング】現地調査のご依頼"
           className="bg-white text-ehc-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-50 transition-colors no-print"
         >
           現地調査を依頼する →
