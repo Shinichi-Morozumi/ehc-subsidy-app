@@ -1,5 +1,5 @@
-import { findMatchedAchievements, ACHIEVEMENT_STATS, AKITA_RICE_WAREHOUSE } from "@/lib/achievements";
-import { Award, TrendingDown } from "lucide-react";
+import { findMatchedAchievements, ACHIEVEMENT_STATS, AKITA_RICE_WAREHOUSE, EHC_FIELD_TEST_2026 } from "@/lib/achievements";
+import { Award, TrendingDown, FlaskConical } from "lucide-react";
 
 export function AchievementsSection({ building, equip }: { building: string; equip: "ac" | "multi" }) {
   const matched = findMatchedAchievements(building, equip);
@@ -57,6 +57,34 @@ export function AchievementsSection({ building, equip }: { building: string; equ
           ))}
         </div>
         <div className="text-[10px] text-slate-600 mt-2">公共施設での実証データ（令和2年→令和3年 月別電気代比較）</div>
+      </div>
+
+      <div className="bg-ehc-50 border border-ehc-200 rounded-xl p-4">
+        <div className="text-xs font-semibold text-ehc-800 mb-2 flex items-center gap-1.5">
+          <FlaskConical className="w-3.5 h-3.5" />
+          実環境比較レポート：フロン冷媒 vs ハイチルガス（{EHC_FIELD_TEST_2026.period}）
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center">
+          <div className="bg-white border border-ehc-100 rounded-md p-2">
+            <div className="text-[10px] text-slate-500">電力削減（同温度補正）</div>
+            <div className="text-base font-bold text-ehc-700">−{EHC_FIELD_TEST_2026.reductionRate}%</div>
+          </div>
+          <div className="bg-white border border-ehc-100 rounded-md p-2">
+            <div className="text-[10px] text-slate-500">年間削減コスト</div>
+            <div className="text-base font-bold text-ehc-700">約¥{EHC_FIELD_TEST_2026.annualYen.toLocaleString()}</div>
+          </div>
+          <div className="bg-white border border-ehc-100 rounded-md p-2">
+            <div className="text-[10px] text-slate-500">年間CO2削減</div>
+            <div className="text-base font-bold text-ehc-700">約{EHC_FIELD_TEST_2026.annualCo2Kg.toLocaleString()}kg</div>
+          </div>
+          <div className="bg-white border border-ehc-100 rounded-md p-2">
+            <div className="text-[10px] text-slate-500">予測安定性</div>
+            <div className="text-base font-bold text-ehc-700">R²={EHC_FIELD_TEST_2026.r2}</div>
+          </div>
+        </div>
+        <div className="text-[10px] text-slate-600 mt-2">
+          同一空調設備で外気温を正規化した回帰分析による比較（年間換算は1日あたり削減量×365日。実稼働日数により変動）
+        </div>
       </div>
     </div>
   );
