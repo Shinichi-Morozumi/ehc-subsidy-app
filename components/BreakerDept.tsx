@@ -121,6 +121,86 @@ export function BreakerDept() {
       </Card>
 
       <Card>
+        <CardTitle icon={<Bolt className="w-5 h-5" />}>主力製品「eブレーカーロボ」</CardTitle>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+          <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-4">
+            <div className="text-xs text-amber-700 mb-1">累計導入実績</div>
+            <div className="text-3xl font-bold text-amber-900">3,000<span className="text-base ml-1">台 以上</span></div>
+            <div className="text-[10px] text-amber-700 mt-1">大手コンビニ・GS・福祉施設等</div>
+          </div>
+          <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-4">
+            <div className="text-xs text-amber-700 mb-1">耐久年数 / 無事故実績</div>
+            <div className="text-3xl font-bold text-amber-900">15<span className="text-base ml-1">年 / 約30年</span></div>
+            <div className="text-[10px] text-amber-700 mt-1">PSE認定・経産省認可済み</div>
+          </div>
+        </div>
+        <div className="bg-white border border-slate-200 rounded-lg p-3 text-xs space-y-2">
+          <div className="font-bold text-slate-900">技術的優位性</div>
+          <ul className="text-slate-700 space-y-1">
+            <li>• 業界唯一の3つの技術特許（第6847439号・6847440号・6899114号）</li>
+            <li>• 主要部品は日本メーカー製、<strong>Panasonic製FAコンピューター</strong>で制御</li>
+            <li>• <strong>アイリスオーヤマにOEM提供</strong>（業界での技術力評価の証）</li>
+            <li>• 電力状況をリアルタイム測定、契約電力を主開閉器契約型に変更</li>
+          </ul>
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle icon={<TrendingDown className="w-5 h-5" />}>実証データ（PN導入事例）</CardTitle>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="border border-slate-200 rounded-xl p-4 bg-white">
+            <div className="text-xs text-slate-500 mb-1">事例1: 大手コンビニチェーン S（関東地区）</div>
+            <div className="grid grid-cols-3 gap-2 text-center mt-3">
+              <div>
+                <div className="text-[10px] text-slate-500">導入前</div>
+                <div className="text-lg font-bold text-slate-700">38kW</div>
+                <div className="text-[10px] text-slate-500">40,504円/月</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-amber-600">→</div>
+                <div className="text-lg font-bold text-amber-600">↓</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-500">導入後</div>
+                <div className="text-lg font-bold text-ehc-700">21kW</div>
+                <div className="text-[10px] text-slate-500">22,384円/月</div>
+              </div>
+            </div>
+            <div className="mt-3 bg-ehc-50 border border-ehc-200 rounded p-2 text-center">
+              <div className="text-[10px] text-ehc-700">削減効果</div>
+              <div className="text-lg font-bold text-ehc-900">月18,120円 / <span className="text-amber-700">年217,440円</span></div>
+            </div>
+          </div>
+          <div className="border border-slate-200 rounded-xl p-4 bg-white">
+            <div className="text-xs text-slate-500 mb-1">事例2: ガソリンスタンド（九州地区）</div>
+            <div className="grid grid-cols-3 gap-2 text-center mt-3">
+              <div>
+                <div className="text-[10px] text-slate-500">導入前</div>
+                <div className="text-lg font-bold text-slate-700">28kW</div>
+                <div className="text-[10px] text-slate-500">31,416円/月</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-amber-600">→</div>
+                <div className="text-lg font-bold text-amber-600">↓</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-500">導入後</div>
+                <div className="text-lg font-bold text-ehc-700">7kW</div>
+                <div className="text-[10px] text-slate-500">7,854円/月</div>
+              </div>
+            </div>
+            <div className="mt-3 bg-ehc-50 border border-ehc-200 rounded p-2 text-center">
+              <div className="text-[10px] text-ehc-700">削減効果</div>
+              <div className="text-lg font-bold text-ehc-900">月23,562円 / <span className="text-amber-700">年283,824円</span></div>
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs">
+          <strong className="text-amber-900">対象業種（実績ベース）:</strong> コンビニ・飲食店・スーパー・クリーニング店・美容サロン・保育園・区民公民館・各種工場・福祉施設・冠婚葬祭場・農園・ガソリンスタンド等
+        </div>
+      </Card>
+
+      <Card>
         <CardTitle icon={<Bolt className="w-5 h-5" />}>株式会社プロジェクトネオ（PN）</CardTitle>
         <div className="bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
