@@ -1,5 +1,6 @@
 import { Subsidy, MatchInput } from "./types";
 import { SUBSIDIES } from "./subsidies";
+import { getIndustryReductionRate } from "./industries";
 
 export interface MatchResult {
   matched: Subsidy[];
@@ -9,10 +10,10 @@ export interface MatchResult {
   total15YearsYen: number;
   reasons: string[];
   ehcPlan: string;
+  industryReductionRate: number;
 }
 
 const ELECTRIC_PRICE_YEN_PER_KWH = 27;
-const EFFICIENCY_IMPROVEMENT = 0.30;
 
 export function matchSubsidies(input: MatchInput): MatchResult {
   const matched = SUBSIDIES.filter((s) => {
@@ -30,7 +31,8 @@ export function matchSubsidies(input: MatchInput): MatchResult {
     if (calc > bestSubsidyManYen) bestSubsidyManYen = calc;
   });
 
-  const saveKwh = input.kwh * EFFICIENCY_IMPROVEMENT;
+  const industryReductionRate = getIndustryReductionRate(input.building);
+  const saveKwh = input.kwh * industryReductionRate;
   const saveYenPerYear = Math.round(saveKwh * ELECTRIC_PRICE_YEN_PER_KWH);
   const saveManYenPerYear = saveYenPerYear / 10000;
   const yearsToRecover =
@@ -63,5 +65,6 @@ export function matchSubsidies(input: MatchInput): MatchResult {
     total15YearsYen,
     reasons: reasons.slice(0, 5),
     ehcPlan,
+    industryReductionRate,
   };
 }

@@ -31,7 +31,11 @@ export function ReportTeaser() {
               更新を検討すべき理由を5つ、根拠付きで提示
             </li>
           </ul>
-          <div className="mt-5 flex items-center gap-2 text-sm font-semibold animate-bounce">
+          <div className="mt-4 bg-white/15 backdrop-blur rounded-lg p-3 text-xs">
+            <div className="font-semibold text-emerald-100 mb-1">📊 国内市場規模</div>
+            <div>業務用空調 <strong className="text-white">約1,050万台</strong>がドロップイン対象（経産省推計）</div>
+          </div>
+          <div className="mt-3 flex items-center gap-2 text-sm font-semibold animate-bounce">
             <ArrowDown className="w-4 h-4" />
             下記フォームに入力してください
           </div>

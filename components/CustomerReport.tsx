@@ -5,7 +5,8 @@ import { MatchInput } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
 import { RoiChart } from "./RoiChart";
 import { NextSteps } from "./NextSteps";
-import { Printer, FileText, Handshake, Calendar, LineChart } from "lucide-react";
+import { AchievementsSection } from "./AchievementsSection";
+import { Printer, FileText, Handshake, Calendar, LineChart, Award } from "lucide-react";
 
 export function CustomerReport({ input, result }: { input: MatchInput; result: MatchResult }) {
   const today = new Date().toLocaleDateString("ja-JP", {
@@ -129,8 +130,16 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
 
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3 flex items-center gap-2">
+            <Award className="w-4 h-4" />
+            6. EHC 導入実績（御社業種マッチ）
+          </h2>
+          <AchievementsSection building={input.building} equip={input.equip} />
+        </section>
+
+        <section className="mb-5">
+          <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3 flex items-center gap-2">
             <Handshake className="w-4 h-4" />
-            6. 補助金獲得サポートと報酬体系
+            7. 補助金獲得サポートと報酬体系
           </h2>
           <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 text-xs space-y-2">
             <p className="text-slate-800 leading-relaxed">
@@ -158,7 +167,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
 
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
-            7. 次のステップ（より詳細なシミュレーションへ）
+            8. 次のステップ（より詳細なシミュレーションへ）
           </h2>
           <NextSteps />
         </section>
