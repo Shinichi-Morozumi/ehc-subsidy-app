@@ -4,7 +4,9 @@ import { SubsidyDB } from "@/components/SubsidyDB";
 import { VendorTable } from "@/components/VendorTable";
 import { WeaponList } from "@/components/WeaponList";
 import { DiffList } from "@/components/DiffList";
-import { Target, Database, Wind, TrendingUp, Award, Wrench, AlertCircle } from "lucide-react";
+import { DropinDept } from "@/components/DropinDept";
+import { BreakerDept } from "@/components/BreakerDept";
+import { Target, Database, Wind, TrendingUp, Award, Wrench, AlertCircle, Droplet, Bolt } from "lucide-react";
 
 export default function Page() {
   return (
@@ -40,12 +42,16 @@ export default function Page() {
       <Tabs defaultValue="match">
         <TabsList>
           <TabsTrigger value="match" icon={<Target className="w-4 h-4" />}>補助金マッチング</TabsTrigger>
+          <TabsTrigger value="dropin" icon={<Droplet className="w-4 h-4" />}>ドロップイン</TabsTrigger>
+          <TabsTrigger value="breaker" icon={<Bolt className="w-4 h-4" />}>電子ブレーカー</TabsTrigger>
           <TabsTrigger value="db" icon={<Database className="w-4 h-4" />}>補助金DB</TabsTrigger>
           <TabsTrigger value="vendor" icon={<Wind className="w-4 h-4" />}>メーカー機器</TabsTrigger>
           <TabsTrigger value="weapon" icon={<TrendingUp className="w-4 h-4" />}>業界トピックス</TabsTrigger>
           <TabsTrigger value="diff" icon={<Award className="w-4 h-4" />}>EHCの強み</TabsTrigger>
         </TabsList>
         <TabsContent value="match"><SubsidyMatcher /></TabsContent>
+        <TabsContent value="dropin"><DropinDept /></TabsContent>
+        <TabsContent value="breaker"><BreakerDept /></TabsContent>
         <TabsContent value="db"><SubsidyDB /></TabsContent>
         <TabsContent value="vendor"><VendorTable /></TabsContent>
         <TabsContent value="weapon"><WeaponList /></TabsContent>
