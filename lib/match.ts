@@ -22,6 +22,7 @@ export function matchSubsidies(input: MatchInput): MatchResult {
     if (s.pref !== "all" && !s.pref.includes(input.pref)) return false;
     if (!s.target.includes(input.equip)) return false;
     if (s.id === "kanagawa" && input.co2 < 3) return false;
+    if (s.id === "hotel_sustainability" && input.building !== "hotel") return false;
     return true;
   });
 

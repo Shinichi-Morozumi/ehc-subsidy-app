@@ -9,8 +9,9 @@ import { ReportTeaser } from "./ReportTeaser";
 import { CustomerReport } from "./CustomerReport";
 import { SampleCases } from "./SampleCases";
 import { SampleCase } from "@/lib/samples";
-import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon } from "lucide-react";
+import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart } from "lucide-react";
 import { RoiChart } from "./RoiChart";
+import { INDUSTRY_PROFILES } from "@/lib/industries";
 
 const PREFS = ["東京都", "神奈川県", "大阪府", "埼玉県", "千葉県", "愛知県", "北海道", "福岡県", "その他"];
 
@@ -202,6 +203,7 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
           <RoiBox label="年間電気代削減" value={`¥${result.saveYenPerYear.toLocaleString("ja-JP")}`} accent="blue" />
           <RoiBox label="15年間累計削減" value={`¥${result.total15YearsYen.toLocaleString("ja-JP")}`} accent="purple" />
         </div>
+        <IndustryBasis building={input.building} reductionRate={result.industryReductionRate} />
       </Card>
 
       <Card>
@@ -211,6 +213,7 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
           bestSubsidyManYen={result.bestSubsidyManYen}
           saveYenPerYear={result.saveYenPerYear}
           kwhPerYear={input.kwh}
+          reductionRate={result.industryReductionRate}
         />
         <div className="text-[11px] text-slate-600 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-3">
           <div className="bg-red-50 border border-red-100 rounded-md px-2 py-1.5">
@@ -290,6 +293,46 @@ function RoiBox({
     <div className={`bg-gradient-to-br ${ACCENT_COLORS[accent]} p-4 rounded-xl shadow-soft`}>
       <div className="text-[11px] text-slate-600 font-medium mb-1">{label}</div>
       <div className="text-2xl font-bold tracking-tight">{value}</div>
+    </div>
+  );
+}
+
+// 業種別の電力消費内訳と想定削減率の根拠（出典: 資源エネルギー庁）を表示
+function IndustryBasis({ building, reductionRate }: { building: string; reductionRate: number }) {
+  const profile = INDUSTRY_PROFILES[building] ?? INDUSTRY_PROFILES.other;
+  const ac = profile.electricBreakdown.find((b) => b.category === "空調");
+  const fridge = profile.electricBreakdown.find((b) => b.category === "冷凍冷蔵");
+  const refrigerantPct = (ac?.pct ?? 0) + (fridge?.pct ?? 0);
+  return (
+    <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4">
+      <div className="text-xs font-semibold text-slate-700 mb-2.5 flex items-center gap-1.5">
+        <PieChart className="w-3.5 h-3.5 text-ehc-600" />
+        想定削減率 {(reductionRate * 100).toFixed(0)}% の根拠 — {profile.label}の電力消費内訳
+      </div>
+      <div className="flex w-full h-5 rounded-md overflow-hidden mb-2">
+        {profile.electricBreakdown.map((b) => (
+          <div
+            key={b.category}
+            style={{ width: `${b.pct}%`, backgroundColor: b.color }}
+            title={`${b.category} ${b.pct}%`}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600 mb-2.5">
+        {profile.electricBreakdown.map((b) => (
+          <span key={b.category} className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: b.color }} />
+            {b.category} {b.pct}%
+          </span>
+        ))}
+      </div>
+      <p className="text-[11px] text-slate-600 leading-relaxed">
+        {profile.label}では冷媒を使う設備（空調{ac ? `${ac.pct}%` : ""}
+        {fridge ? `＋冷凍冷蔵${fridge.pct}%` : ""}）が電力の<strong className="text-ehc-700">約{refrigerantPct}%</strong>を占めます。
+        高効率機への更新・炭化水素冷媒ドロップインでこの部分を中心に削減できるため、
+        当業種の想定削減率を<strong className="text-ehc-700">{(reductionRate * 100).toFixed(0)}%</strong>として試算しています
+        （出典: 資源エネルギー庁／EHC施工実績平均）。
+      </p>
     </div>
   );
 }

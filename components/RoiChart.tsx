@@ -17,12 +17,15 @@ interface RoiChartProps {
   bestSubsidyManYen: number;
   saveYenPerYear: number;
   kwhPerYear: number;
+  reductionRate?: number;
 }
 
-export function RoiChart({ invest, bestSubsidyManYen, saveYenPerYear, kwhPerYear }: RoiChartProps) {
+export function RoiChart({ invest, bestSubsidyManYen, saveYenPerYear, kwhPerYear, reductionRate = 0.3 }: RoiChartProps) {
   const ELECTRIC_PRICE = 27;
   const OLD_EQUIPMENT_DEGRADATION_PER_YEAR = 0.02;
   const REPAIR_COST_PER_YEAR = 15;
+  // 業種別の想定削減率を反映（更新後の電力＝旧×(1−削減率)）。未指定時は従来通り30%。
+  const newPowerFactor = Math.max(0, Math.min(1, 1 - reductionRate));
 
   const years = 15;
   const data = [];
@@ -33,9 +36,9 @@ export function RoiChart({ invest, bestSubsidyManYen, saveYenPerYear, kwhPerYear
       REPAIR_COST_PER_YEAR * y;
 
     const newCostWithSubsidy =
-      (invest - bestSubsidyManYen) + (kwhPerYear * 0.7 * ELECTRIC_PRICE * y) / 10000;
+      (invest - bestSubsidyManYen) + (kwhPerYear * newPowerFactor * ELECTRIC_PRICE * y) / 10000;
 
-    const newCostNoSubsidy = invest + (kwhPerYear * 0.7 * ELECTRIC_PRICE * y) / 10000;
+    const newCostNoSubsidy = invest + (kwhPerYear * newPowerFactor * ELECTRIC_PRICE * y) / 10000;
 
     data.push({
       year: `${y}年`,
