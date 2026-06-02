@@ -61,19 +61,19 @@ export function BreakerDept() {
           {BREAKER_MERITS.map((m, i) => {
             const Icon = m.icon;
             return (
-              <div key={i} className="bg-gradient-to-br from-amber-50 to-white border border-amber-200 rounded-xl p-4">
+              <div key={i} className="bg-gradient-to-br from-amber-500/10 to-night-900 border border-amber-500/30 rounded-xl p-4">
                 <div className="flex items-start gap-3">
-                  <Icon className="w-6 h-6 text-amber-700 flex-shrink-0" />
+                  <Icon className="w-6 h-6 text-amber-300 flex-shrink-0" />
                   <div className="flex-1">
-                    <div className="font-bold text-sm mb-1 text-amber-900 flex items-center gap-2">
+                    <div className="font-bold text-sm mb-1 text-amber-300 flex items-center gap-2">
                       {m.title}
                       {m.highlight && (
-                        <span className="bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded text-[10px]">
+                        <span className="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-[10px]">
                           {m.highlight}
                         </span>
                       )}
                     </div>
-                    <div className="text-xs leading-relaxed text-slate-700">{m.body}</div>
+                    <div className="text-xs leading-relaxed text-slate-300">{m.body}</div>
                   </div>
                 </div>
               </div>
@@ -84,22 +84,22 @@ export function BreakerDept() {
 
       <Card>
         <CardTitle icon={<Calculator className="w-5 h-5" />}>仕組み — なぜ基本料金が下がるのか</CardTitle>
-        <div className="space-y-3 text-sm text-slate-700">
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-            <div className="font-semibold mb-2 text-slate-900">業務用低圧電力（動力）の基本料金 = 契約容量 × 基本料金単価</div>
-            <p className="text-xs text-slate-600">
+        <div className="space-y-3 text-sm text-slate-300">
+          <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+            <div className="font-semibold mb-2 text-white">業務用低圧電力（動力）の基本料金 = 契約容量 × 基本料金単価</div>
+            <p className="text-xs text-slate-400">
               多くの中小企業は <strong>「念のため大きめ」の契約容量</strong> で契約しています。
               実際の最大使用電力（瞬時値）に対して契約容量が過大になっているケースが大半です。
             </p>
           </div>
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-            <div className="font-semibold mb-2 text-amber-900">電子ブレーカー導入後</div>
-            <p className="text-xs text-slate-700">
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+            <div className="font-semibold mb-2 text-amber-300">電子ブレーカー導入後</div>
+            <p className="text-xs text-slate-300">
               通常の機械式ブレーカーは「瞬時電流」に反応してすぐ落ちますが、
               <strong>電子ブレーカーは「実効電流（短時間の平均）」に反応</strong>するため、
               起動時の一時的な突入電流では落ちず、<strong>契約容量を小さく設定可能</strong>になります。
             </p>
-            <p className="text-xs text-slate-700 mt-2">
+            <p className="text-xs text-slate-300 mt-2">
               契約容量を下げる → 基本料金が下がる → <strong>毎月の電気代が削減される</strong>
             </p>
           </div>
@@ -110,11 +110,11 @@ export function BreakerDept() {
         <CardTitle icon={<Building className="w-5 h-5" />}>導入効果が出やすい業種</CardTitle>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {TARGETS.map((t, i) => (
-            <div key={i} className="bg-white border border-slate-200 rounded-lg p-3 hover:border-amber-300 hover:bg-amber-50/40 transition-colors">
+            <div key={i} className="bg-night-900 border border-white/10 rounded-lg p-3 hover:border-amber-400/50 hover:bg-amber-500/10 transition-colors">
               <div className="text-2xl mb-1.5">{t.icon}</div>
-              <div className="text-sm font-bold text-slate-900 mb-0.5">{t.biz}</div>
+              <div className="text-sm font-bold text-white mb-0.5">{t.biz}</div>
               <div className="text-[11px] text-slate-500">契約容量目安: {t.typical}</div>
-              <div className="mt-1.5 text-xs font-bold text-amber-700">基本料金 {t.reduce} 削減</div>
+              <div className="mt-1.5 text-xs font-bold text-amber-300">基本料金 {t.reduce} 削減</div>
             </div>
           ))}
         </div>
@@ -123,20 +123,20 @@ export function BreakerDept() {
       <Card>
         <CardTitle icon={<Bolt className="w-5 h-5" />}>主力製品「eブレーカーロボ」</CardTitle>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-          <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-4">
-            <div className="text-xs text-amber-700 mb-1">累計導入実績</div>
-            <div className="text-3xl font-bold text-amber-900">3,000<span className="text-base ml-1">台 以上</span></div>
-            <div className="text-[10px] text-amber-700 mt-1">大手コンビニ・GS・福祉施設等</div>
+          <div className="bg-gradient-to-br from-amber-500/10 to-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+            <div className="text-xs text-amber-300 mb-1">累計導入実績</div>
+            <div className="text-3xl font-bold text-amber-300">3,000<span className="text-base ml-1">台 以上</span></div>
+            <div className="text-[10px] text-amber-300 mt-1">大手コンビニ・GS・福祉施設等</div>
           </div>
-          <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-4">
-            <div className="text-xs text-amber-700 mb-1">耐久年数 / 無事故実績</div>
-            <div className="text-3xl font-bold text-amber-900">15<span className="text-base ml-1">年 / 約30年</span></div>
-            <div className="text-[10px] text-amber-700 mt-1">PSE認定・経産省認可済み</div>
+          <div className="bg-gradient-to-br from-amber-500/10 to-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+            <div className="text-xs text-amber-300 mb-1">耐久年数 / 無事故実績</div>
+            <div className="text-3xl font-bold text-amber-300">15<span className="text-base ml-1">年 / 約30年</span></div>
+            <div className="text-[10px] text-amber-300 mt-1">PSE認定・経産省認可済み</div>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 rounded-lg p-3 text-xs space-y-2">
-          <div className="font-bold text-slate-900">技術的優位性</div>
-          <ul className="text-slate-700 space-y-1">
+        <div className="bg-night-900 border border-white/10 rounded-lg p-3 text-xs space-y-2">
+          <div className="font-bold text-white">技術的優位性</div>
+          <ul className="text-slate-300 space-y-1">
             <li>• 業界唯一の3つの技術特許（第6847439号・6847440号・6899114号）</li>
             <li>• 主要部品は日本メーカー製、<strong>Panasonic製FAコンピューター</strong>で制御</li>
             <li>• <strong>アイリスオーヤマにOEM提供</strong>（業界での技術力評価の証）</li>
@@ -148,12 +148,12 @@ export function BreakerDept() {
       <Card>
         <CardTitle icon={<TrendingDown className="w-5 h-5" />}>実証データ（PN導入事例）</CardTitle>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="border border-slate-200 rounded-xl p-4 bg-white">
+          <div className="border border-white/10 rounded-xl p-4 bg-night-900">
             <div className="text-xs text-slate-500 mb-1">事例1: 大手コンビニチェーン S（関東地区）</div>
             <div className="grid grid-cols-3 gap-2 text-center mt-3">
               <div>
                 <div className="text-[10px] text-slate-500">導入前</div>
-                <div className="text-lg font-bold text-slate-700">38kW</div>
+                <div className="text-lg font-bold text-slate-300">38kW</div>
                 <div className="text-[10px] text-slate-500">40,504円/月</div>
               </div>
               <div>
@@ -162,21 +162,21 @@ export function BreakerDept() {
               </div>
               <div>
                 <div className="text-[10px] text-slate-500">導入後</div>
-                <div className="text-lg font-bold text-ehc-700">21kW</div>
+                <div className="text-lg font-bold text-ehc-300">21kW</div>
                 <div className="text-[10px] text-slate-500">22,384円/月</div>
               </div>
             </div>
-            <div className="mt-3 bg-ehc-50 border border-ehc-200 rounded p-2 text-center">
-              <div className="text-[10px] text-ehc-700">削減効果</div>
-              <div className="text-lg font-bold text-ehc-900">月18,120円 / <span className="text-amber-700">年217,440円</span></div>
+            <div className="mt-3 bg-ehc-500/10 border border-ehc-500/30 rounded p-2 text-center">
+              <div className="text-[10px] text-ehc-300">削減効果</div>
+              <div className="text-lg font-bold text-ehc-300">月18,120円 / <span className="text-amber-300">年217,440円</span></div>
             </div>
           </div>
-          <div className="border border-slate-200 rounded-xl p-4 bg-white">
+          <div className="border border-white/10 rounded-xl p-4 bg-night-900">
             <div className="text-xs text-slate-500 mb-1">事例2: ガソリンスタンド（九州地区）</div>
             <div className="grid grid-cols-3 gap-2 text-center mt-3">
               <div>
                 <div className="text-[10px] text-slate-500">導入前</div>
-                <div className="text-lg font-bold text-slate-700">28kW</div>
+                <div className="text-lg font-bold text-slate-300">28kW</div>
                 <div className="text-[10px] text-slate-500">31,416円/月</div>
               </div>
               <div>
@@ -185,44 +185,102 @@ export function BreakerDept() {
               </div>
               <div>
                 <div className="text-[10px] text-slate-500">導入後</div>
-                <div className="text-lg font-bold text-ehc-700">7kW</div>
+                <div className="text-lg font-bold text-ehc-300">7kW</div>
                 <div className="text-[10px] text-slate-500">7,854円/月</div>
               </div>
             </div>
-            <div className="mt-3 bg-ehc-50 border border-ehc-200 rounded p-2 text-center">
-              <div className="text-[10px] text-ehc-700">削減効果</div>
-              <div className="text-lg font-bold text-ehc-900">月23,562円 / <span className="text-amber-700">年283,824円</span></div>
+            <div className="mt-3 bg-ehc-500/10 border border-ehc-500/30 rounded p-2 text-center">
+              <div className="text-[10px] text-ehc-300">削減効果</div>
+              <div className="text-lg font-bold text-ehc-300">月23,562円 / <span className="text-amber-300">年283,824円</span></div>
             </div>
           </div>
         </div>
-        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs">
-          <strong className="text-amber-900">対象業種（実績ベース）:</strong> コンビニ・飲食店・スーパー・クリーニング店・美容サロン・保育園・区民公民館・各種工場・福祉施設・冠婚葬祭場・農園・ガソリンスタンド等
+        <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs">
+          <strong className="text-amber-300">対象業種（実績ベース）:</strong> コンビニ・飲食店・スーパー・クリーニング店・美容サロン・保育園・区民公民館・各種工場・福祉施設・冠婚葬祭場・農園・ガソリンスタンド等
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle icon={<TrendingDown className="w-5 h-5" />}>デマンドロボ実案件（高圧・中規模〜大規模）</CardTitle>
+        <p className="text-xs text-slate-400 mb-3">
+          高圧受電（契約50〜2,000kW）には上位機種「<strong>eデマンドロボ</strong>」を導入。契約電力（デマンド）を最適化し、基本料金＋使用量の両面で削減します。
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="border border-white/10 rounded-xl p-4 bg-night-900">
+            <div className="text-xs text-slate-500 mb-1">事例3: カナタスタイル合同会社（富山・高圧業務用）</div>
+            <div className="grid grid-cols-3 gap-2 text-center mt-3">
+              <div>
+                <div className="text-[10px] text-slate-500">契約電力</div>
+                <div className="text-lg font-bold text-slate-300">150kW</div>
+                <div className="text-[10px] text-slate-500">年1,551万円</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-amber-600">→</div>
+                <div className="text-lg font-bold text-amber-600">↓</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-500">適正化後</div>
+                <div className="text-lg font-bold text-ehc-300">110kW</div>
+                <div className="text-[10px] text-slate-500">年1,435万円</div>
+              </div>
+            </div>
+            <div className="mt-3 bg-ehc-500/10 border border-ehc-500/30 rounded p-2 text-center">
+              <div className="text-[10px] text-ehc-300">年間削減効果</div>
+              <div className="text-lg font-bold text-ehc-300">年 <span className="text-amber-300">約116万円</span></div>
+            </div>
+          </div>
+          <div className="border border-white/10 rounded-xl p-4 bg-night-900">
+            <div className="text-xs text-slate-500 mb-1">事例4: 医療法人社団晃進会 たま日吉台病院（川崎・業務用電力）</div>
+            <div className="grid grid-cols-3 gap-2 text-center mt-3">
+              <div>
+                <div className="text-[10px] text-slate-500">契約電力</div>
+                <div className="text-lg font-bold text-slate-300">191kW</div>
+                <div className="text-[10px] text-slate-500">年1,600万円</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-amber-600">→</div>
+                <div className="text-lg font-bold text-amber-600">↓</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-500">適正化後</div>
+                <div className="text-lg font-bold text-ehc-300">160kW</div>
+                <div className="text-[10px] text-slate-500">年1,449万円</div>
+              </div>
+            </div>
+            <div className="mt-3 bg-ehc-500/10 border border-ehc-500/30 rounded p-2 text-center">
+              <div className="text-[10px] text-ehc-300">年間削減効果</div>
+              <div className="text-lg font-bold text-ehc-300">年 <span className="text-amber-300">約151万円</span></div>
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 text-[10px] text-slate-500">
+          ※ 電気料金明細（ピーク3ヶ月分）を基に削減シミュレーションを実施。削減できない場合は導入見送り（リスクフリー）。
         </div>
       </Card>
 
       <Card>
         <CardTitle icon={<Bolt className="w-5 h-5" />}>株式会社プロジェクトネオ（PN）</CardTitle>
-        <div className="bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
+        <div className="bg-white/5 rounded-xl p-4 space-y-2 text-sm">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <div className="text-xs text-slate-500">代表取締役</div>
-              <div className="font-bold text-slate-900">碓井 涼太</div>
+              <div className="font-bold text-white">碓井 涼太</div>
             </div>
             <div>
               <div className="text-xs text-slate-500">事業</div>
-              <div className="font-bold text-slate-900">電子ブレーカー販売・電力削減コンサル</div>
+              <div className="font-bold text-white">電子ブレーカー販売・電力削減コンサル</div>
             </div>
             <div>
               <div className="text-xs text-slate-500">資格</div>
-              <div className="text-slate-800 text-xs">建設業許可（管工事）/ 第一種フロン類回収登録</div>
+              <div className="text-slate-100 text-xs">建設業許可（管工事）/ 第一種フロン類回収登録</div>
             </div>
             <div>
               <div className="text-xs text-slate-500">グループ連携</div>
-              <div className="text-slate-800 text-xs">EHCソリューションズ取締役兼任 / 空調更新と組合せ提案可</div>
+              <div className="text-slate-100 text-xs">EHCソリューションズ取締役兼任 / 空調更新と組合せ提案可</div>
             </div>
           </div>
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs mt-3">
-            <strong className="text-amber-900">💡 グループ連携メリット:</strong>
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs mt-3">
+            <strong className="text-amber-300">💡 グループ連携メリット:</strong>
             EHCの炭化水素冷媒ドロップイン（使用電力 -15〜40%）と組み合わせれば、
             <strong>「使用電力量」と「基本料金」のダブル削減</strong>が可能。
             電気代総額で <strong>40〜60%</strong> 削減も視野。
@@ -238,7 +296,7 @@ export function BreakerDept() {
           </div>
           <a
             href="mailto:info@ehcjpn.com?subject=【電子ブレーカー部門】導入相談"
-            className="bg-white text-amber-800 px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-amber-50 transition-colors no-print"
+            className="bg-night-900 text-amber-300 px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-amber-500/10 transition-colors no-print"
           >
             <Mail className="w-4 h-4" />
             お問い合わせ

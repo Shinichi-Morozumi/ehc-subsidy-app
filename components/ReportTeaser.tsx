@@ -40,30 +40,30 @@ export function ReportTeaser() {
             下記フォームに入力してください
           </div>
         </div>
-        <div className="bg-white/95 rounded-xl p-4 text-slate-900 shadow-2xl rotate-1 hover:rotate-0 transition-transform">
-          <div className="border-b border-slate-200 pb-2 mb-3">
+        <div className="bg-white/95 rounded-xl p-4 text-white shadow-2xl rotate-1 hover:rotate-0 transition-transform">
+          <div className="border-b border-white/10 pb-2 mb-3">
             <div className="text-[10px] text-slate-500">【ご提案書】サンプル</div>
-            <div className="text-sm font-bold text-ehc-800">XX商事 御中</div>
+            <div className="text-sm font-bold text-ehc-300">XX商事 御中</div>
           </div>
           <div className="space-y-2 text-xs">
-            <div className="bg-ehc-50 px-2 py-1.5 rounded flex justify-between">
-              <span className="text-ehc-700 font-medium">想定補助金</span>
-              <span className="font-bold text-ehc-900">¥3,300,000</span>
+            <div className="bg-ehc-500/10 px-2 py-1.5 rounded flex justify-between">
+              <span className="text-ehc-300 font-medium">想定補助金</span>
+              <span className="font-bold text-ehc-300">¥3,300,000</span>
             </div>
-            <div className="bg-amber-50 px-2 py-1.5 rounded flex justify-between">
-              <span className="text-amber-700 font-medium">投資回収</span>
-              <span className="font-bold text-amber-900">2.3 年</span>
+            <div className="bg-amber-500/10 px-2 py-1.5 rounded flex justify-between">
+              <span className="text-amber-300 font-medium">投資回収</span>
+              <span className="font-bold text-amber-300">2.3 年</span>
             </div>
-            <div className="bg-sky-50 px-2 py-1.5 rounded flex justify-between">
+            <div className="bg-sky-500/10 px-2 py-1.5 rounded flex justify-between">
               <span className="text-sky-700 font-medium">年間削減</span>
-              <span className="font-bold text-sky-900">¥648,000</span>
+              <span className="font-bold text-sky-300">¥648,000</span>
             </div>
-            <div className="bg-violet-50 px-2 py-1.5 rounded flex justify-between">
+            <div className="bg-violet-500/10 px-2 py-1.5 rounded flex justify-between">
               <span className="text-violet-700 font-medium">15年累計</span>
-              <span className="font-bold text-violet-900">¥9,720,000</span>
+              <span className="font-bold text-violet-300">¥9,720,000</span>
             </div>
           </div>
-          <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] text-slate-500">
+          <div className="mt-3 pt-2 border-t border-white/10 text-[10px] text-slate-500">
             株式会社EHCソリューションズ
           </div>
         </div>

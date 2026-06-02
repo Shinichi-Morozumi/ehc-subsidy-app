@@ -6,16 +6,35 @@ import { MatchResult } from "@/lib/match";
 import { RoiChart } from "./RoiChart";
 import { NextSteps } from "./NextSteps";
 import { AchievementsSection } from "./AchievementsSection";
-import { Printer, FileText, Handshake, Calendar, LineChart, Award } from "lucide-react";
+import { Printer, FileText, Handshake, Calendar, LineChart, Award, ClipboardList } from "lucide-react";
+import { INDUSTRY_PROFILES } from "@/lib/industries";
+
+// ── 提案書の送付フロー（将来実装メモ）─────────────────────────
+// 現状: 画面で「印刷 / PDF保存」して手動共有。
+// 次段階: お問い合わせ受信 → お客様の会社情報（社名・担当・住所等）取得 →
+//         本テンプレートに自動差し込み → PDF生成 → 自動メール送信。
+//   ※メール自動送信は別途バックエンド/連携（要権限）。本コンポーネントは出力体裁のみ担当。
+// ───────────────────────────────────────────────
+
+const BUILDING_LABELS: Record<string, string> = {
+  office: "オフィス・事務所", retail: "小売店舗", restaurant: "飲食店",
+  hotel: "ホテル・宿泊", medical: "医療・福祉", school: "学校・教育", other: "その他事業所",
+};
+const REFRI_LABELS: Record<string, string> = {
+  r22: "R22（HCFC・製造禁止）", r410a: "R410A（HFC・廃止進行中）", r32: "R32（GWP675）", unknown: "不明",
+};
 
 export function CustomerReport({ input, result }: { input: MatchInput; result: MatchResult }) {
-  const today = new Date().toLocaleDateString("ja-JP", {
+  const now = new Date();
+  const today = now.toLocaleDateString("ja-JP", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+  const proposalNo = `EHC-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
 
   const rewardYen = Math.round(result.bestSubsidyManYen * 10000 * 0.1);
+  const industryLabel = (INDUSTRY_PROFILES[input.building] ?? INDUSTRY_PROFILES.other).label;
 
   const handlePrint = () => window.print();
 
@@ -40,19 +59,43 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
           <h1 className="text-2xl font-bold text-ehc-900 mb-2">
             {input.customerCompany || "お客様"} 御中
           </h1>
-          <div className="flex items-center justify-center gap-3 text-xs text-slate-600">
+          <div className="flex items-center justify-center gap-3 text-xs text-slate-600 flex-wrap">
             <span className="flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />
               {today}
             </span>
             {input.customerContact && <span>ご担当: {input.customerContact} 様</span>}
+            <span className="text-slate-400">提案書番号: {proposalNo}</span>
           </div>
         </div>
 
         <section className="mb-5">
-          <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
-            1. ご提案サマリー
+          <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3 flex items-center gap-2">
+            <ClipboardList className="w-4 h-4" />
+            1. ご確認条件（ヒアリング内容）
           </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1.5 text-xs border border-slate-200 rounded-lg p-3 bg-slate-50">
+            <CondCell label="業種・用途" value={`${BUILDING_LABELS[input.building] ?? "—"}（${industryLabel}）`} />
+            <CondCell label="設備種別" value={input.equip === "multi" ? "マルチエアコン（ビル用）" : "パッケージエアコン"} />
+            <CondCell label="設置からの年数" value={`${input.years}年`} />
+            <CondCell label="現在の冷媒" value={REFRI_LABELS[input.refri] ?? "—"} />
+            <CondCell label="年間電力使用量" value={`${input.kwh.toLocaleString("ja-JP")} kWh`} />
+            <CondCell label="設備投資概算" value={`${input.invest.toLocaleString("ja-JP")} 万円`} />
+          </div>
+          <p className="text-[10px] text-slate-500 mt-1.5">
+            ※ 上記は御社からのヒアリング値に基づく試算条件です。正式見積は現地調査後にご提示します。
+          </p>
+        </section>
+
+        <section className="mb-5">
+          <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
+            2. ご提案サマリー
+          </h2>
+          <p className="text-[11px] text-slate-600 mb-2">
+            {industryLabel}は冷媒設備が電力の多くを占めるため、想定削減率
+            <strong className="text-ehc-700">{(result.industryReductionRate * 100).toFixed(0)}%</strong>
+            （出典: 資源エネルギー庁／EHC施工実績平均）で試算しています。
+          </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <SummaryCell label="想定補助金額" value={`¥${(result.bestSubsidyManYen * 10000).toLocaleString("ja-JP")}`} color="green" />
             <SummaryCell label="投資回収期間" value={result.yearsToRecover !== null ? `${result.yearsToRecover} 年` : "—"} color="amber" />
@@ -64,7 +107,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3 flex items-center gap-2">
             <LineChart className="w-4 h-4" />
-            2. 15年累計コスト 比較シミュレーション
+            3. 15年累計コスト 比較シミュレーション
           </h2>
           <div className="bg-slate-50 rounded-xl p-3 mb-2">
             <RoiChart
@@ -72,6 +115,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
               bestSubsidyManYen={result.bestSubsidyManYen}
               saveYenPerYear={result.saveYenPerYear}
               kwhPerYear={input.kwh}
+              reductionRate={result.industryReductionRate}
             />
           </div>
           <div className="text-[11px] text-slate-600 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-2">
@@ -89,7 +133,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
 
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
-            3. 適用可能な補助金制度
+            4. 適用可能な補助金制度
           </h2>
           {result.matched.length ? (
             <ul className="space-y-2">
@@ -112,7 +156,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
 
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
-            4. 今、更新をご検討いただきたい理由
+            5. 今、更新をご検討いただきたい理由
           </h2>
           <ol className="space-y-1.5 text-xs text-slate-700 list-decimal list-inside">
             {result.reasons.map((r, i) => (
@@ -123,7 +167,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
 
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
-            5. EHC 推奨プラン
+            6. EHC 推奨プラン
           </h2>
           <p className="text-xs text-slate-700 leading-relaxed">{result.ehcPlan}</p>
         </section>
@@ -131,7 +175,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3 flex items-center gap-2">
             <Award className="w-4 h-4" />
-            6. EHC 導入実績（御社業種マッチ）
+            7. EHC 導入実績（御社業種マッチ）
           </h2>
           <AchievementsSection building={input.building} equip={input.equip} />
         </section>
@@ -139,7 +183,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3 flex items-center gap-2">
             <Handshake className="w-4 h-4" />
-            7. 補助金獲得サポートと報酬体系
+            8. 補助金獲得サポートと報酬体系
           </h2>
           <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 text-xs space-y-2">
             <p className="text-slate-800 leading-relaxed">
@@ -167,7 +211,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
 
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
-            8. 次のステップ（より詳細なシミュレーションへ）
+            9. 次のステップ（より詳細なシミュレーションへ）
           </h2>
           <NextSteps />
         </section>
@@ -195,6 +239,15 @@ const SUMMARY_COLORS = {
   blue: "bg-sky-50 border-sky-200 text-sky-900",
   purple: "bg-violet-50 border-violet-200 text-violet-900",
 };
+
+function CondCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[10px] text-slate-500">{label}</span>
+      <span className="font-semibold text-slate-800">{value}</span>
+    </div>
+  );
+}
 
 function SummaryCell({
   label,

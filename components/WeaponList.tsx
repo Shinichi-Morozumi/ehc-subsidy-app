@@ -12,14 +12,14 @@ export function WeaponList() {
         {WEAPONS.map((w, i) => (
           <div
             key={i}
-            className="bg-gradient-to-r from-amber-50 to-white border border-amber-100 px-4 py-3.5 rounded-xl text-sm hover:shadow-card transition-shadow"
+            className="bg-gradient-to-r from-amber-500/10 to-night-900 border border-amber-500/20 px-4 py-3.5 rounded-xl text-sm hover:shadow-card transition-shadow"
           >
-            <div className="font-bold text-amber-800 mb-1.5 flex items-center gap-2">
+            <div className="font-bold text-amber-300 mb-1.5 flex items-center gap-2">
               <Zap className="w-4 h-4 text-amber-600 flex-shrink-0" />
               {w.title}
             </div>
             <div
-              className="text-slate-700 text-xs leading-relaxed"
+              className="text-slate-300 text-xs leading-relaxed"
               dangerouslySetInnerHTML={{ __html: w.body }}
             />
           </div>

@@ -30,7 +30,7 @@ export function TabsList({ children, className }: { children: React.ReactNode; c
   return (
     <div
       className={cn(
-        "flex gap-1 mb-5 p-1.5 bg-white rounded-2xl shadow-soft border border-slate-100 overflow-x-auto",
+        "flex gap-1 mb-5 p-1.5 bg-night-900 rounded-2xl shadow-soft border border-white/10 overflow-x-auto",
         className
       )}
     >
@@ -56,8 +56,8 @@ export function TabsTrigger({
       className={cn(
         "px-4 py-2.5 text-sm cursor-pointer rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 flex-shrink-0",
         isActive
-          ? "bg-gradient-to-r from-ehc-700 to-ehc-600 text-white shadow-card font-semibold"
-          : "text-slate-600 hover:text-ehc-700 hover:bg-slate-50 font-medium"
+          ? "bg-gradient-to-r from-cobalt-600 to-cobalt-500 text-white shadow-glow font-semibold"
+          : "text-slate-400 hover:text-white hover:bg-white/5 font-medium"
       )}
     >
       {icon && <span className="w-4 h-4 flex items-center">{icon}</span>}

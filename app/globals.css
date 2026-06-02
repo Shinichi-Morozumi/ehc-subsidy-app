@@ -1,14 +1,15 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --bg-page: #fafafa;
-  --bg-card: #ffffff;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-tertiary: #94a3b8;
-  --border-soft: #e2e8f0;
+  --bg-page: #0a0a0a;
+  --bg-card: #131313;
+  --text-primary: #f5f5f5;
+  --text-secondary: #b4b4b4;
+  --text-tertiary: #7a7a7a;
+  --border-soft: rgba(255,255,255,0.10);
 }
 
 html, body {
@@ -19,6 +20,21 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* 特大ディスプレイ見出し（リファレンス調） */
+.font-display {
+  font-family: 'Archivo', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  letter-spacing: -0.03em;
+}
+.hero-display {
+  font-family: 'Archivo', -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+/* 点線リング（円形アイコンボタン用） */
+.dotted-ring { border: 1px dashed rgba(255,255,255,0.5); border-radius: 9999px; }
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

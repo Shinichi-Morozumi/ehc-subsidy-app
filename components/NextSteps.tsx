@@ -35,11 +35,11 @@ const STEPS = [
 
 export function NextSteps() {
   return (
-    <div className="border-2 border-ehc-200 rounded-2xl p-5 md:p-6 bg-gradient-to-br from-white to-ehc-50">
-      <h3 className="text-base font-bold text-ehc-900 mb-1.5">
+    <div className="border-2 border-ehc-500/30 rounded-2xl p-5 md:p-6 bg-gradient-to-br from-white to-ehc-500/10">
+      <h3 className="text-base font-bold text-ehc-300 mb-1.5">
         より詳細なシミュレーションのための次のステップ
       </h3>
-      <p className="text-xs text-slate-600 mb-5">
+      <p className="text-xs text-slate-400 mb-5">
         本シミュレーションは概算値です。実際の補助金獲得額・電気代削減効果を確定するため、以下のフローで進めます。
       </p>
       <div className="space-y-3">
@@ -48,15 +48,15 @@ export function NextSteps() {
           return (
             <div
               key={i}
-              className="flex gap-3 bg-white border border-slate-200 rounded-xl p-3.5 hover:shadow-card transition-shadow"
+              className="flex gap-3 bg-night-900 border border-white/10 rounded-xl p-3.5 hover:shadow-card transition-shadow"
             >
-              <div className="bg-ehc-100 text-ehc-700 rounded-lg w-10 h-10 flex items-center justify-center flex-shrink-0">
+              <div className="bg-ehc-500/15 text-ehc-300 rounded-lg w-10 h-10 flex items-center justify-center flex-shrink-0">
                 <Icon className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-slate-900 mb-1">{step.title}</div>
-                <p className="text-xs text-slate-700 leading-relaxed mb-1.5">{step.body}</p>
-                <div className="text-[11px] text-ehc-700 font-medium">
+                <div className="text-sm font-semibold text-white mb-1">{step.title}</div>
+                <p className="text-xs text-slate-300 leading-relaxed mb-1.5">{step.body}</p>
+                <div className="text-[11px] text-ehc-300 font-medium">
                   ✓ 成果物: {step.deliverable}
                 </div>
               </div>
@@ -71,7 +71,7 @@ export function NextSteps() {
         </div>
         <a
           href="mailto:info@ehcjpn.com?subject=【補助金マッチング】現地調査のご依頼"
-          className="bg-white text-ehc-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-50 transition-colors no-print"
+          className="bg-night-900 text-ehc-300 px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-500/10 transition-colors no-print"
         >
           現地調査を依頼する →
         </a>

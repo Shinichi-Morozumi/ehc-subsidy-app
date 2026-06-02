@@ -10,32 +10,41 @@ import { Target, Database, Wind, TrendingUp, Award, Wrench, AlertCircle, Droplet
 
 export default function Page() {
   return (
-    <div className="max-w-5xl mx-auto p-4 md:p-8 print-container">
-      <header className="bg-gradient-to-br from-ehc-900 via-ehc-700 to-ehc-600 text-white px-6 py-8 md:px-10 md:py-10 rounded-2xl mb-6 shadow-lift no-print relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32"></div>
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-emerald-300/10 rounded-full -ml-24 -mb-24"></div>
-        <div className="relative">
-          <div className="flex items-center gap-2 mb-2">
-            <Wrench className="w-5 h-5 text-emerald-200" />
-            <span className="text-xs text-emerald-100 font-medium tracking-wide">
-              株式会社EHCソリューションズ
+    <div className="max-w-6xl mx-auto p-4 md:p-8 print-container">
+      <header className="relative overflow-hidden rounded-3xl mb-6 no-print bg-night-900 border border-white/10">
+        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-cobalt-600/20 blur-3xl"></div>
+        <div className="absolute -bottom-32 -left-20 w-80 h-80 rounded-full bg-cobalt-700/10 blur-3xl"></div>
+        {/* 軌道風の細線リング */}
+        <div className="absolute -bottom-40 right-10 w-[520px] h-[520px] rounded-full border border-white/5"></div>
+        <div className="absolute -bottom-32 right-24 w-[380px] h-[380px] rounded-full border border-dashed border-white/10"></div>
+        <div className="relative px-6 py-12 md:px-12 md:py-16">
+          <div className="flex items-center gap-2 mb-6">
+            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-cobalt-400 to-cobalt-700"></span>
+            <span className="text-[11px] tracking-[0.25em] text-slate-300 font-medium uppercase">
+              EHC Solutions
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold mb-1 tracking-tight">
-            補助金マッチング & ROI 即答ツール
+          <h1 className="hero-display text-white text-4xl md:text-6xl mb-5">
+            STOP PAYING<br />FOR OLD AIR
           </h1>
-          <div className="text-sm text-emerald-100">
-            業務用空調（パッケージ・マルチ）／ドロップイン更新工事 専用
+          <p className="text-sm md:text-base text-slate-300 max-w-xl leading-relaxed">
+            業務用空調の補助金マッチング & ROI 即答ツール。<br className="hidden md:block" />
+            パッケージ・マルチ／炭化水素冷媒ドロップイン更新に特化。
+          </p>
+          <div className="mt-7 flex flex-wrap items-center gap-2 text-[11px]">
+            <span className="px-3 py-1 rounded-full border border-white/15 text-slate-300">補助金 最大3億円</span>
+            <span className="px-3 py-1 rounded-full border border-white/15 text-slate-300">電力削減 −15〜40%</span>
+            <span className="px-3 py-1 rounded-full border border-cobalt-400/40 text-cobalt-200 bg-cobalt-600/10">施工実績 22業種</span>
           </div>
         </div>
       </header>
 
-      <div className="bg-amber-50 border border-amber-200 px-4 py-3 rounded-xl text-xs mb-4 flex items-start gap-2.5 no-print">
-        <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-        <div className="text-amber-900">
-          <strong>⏰ 規制カウントダウン：</strong>
-          フロン排出抑制法 改正案 国会提出予定 <strong>2027年</strong>（罰則強化検討中）／
-          R410A 製造規制：既に2025年完了 / 業務用エアコン 法定耐用年数：<strong>15年</strong>
+      <div className="bg-cobalt-600/10 border border-cobalt-500/30 px-4 py-3 rounded-xl text-xs mb-5 flex items-start gap-2.5 no-print">
+        <AlertCircle className="w-4 h-4 text-cobalt-300 flex-shrink-0 mt-0.5" />
+        <div className="text-slate-300">
+          <strong className="text-white">⏰ 規制カウントダウン：</strong>
+          フロン排出抑制法 改正案 国会提出予定 <strong className="text-white">2027年</strong>（罰則強化検討中）／
+          R410A 製造規制：既に2025年完了 / 業務用エアコン 法定耐用年数：<strong className="text-white">15年</strong>
         </div>
       </div>
 
@@ -58,7 +67,7 @@ export default function Page() {
         <TabsContent value="diff"><DiffList /></TabsContent>
       </Tabs>
 
-      <footer className="text-center text-[11px] text-slate-500 mt-10 py-4 no-print">
+      <footer className="text-center text-[11px] text-slate-500 mt-10 py-4 no-print border-t border-white/5">
         © 2026 株式会社EHCソリューションズ ｜ 業務用空調・GX・補助金専門
       </footer>
     </div>

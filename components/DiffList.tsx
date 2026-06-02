@@ -10,13 +10,13 @@ export function DiffList() {
         {DIFFS.map((d, i) => (
           <div
             key={i}
-            className="bg-gradient-to-br from-sky-50 to-white border border-sky-100 p-4 rounded-xl text-xs hover:shadow-card transition-shadow"
+            className="bg-gradient-to-br from-sky-500/10 to-night-900 border border-sky-500/20 p-4 rounded-xl text-xs hover:shadow-card transition-shadow"
           >
             <div className="flex items-start gap-2 mb-1.5">
               <ShieldCheck className="w-4 h-4 text-sky-600 flex-shrink-0 mt-0.5" />
-              <strong className="text-sky-800 text-sm">{d.title}</strong>
+              <strong className="text-sky-300 text-sm">{d.title}</strong>
             </div>
-            <p className="text-slate-700 leading-relaxed pl-6">{d.body}</p>
+            <p className="text-slate-300 leading-relaxed pl-6">{d.body}</p>
           </div>
         ))}
       </div>

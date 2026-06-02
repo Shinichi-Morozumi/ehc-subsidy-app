@@ -169,7 +169,7 @@ export function SubsidyMatcher() {
           </Field>
         </div>
         {input.bizType === "personal" && (
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl text-sm mt-4 flex gap-3">
+          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 p-4 rounded-xl text-sm mt-4 flex gap-3">
             <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div>
               EHCソリューションズは <strong>業務用専用</strong> です。個人・家庭用空調は対象外となります。
@@ -215,15 +215,15 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
           kwhPerYear={input.kwh}
           reductionRate={result.industryReductionRate}
         />
-        <div className="text-[11px] text-slate-600 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-3">
-          <div className="bg-red-50 border border-red-100 rounded-md px-2 py-1.5">
-            <strong className="text-red-700">赤線:</strong> 何もしない（旧機器維持）
+        <div className="text-[11px] text-slate-400 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-3">
+          <div className="bg-red-500/10 border border-red-500/20 rounded-md px-2 py-1.5">
+            <strong className="text-red-300">赤線:</strong> 何もしない（旧機器維持）
           </div>
-          <div className="bg-amber-50 border border-amber-100 rounded-md px-2 py-1.5">
-            <strong className="text-amber-700">橙線:</strong> 更新（補助金なし）
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1.5">
+            <strong className="text-amber-300">橙線:</strong> 更新（補助金なし）
           </div>
-          <div className="bg-ehc-50 border border-ehc-200 rounded-md px-2 py-1.5">
-            <strong className="text-ehc-700">緑線:</strong> 更新（補助金あり）← ベスト
+          <div className="bg-ehc-500/10 border border-ehc-500/30 rounded-md px-2 py-1.5">
+            <strong className="text-ehc-300">緑線:</strong> 更新（補助金あり）← ベスト
           </div>
         </div>
       </Card>
@@ -233,20 +233,20 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
         {result.matched.length ? (
           <div className="space-y-3">
             {result.matched.map((s) => (
-              <div key={s.id} className="border border-ehc-200 bg-gradient-to-br from-ehc-50 to-white rounded-xl p-4">
-                <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-ehc-900">
-                  <CheckCircle2 className="w-4 h-4 text-ehc-600 flex-shrink-0" />
+              <div key={s.id} className="border border-ehc-500/30 bg-gradient-to-br from-ehc-500/10 to-night-900 rounded-xl p-4">
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-ehc-300">
+                  <CheckCircle2 className="w-4 h-4 text-ehc-400 flex-shrink-0" />
                   {s.name}
                 </h3>
-                <div className="text-xs text-slate-600 mb-2.5 flex flex-wrap gap-1.5">
-                  <span className="bg-ehc-100 text-ehc-800 px-2 py-0.5 rounded-md font-medium">適用可能</span>
-                  <span className="bg-white border border-slate-200 px-2 py-0.5 rounded-md">期間: {s.period}</span>
-                  <span className="bg-white border border-slate-200 px-2 py-0.5 rounded-md">補助率: {s.rate}</span>
-                  <span className="bg-white border border-slate-200 px-2 py-0.5 rounded-md">上限: {s.max}</span>
+                <div className="text-xs text-slate-400 mb-2.5 flex flex-wrap gap-1.5">
+                  <span className="bg-ehc-500/15 text-ehc-300 px-2 py-0.5 rounded-md font-medium">適用可能</span>
+                  <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">期間: {s.period}</span>
+                  <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">補助率: {s.rate}</span>
+                  <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">上限: {s.max}</span>
                 </div>
-                <div className="text-xs text-slate-700">
-                  <p><strong className="text-slate-900">要件:</strong> {s.requirement}</p>
-                  <p className="mt-1"><strong className="text-slate-900">必要書類:</strong> {s.docs}</p>
+                <div className="text-xs text-slate-300">
+                  <p><strong className="text-white">要件:</strong> {s.requirement}</p>
+                  <p className="mt-1"><strong className="text-white">必要書類:</strong> {s.docs}</p>
                 </div>
               </div>
             ))}
@@ -260,8 +260,8 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
         <CardTitle icon={<Lightbulb className="w-5 h-5" />}>今やるべき5つの理由</CardTitle>
         <ul className="space-y-2.5">
           {result.reasons.map((r, i) => (
-            <li key={i} className="bg-gradient-to-r from-amber-50 to-white border border-amber-100 px-4 py-3 rounded-xl text-sm text-slate-800 flex items-start gap-3">
-              <span className="bg-amber-200 text-amber-900 font-bold w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs">
+            <li key={i} className="bg-gradient-to-r from-amber-500/10 to-night-900 border border-amber-500/20 px-4 py-3 rounded-xl text-sm text-slate-100 flex items-start gap-3">
+              <span className="bg-amber-500/20 text-amber-300 font-bold w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs">
                 {i + 1}
               </span>
               <span>{r}</span>
@@ -274,10 +274,10 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
 }
 
 const ACCENT_COLORS = {
-  green: "from-ehc-50 to-ehc-100 text-ehc-800",
-  amber: "from-amber-50 to-amber-100 text-amber-800",
-  blue: "from-sky-50 to-sky-100 text-sky-800",
-  purple: "from-violet-50 to-violet-100 text-violet-800",
+  green: "from-ehc-500/10 to-ehc-500/10 text-ehc-300",
+  amber: "from-amber-500/10 to-amber-500/10 text-amber-300",
+  blue: "from-sky-500/10 to-sky-500/10 text-sky-300",
+  purple: "from-violet-500/10 to-violet-500/10 text-violet-300",
 };
 
 function RoiBox({
@@ -291,7 +291,7 @@ function RoiBox({
 }) {
   return (
     <div className={`bg-gradient-to-br ${ACCENT_COLORS[accent]} p-4 rounded-xl shadow-soft`}>
-      <div className="text-[11px] text-slate-600 font-medium mb-1">{label}</div>
+      <div className="text-[11px] text-slate-400 font-medium mb-1">{label}</div>
       <div className="text-2xl font-bold tracking-tight">{value}</div>
     </div>
   );
@@ -304,9 +304,9 @@ function IndustryBasis({ building, reductionRate }: { building: string; reductio
   const fridge = profile.electricBreakdown.find((b) => b.category === "冷凍冷蔵");
   const refrigerantPct = (ac?.pct ?? 0) + (fridge?.pct ?? 0);
   return (
-    <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4">
-      <div className="text-xs font-semibold text-slate-700 mb-2.5 flex items-center gap-1.5">
-        <PieChart className="w-3.5 h-3.5 text-ehc-600" />
+    <div className="mt-4 bg-white/5 border border-white/10 rounded-xl p-4">
+      <div className="text-xs font-semibold text-slate-300 mb-2.5 flex items-center gap-1.5">
+        <PieChart className="w-3.5 h-3.5 text-ehc-400" />
         想定削減率 {(reductionRate * 100).toFixed(0)}% の根拠 — {profile.label}の電力消費内訳
       </div>
       <div className="flex w-full h-5 rounded-md overflow-hidden mb-2">
@@ -318,7 +318,7 @@ function IndustryBasis({ building, reductionRate }: { building: string; reductio
           />
         ))}
       </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600 mb-2.5">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400 mb-2.5">
         {profile.electricBreakdown.map((b) => (
           <span key={b.category} className="inline-flex items-center gap-1">
             <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: b.color }} />
@@ -326,11 +326,11 @@ function IndustryBasis({ building, reductionRate }: { building: string; reductio
           </span>
         ))}
       </div>
-      <p className="text-[11px] text-slate-600 leading-relaxed">
+      <p className="text-[11px] text-slate-400 leading-relaxed">
         {profile.label}では冷媒を使う設備（空調{ac ? `${ac.pct}%` : ""}
-        {fridge ? `＋冷凍冷蔵${fridge.pct}%` : ""}）が電力の<strong className="text-ehc-700">約{refrigerantPct}%</strong>を占めます。
+        {fridge ? `＋冷凍冷蔵${fridge.pct}%` : ""}）が電力の<strong className="text-ehc-300">約{refrigerantPct}%</strong>を占めます。
         高効率機への更新・炭化水素冷媒ドロップインでこの部分を中心に削減できるため、
-        当業種の想定削減率を<strong className="text-ehc-700">{(reductionRate * 100).toFixed(0)}%</strong>として試算しています
+        当業種の想定削減率を<strong className="text-ehc-300">{(reductionRate * 100).toFixed(0)}%</strong>として試算しています
         （出典: 資源エネルギー庁／EHC施工実績平均）。
       </p>
     </div>
