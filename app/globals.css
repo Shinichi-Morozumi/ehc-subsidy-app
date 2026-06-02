@@ -19,6 +19,19 @@ html, body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* ネイティブフォーム部品(select等)をダーク描画にする */
+  color-scheme: dark;
+}
+
+/* select / option をダークで確実に表示（白被り対策） */
+select, option {
+  background-color: #1f1f1f;
+  color: #f5f5f5;
+}
+select option:checked,
+select option:hover {
+  background-color: #2d4295;
+  color: #ffffff;
 }
 
 /* 特大ディスプレイ見出し（リファレンス調） */
