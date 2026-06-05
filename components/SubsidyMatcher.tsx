@@ -1,17 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input, Button } from "./ui/Field";
-import { MatchInput, BizType, SizeType, EquipType, RefriType } from "@/lib/types";
-import { matchSubsidies, MatchResult } from "@/lib/match";
+import { MatchInput, BizType, SizeType, EquipType, RefriType, EquipGroup, KwhMode } from "@/lib/types";
+import { matchSubsidies, MatchResult, GroupResult } from "@/lib/match";
 import { ReportTeaser } from "./ReportTeaser";
 import { CustomerReport } from "./CustomerReport";
 import { SampleCases } from "./SampleCases";
 import { SampleCase } from "@/lib/samples";
-import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart } from "lucide-react";
+import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge } from "lucide-react";
 import { RoiChart } from "./RoiChart";
+import { GroupSavingsChart } from "./GroupSavingsChart";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
+
+let GID = 0;
+const newGroup = (over: Partial<EquipGroup> = {}): EquipGroup => ({
+  id: `g${++GID}_${Date.now()}`,
+  refri: "r410a",
+  equip: "ac",
+  installYear: new Date().getFullYear() - 12,
+  units: 1,
+  hp: undefined,
+  ...over,
+});
 
 const PREFS = ["東京都", "神奈川県", "大阪府", "埼玉県", "千葉県", "愛知県", "北海道", "福岡県", "その他"];
 
@@ -37,31 +49,56 @@ export function SubsidyMatcher() {
     size: "sme",
     pref: "東京都",
     building: "office",
-    equip: "ac",
-    years: 15,
-    refri: "r410a",
+    equipGroups: [newGroup({ refri: "r410a", equip: "ac", installYear: new Date().getFullYear() - 12, units: 5 })],
+    kwhMode: "auto",
     kwh: 80000,
     invest: 500,
-    co2: 5,
     customerCompany: "",
     customerContact: "",
     ehcStaff: "",
   });
   const [result, setResult] = useState<MatchResult | null>(null);
+  // 一度でも「即答」を押したら、以降は入力変更に結果を自動連動させる
+  const [hasRun, setHasRun] = useState(false);
 
   const set = <K extends keyof MatchInput>(key: K, val: MatchInput[K]) =>
     setInput((prev) => ({ ...prev, [key]: val }));
 
+  // 設備グループ操作
+  const addGroup = () =>
+    setInput((prev) => ({ ...prev, equipGroups: [...prev.equipGroups, newGroup()] }));
+  const removeGroup = (id: string) =>
+    setInput((prev) => ({
+      ...prev,
+      equipGroups: prev.equipGroups.length > 1 ? prev.equipGroups.filter((g) => g.id !== id) : prev.equipGroups,
+    }));
+  const updateGroup = (id: string, patch: Partial<EquipGroup>) =>
+    setInput((prev) => ({
+      ...prev,
+      equipGroups: prev.equipGroups.map((g) => (g.id === id ? { ...g, ...patch } : g)),
+    }));
+
   const applySample = (sample: SampleCase) => {
     setInput((prev) => ({ ...prev, ...sample.data }));
-    setResult(null);
+    // hasRun中はuseEffectが新しい入力で自動再計算する
   };
+
+  // 入力が変わるたびに結果・ROI・提案書をライブ再計算（初回即答後）
+  useEffect(() => {
+    if (!hasRun) return;
+    if (input.bizType === "personal") {
+      setResult(null);
+      return;
+    }
+    setResult(matchSubsidies(input));
+  }, [input, hasRun]);
 
   const run = () => {
     if (input.bizType === "personal") {
       alert("EHCは業務用専門です。法人・事業者としてご検討ください。");
       return;
     }
+    setHasRun(true);
     setResult(matchSubsidies(input));
     setTimeout(() => {
       document.getElementById("result-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -135,38 +172,70 @@ export function SubsidyMatcher() {
               <option value="other">その他事業所</option>
             </Select>
           </Field>
-          <Field label="既存設備" help={HELP.equip}>
-            <Select value={input.equip} onChange={(e) => set("equip", e.target.value as EquipType)}>
-              <option value="ac">業務用エアコン（パッケージ）</option>
-              <option value="multi">マルチエアコン（ビル用）</option>
-            </Select>
-          </Field>
-          <Field label="設置からの年数" help={HELP.years}>
-            <Select value={input.years} onChange={(e) => set("years", Number(e.target.value))}>
-              <option value={5}>5年未満</option>
-              <option value={10}>5〜10年</option>
-              <option value={15}>10〜15年（更新推奨ゾーン）</option>
-              <option value={20}>15〜20年（要更新）</option>
-              <option value={25}>20年以上（緊急更新）</option>
-            </Select>
-          </Field>
-          <Field label="現在の冷媒" help={HELP.refri}>
-            <Select value={input.refri} onChange={(e) => set("refri", e.target.value as RefriType)}>
-              <option value="r22">R22（HCFC・既に製造禁止）</option>
-              <option value="r410a">R410A（HFC・段階的廃止中）</option>
-              <option value="r32">R32（現行HFC・GWP675）</option>
-              <option value="unknown">不明</option>
-            </Select>
-          </Field>
-          <Field label="年間電力使用量 (kWh)" help={HELP.kwh}>
-            <Input type="number" value={input.kwh} onChange={(e) => set("kwh", Number(e.target.value))} />
-          </Field>
+        </div>
+
+        {/* 設備グループ（複数機種対応） */}
+        <div className="mt-5">
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+            <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <Layers className="w-4 h-4 text-cobalt-300" /> 設備グループ（冷媒・台数・設置年が異なる機種を行で追加）
+            </div>
+            <button onClick={addGroup} type="button" className="text-[11px] px-2.5 py-1 rounded-md border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-600/15 flex items-center gap-1">
+              <Plus className="w-3.5 h-3.5" /> 設備グループ追加
+            </button>
+          </div>
+          <div className="space-y-2">
+            {input.equipGroups.map((g) => (
+              <GroupRow
+                key={g.id}
+                g={g}
+                measured={input.kwhMode === "measured"}
+                canRemove={input.equipGroups.length > 1}
+                onChange={(p) => updateGroup(g.id, p)}
+                onRemove={() => removeGroup(g.id)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* 年間電力使用量の入力方法 */}
+        <div className="mt-5">
+          <div className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
+            <Gauge className="w-4 h-4 text-cobalt-300" /> 年間電力使用量(kWh)の入力方法
+          </div>
+          <div className="flex gap-1 p-1 bg-night-800 border border-white/10 rounded-lg w-fit mb-3">
+            {([["auto", "総量を自動按分"], ["measured", "実測値を入力(エニマス等)"]] as [KwhMode, string][]).map(([m, label]) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => set("kwhMode", m)}
+                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${input.kwhMode === m ? "bg-cobalt-600 text-white" : "text-slate-400 hover:text-white"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {input.kwhMode === "auto" ? (
+            <Field label="年間総電力使用量 (kWh)" help={HELP.kwh}>
+              <Input type="number" value={input.kwh} onChange={(e) => set("kwh", Number(e.target.value))} />
+              <div className="text-[10px] text-slate-500 mt-1">各設備グループへ「台数×馬力」で自動按分します（馬力未入力は台数で按分）。</div>
+            </Field>
+          ) : (
+            <div className="text-[11px] text-slate-400 bg-white/5 border border-white/10 rounded-lg p-2.5">
+              各設備グループの行に「実測kWh」欄が表示されます。エニマス等のデマンド計測値を入力してください（合計が年間総使用量になります）。
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="設備投資概算 (万円)" help={HELP.invest}>
             <Input type="number" value={input.invest} onChange={(e) => set("invest", Number(e.target.value))} />
           </Field>
-          <Field label="CO2削減量 (t/年・想定)" help={HELP.co2}>
-            <Input type="number" value={input.co2} onChange={(e) => set("co2", Number(e.target.value))} />
-          </Field>
+          <div className="flex items-end">
+            <div className="text-[11px] text-slate-500 bg-white/5 border border-white/10 rounded-lg p-2.5 w-full">
+              CO2削減量は削減kWhから自動計算されます（排出係数 0.000434 t-CO₂/kWh・環境省全国平均）。神奈川県補助金の3t/年要件も自動判定。
+            </div>
+          </div>
         </div>
         {input.bizType === "personal" && (
           <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 p-4 rounded-xl text-sm mt-4 flex gap-3">
@@ -178,8 +247,14 @@ export function SubsidyMatcher() {
         )}
         <Button onClick={run} className="mt-5">
           <Sparkles className="w-5 h-5" />
-          即答（マッチング & 提案書生成）
+          {hasRun ? "再計算（最新の入力で更新）" : "即答（マッチング & 提案書生成）"}
         </Button>
+        {hasRun && (
+          <div className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-cobalt-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-cobalt-400 animate-pulse" />
+            ライブ更新中：各項目を変更すると結果・ROI・提案書が自動で再計算されます
+          </div>
+        )}
       </Card>
 
       {result && (
@@ -192,40 +267,196 @@ export function SubsidyMatcher() {
   );
 }
 
+// 設備グループ1行の編集UI
+function GroupRow({
+  g,
+  measured,
+  canRemove,
+  onChange,
+  onRemove,
+}: {
+  g: EquipGroup;
+  measured: boolean;
+  canRemove: boolean;
+  onChange: (p: Partial<EquipGroup>) => void;
+  onRemove: () => void;
+}) {
+  const cls = "px-2 py-1.5 border border-white/15 rounded-md text-xs bg-night-800 text-white focus:outline-none focus:border-cobalt-500 w-full";
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-lg p-2.5">
+      <div className="grid grid-cols-2 md:grid-cols-12 gap-2 items-end">
+        <div className="md:col-span-3">
+          <label className="text-[10px] text-slate-500">冷媒</label>
+          <select className={cls} value={g.refri} onChange={(e) => onChange({ refri: e.target.value as RefriType })}>
+            <option value="r22">R22（最旧・製造禁止）</option>
+            <option value="r410a">R410A（1世代前）</option>
+            <option value="r32">R32（現行）</option>
+            <option value="unknown">不明</option>
+          </select>
+        </div>
+        <div className="md:col-span-3">
+          <label className="text-[10px] text-slate-500">種別</label>
+          <select className={cls} value={g.equip} onChange={(e) => onChange({ equip: e.target.value as EquipType })}>
+            <option value="ac">パッケージ</option>
+            <option value="multi">マルチ(ビル用)</option>
+          </select>
+        </div>
+        <div className="md:col-span-2">
+          <label className="text-[10px] text-slate-500">設置年(西暦)</label>
+          <input type="number" className={cls} value={g.installYear} onChange={(e) => onChange({ installYear: Number(e.target.value) })} />
+        </div>
+        <div className="md:col-span-1">
+          <label className="text-[10px] text-slate-500">台数</label>
+          <input type="number" className={cls} value={g.units} onChange={(e) => onChange({ units: Number(e.target.value) })} />
+        </div>
+        <div className="md:col-span-1">
+          <label className="text-[10px] text-slate-500">馬力</label>
+          <input type="number" className={cls} value={g.hp ?? ""} placeholder="任意" onChange={(e) => onChange({ hp: e.target.value ? Number(e.target.value) : undefined })} />
+        </div>
+        {measured ? (
+          <div className="md:col-span-2">
+            <label className="text-[10px] text-cobalt-200">実測kWh/年</label>
+            <input type="number" className={cls} value={g.kwh ?? ""} placeholder="エニマス等" onChange={(e) => onChange({ kwh: e.target.value ? Number(e.target.value) : undefined })} />
+          </div>
+        ) : (
+          <div className="md:col-span-1 flex justify-end">
+            <button type="button" onClick={onRemove} disabled={!canRemove} className={`p-1.5 rounded-md ${canRemove ? "text-red-300 hover:bg-red-500/10" : "text-slate-600 cursor-not-allowed"}`} title="削除">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+        {measured && (
+          <div className="md:col-span-12 flex justify-end">
+            <button type="button" onClick={onRemove} disabled={!canRemove} className={`text-[10px] flex items-center gap-1 px-2 py-1 rounded ${canRemove ? "text-red-300 hover:bg-red-500/10" : "text-slate-600 cursor-not-allowed"}`}>
+              <Trash2 className="w-3 h-3" /> この設備グループを削除
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ResultView({ result, input }: { result: MatchResult; input: MatchInput }) {
+  const [view, setView] = useState<"overall" | "groups">("overall");
+  const netInvestYen = Math.max(0, input.invest - result.bestSubsidyManYen) * 10000;
+  const horizons = [5, 10, 15].map((y) => {
+    const cum = result.saveYenPerYear * y;
+    return { y, cum, net: cum - netInvestYen };
+  });
+  const totalKwhForChart = result.totalKwh || input.kwh;
   return (
     <div className="space-y-5 no-print">
       <Card>
         <CardTitle icon={<BarChart3 className="w-5 h-5" />}>ROI シミュレーション</CardTitle>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <RoiBox label="想定補助金" value={`¥${(result.bestSubsidyManYen * 10000).toLocaleString("ja-JP")}`} accent="green" />
-          <RoiBox label="投資回収期間" value={result.yearsToRecover !== null ? `${result.yearsToRecover} 年` : "計算不能"} accent="amber" />
+          <RoiBox label="損益分岐(投資回収)" value={result.yearsToRecover !== null ? `${result.yearsToRecover} 年` : "計算不能"} accent="amber" />
           <RoiBox label="年間電気代削減" value={`¥${result.saveYenPerYear.toLocaleString("ja-JP")}`} accent="blue" />
           <RoiBox label="15年間累計削減" value={`¥${result.total15YearsYen.toLocaleString("ja-JP")}`} accent="purple" />
+          <RoiBox label="CO₂削減(自動)" value={`${result.co2ReductionTon} t/年`} accent="green" />
         </div>
-        <IndustryBasis building={input.building} reductionRate={result.industryReductionRate} />
+
+        {/* 投資効果 比較表（5/10/15年・損益分岐） */}
+        <div className="mt-4 bg-white/5 border border-white/10 rounded-xl p-4">
+          <div className="text-xs font-semibold text-slate-300 mb-2.5 flex items-center gap-1.5">
+            <BarChart3 className="w-3.5 h-3.5 text-cobalt-300" /> 投資効果 比較表（実質投資 ¥{netInvestYen.toLocaleString("ja-JP")}＝設備投資−補助金）
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-slate-400 border-b border-white/10">
+                  <th className="text-left py-1.5 pr-2">期間</th>
+                  <th className="text-right py-1.5 px-2">累計電気代削減</th>
+                  <th className="text-right py-1.5 px-2">純便益（削減−実質投資）</th>
+                  <th className="text-right py-1.5 pl-2">投資対効果</th>
+                </tr>
+              </thead>
+              <tbody>
+                {horizons.map((h) => (
+                  <tr key={h.y} className="border-b border-white/5">
+                    <td className="py-1.5 pr-2 text-slate-200 font-semibold">{h.y}年</td>
+                    <td className="py-1.5 px-2 text-right text-slate-200">¥{h.cum.toLocaleString("ja-JP")}</td>
+                    <td className={`py-1.5 px-2 text-right font-bold ${h.net >= 0 ? "text-ehc-300" : "text-red-300"}`}>
+                      {h.net >= 0 ? "+" : "−"}¥{Math.abs(h.net).toLocaleString("ja-JP")}
+                    </td>
+                    <td className="py-1.5 pl-2 text-right text-cobalt-200">
+                      {netInvestYen > 0 ? `${(h.cum / netInvestYen).toFixed(1)}倍` : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="text-[10px] text-slate-500 mt-2">
+            損益分岐点 = {result.yearsToRecover !== null ? `約${result.yearsToRecover}年` : "—"}。純便益がプラスに転じる時点。電気単価27円/kWhで試算。
+          </div>
+        </div>
+
+        <IndustryBasis building={input.building} result={result} />
       </Card>
 
+      {/* 全体 / 設備グループ別 タブ */}
       <Card>
-        <CardTitle icon={<LineChartIcon className="w-5 h-5" />}>15年累計コスト 比較</CardTitle>
-        <RoiChart
-          invest={input.invest}
-          bestSubsidyManYen={result.bestSubsidyManYen}
-          saveYenPerYear={result.saveYenPerYear}
-          kwhPerYear={input.kwh}
-          reductionRate={result.industryReductionRate}
-        />
-        <div className="text-[11px] text-slate-400 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-3">
-          <div className="bg-red-500/10 border border-red-500/20 rounded-md px-2 py-1.5">
-            <strong className="text-red-300">赤線:</strong> 何もしない（旧機器維持）
-          </div>
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1.5">
-            <strong className="text-amber-300">橙線:</strong> 更新（補助金なし）
-          </div>
-          <div className="bg-ehc-500/10 border border-ehc-500/30 rounded-md px-2 py-1.5">
-            <strong className="text-ehc-300">緑線:</strong> 更新（補助金あり）← ベスト
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <CardTitle icon={<LineChartIcon className="w-5 h-5" />} className="border-b-0 pb-0 mb-0">
+            削減シミュレーション
+          </CardTitle>
+          <div className="flex gap-1 p-1 bg-night-800 border border-white/10 rounded-lg">
+            {([["overall", "全体"], ["groups", "設備グループ別"]] as ["overall" | "groups", string][]).map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1 ${view === v ? "bg-cobalt-600 text-white" : "text-slate-400 hover:text-white"}`}
+              >
+                {v === "groups" && <Layers className="w-3.5 h-3.5" />}
+                {label}
+              </button>
+            ))}
           </div>
         </div>
+
+        {view === "overall" ? (
+          <>
+            <RoiChart
+              invest={input.invest}
+              bestSubsidyManYen={result.bestSubsidyManYen}
+              saveYenPerYear={result.saveYenPerYear}
+              kwhPerYear={totalKwhForChart}
+              reductionRate={result.effectiveReductionRate}
+            />
+            <div className="text-[11px] text-slate-400 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-3">
+              <div className="bg-red-500/10 border border-red-500/20 rounded-md px-2 py-1.5">
+                <strong className="text-red-300">赤線:</strong> 何もしない（旧機器維持）
+              </div>
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1.5">
+                <strong className="text-amber-300">橙線:</strong> 更新（補助金なし）
+              </div>
+              <div className="bg-ehc-500/10 border border-ehc-500/30 rounded-md px-2 py-1.5">
+                <strong className="text-ehc-300">緑線:</strong> 更新（補助金あり）← ベスト
+              </div>
+            </div>
+            {result.groups.length > 1 && (
+              <div className="mt-5">
+                <div className="text-xs font-semibold text-slate-300 mb-1.5">設備グループ別 年間削減額の内訳</div>
+                <GroupSavingsChart groups={result.groups} />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {result.groups.map((g) => (
+                <GroupCard key={g.id} g={g} />
+              ))}
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-slate-300 mb-1.5">設備グループ別 年間削減額の比較</div>
+              <GroupSavingsChart groups={result.groups} />
+            </div>
+          </div>
+        )}
       </Card>
 
       <Card>
@@ -297,17 +528,22 @@ function RoiBox({
   );
 }
 
-// 業種別の電力消費内訳と想定削減率の根拠（出典: 資源エネルギー庁）を表示
-function IndustryBasis({ building, reductionRate }: { building: string; reductionRate: number }) {
+// 業種別の電力消費内訳＋経年劣化補正による実効削減率の根拠を表示
+function IndustryBasis({ building, result }: { building: string; result: MatchResult }) {
   const profile = INDUSTRY_PROFILES[building] ?? INDUSTRY_PROFILES.other;
   const ac = profile.electricBreakdown.find((b) => b.category === "空調");
   const fridge = profile.electricBreakdown.find((b) => b.category === "冷凍冷蔵");
   const refrigerantPct = (ac?.pct ?? 0) + (fridge?.pct ?? 0);
+  const basePct = Math.round(result.industryReductionRate * 100);
+  const agePct = Math.round(result.ageDegradationRate * 100);
+  const refriPct = Math.round(result.refriGenRate * 100);
+  const equipPct = Math.round(result.equipBonusRate * 100);
+  const effPct = Math.round(result.effectiveReductionRate * 100);
   return (
     <div className="mt-4 bg-white/5 border border-white/10 rounded-xl p-4">
       <div className="text-xs font-semibold text-slate-300 mb-2.5 flex items-center gap-1.5">
         <PieChart className="w-3.5 h-3.5 text-ehc-400" />
-        想定削減率 {(reductionRate * 100).toFixed(0)}% の根拠 — {profile.label}の電力消費内訳
+        実効削減率 {effPct}% の根拠 — {profile.label}の電力消費内訳＋経年劣化
       </div>
       <div className="flex w-full h-5 rounded-md overflow-hidden mb-2">
         {profile.electricBreakdown.map((b) => (
@@ -318,7 +554,7 @@ function IndustryBasis({ building, reductionRate }: { building: string; reductio
           />
         ))}
       </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400 mb-2.5">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400 mb-3">
         {profile.electricBreakdown.map((b) => (
           <span key={b.category} className="inline-flex items-center gap-1">
             <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: b.color }} />
@@ -326,13 +562,66 @@ function IndustryBasis({ building, reductionRate }: { building: string; reductio
           </span>
         ))}
       </div>
+      {/* 削減率の内訳: 業種＋冷媒世代＋設備制御＋経年回復 = 実効 */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-center mb-2.5">
+        <div className="bg-night-900 border border-white/10 rounded-md p-2">
+          <div className="text-[10px] text-slate-500">業種・高効率化</div>
+          <div className="text-sm font-bold text-slate-200">{basePct}%</div>
+        </div>
+        <div className="bg-night-900 border border-white/10 rounded-md p-2">
+          <div className="text-[10px] text-slate-500">冷媒世代</div>
+          <div className="text-sm font-bold text-ehc-300">+{refriPct}%</div>
+        </div>
+        <div className="bg-night-900 border border-white/10 rounded-md p-2">
+          <div className="text-[10px] text-slate-500">設備制御</div>
+          <div className="text-sm font-bold text-ehc-300">+{equipPct}%</div>
+        </div>
+        <div className="bg-night-900 border border-white/10 rounded-md p-2">
+          <div className="text-[10px] text-slate-500">経年劣化(加重平均)</div>
+          <div className="text-sm font-bold text-amber-300">+{agePct}%</div>
+        </div>
+        <div className="bg-cobalt-600/15 border border-cobalt-500/40 rounded-md p-2">
+          <div className="text-[10px] text-cobalt-200">実効削減率</div>
+          <div className="text-sm font-bold text-cobalt-200">{effPct}%</div>
+        </div>
+      </div>
       <p className="text-[11px] text-slate-400 leading-relaxed">
-        {profile.label}では冷媒を使う設備（空調{ac ? `${ac.pct}%` : ""}
-        {fridge ? `＋冷凍冷蔵${fridge.pct}%` : ""}）が電力の<strong className="text-ehc-300">約{refrigerantPct}%</strong>を占めます。
-        高効率機への更新・炭化水素冷媒ドロップインでこの部分を中心に削減できるため、
-        当業種の想定削減率を<strong className="text-ehc-300">{(reductionRate * 100).toFixed(0)}%</strong>として試算しています
-        （出典: 資源エネルギー庁／EHC施工実績平均）。
+        {profile.label}は冷媒設備（空調{ac ? `${ac.pct}%` : ""}{fridge ? `＋冷凍冷蔵${fridge.pct}%` : ""}）が電力の約{refrigerantPct}%。
+        高効率化{basePct}%に、冷媒世代差+{refriPct}%（R22/R410A→R32）・設備制御+{equipPct}%（マルチ部分負荷）・経年劣化回復+{agePct}%（設備グループの加重平均・年約2%）を合成し、
+        <strong className="text-cobalt-200">実効{effPct}%</strong>として試算（出典: 資源エネルギー庁／メーカー資料／業界資料「10〜15年で20〜40%低下」「R22機は最新比で消費電力大」／EHC施工実績）。設備グループ別の内訳は「設備グループ別」タブをご覧ください。
       </p>
+    </div>
+  );
+}
+
+// 設備グループ1件の結果カード
+function GroupCard({ g }: { g: GroupResult }) {
+  const refriColor = g.refri === "r22" ? "text-red-300 bg-red-500/15" : g.refri === "r410a" ? "text-amber-300 bg-amber-500/15" : "text-ehc-300 bg-ehc-500/15";
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${refriColor}`}>{g.refri.toUpperCase()}</span>
+          <span className="text-xs text-slate-300">{g.equip === "multi" ? "マルチ" : "パッケージ"} ・ {g.units}台</span>
+        </div>
+        <span className="text-[10px] text-slate-500">{g.installYear}年設置 / 築{g.age}年</span>
+      </div>
+      <div className="flex items-end justify-between">
+        <div>
+          <div className="text-[10px] text-slate-500">実効削減率</div>
+          <div className="text-2xl font-bold text-cobalt-200">{Math.round(g.effectiveReductionRate * 100)}%</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] text-slate-500">年間削減</div>
+          <div className="text-lg font-bold text-ehc-300">¥{g.saveYenPerYear.toLocaleString("ja-JP")}</div>
+          <div className="text-[10px] text-slate-500">{g.kwh.toLocaleString("ja-JP")} kWh/年</div>
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-slate-500">
+        <span className="bg-night-900 border border-white/10 rounded px-1.5 py-0.5">冷媒世代 +{Math.round(g.refriGenRate * 100)}%</span>
+        <span className="bg-night-900 border border-white/10 rounded px-1.5 py-0.5">経年 +{Math.round(g.ageDegradationRate * 100)}%</span>
+        {g.equipBonusRate > 0 && <span className="bg-night-900 border border-white/10 rounded px-1.5 py-0.5">制御 +{Math.round(g.equipBonusRate * 100)}%</span>}
+      </div>
     </div>
   );
 }

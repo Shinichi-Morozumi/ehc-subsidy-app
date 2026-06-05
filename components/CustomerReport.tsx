@@ -74,13 +74,36 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
             <ClipboardList className="w-4 h-4" />
             1. ご確認条件（ヒアリング内容）
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1.5 text-xs border border-slate-200 rounded-lg p-3 bg-slate-50">
-            <CondCell label="業種・用途" value={`${BUILDING_LABELS[input.building] ?? "—"}（${industryLabel}）`} />
-            <CondCell label="設備種別" value={input.equip === "multi" ? "マルチエアコン（ビル用）" : "パッケージエアコン"} />
-            <CondCell label="設置からの年数" value={`${input.years}年`} />
-            <CondCell label="現在の冷媒" value={REFRI_LABELS[input.refri] ?? "—"} />
-            <CondCell label="年間電力使用量" value={`${input.kwh.toLocaleString("ja-JP")} kWh`} />
-            <CondCell label="設備投資概算" value={`${input.invest.toLocaleString("ja-JP")} 万円`} />
+          <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 text-xs">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1.5 mb-3">
+              <CondCell label="業種・用途" value={`${BUILDING_LABELS[input.building] ?? "—"}（${industryLabel}）`} />
+              <CondCell label="年間電力使用量" value={`${result.totalKwh.toLocaleString("ja-JP")} kWh${input.kwhMode === "measured" ? "（実測）" : "（自動按分）"}`} />
+              <CondCell label="設備投資概算" value={`${input.invest.toLocaleString("ja-JP")} 万円`} />
+            </div>
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="text-slate-500 border-b border-slate-200">
+                  <th className="text-left py-1">冷媒</th>
+                  <th className="text-left py-1">種別</th>
+                  <th className="text-right py-1">設置年</th>
+                  <th className="text-right py-1">築年</th>
+                  <th className="text-right py-1">台数</th>
+                  <th className="text-right py-1">年間kWh</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.groups.map((g) => (
+                  <tr key={g.id} className="border-b border-slate-100">
+                    <td className="py-1 font-semibold text-slate-800">{g.refri.toUpperCase()}</td>
+                    <td className="py-1 text-slate-700">{g.equip === "multi" ? "マルチ" : "パッケージ"}</td>
+                    <td className="py-1 text-right text-slate-700">{g.installYear}</td>
+                    <td className="py-1 text-right text-slate-700">築{g.age}年</td>
+                    <td className="py-1 text-right text-slate-700">{g.units}台</td>
+                    <td className="py-1 text-right text-slate-700">{g.kwh.toLocaleString("ja-JP")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
           <p className="text-[10px] text-slate-500 mt-1.5">
             ※ 上記は御社からのヒアリング値に基づく試算条件です。正式見積は現地調査後にご提示します。
@@ -92,15 +115,16 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
             2. ご提案サマリー
           </h2>
           <p className="text-[11px] text-slate-600 mb-2">
-            {industryLabel}は冷媒設備が電力の多くを占めるため、想定削減率
-            <strong className="text-ehc-700">{(result.industryReductionRate * 100).toFixed(0)}%</strong>
-            （出典: 資源エネルギー庁／EHC施工実績平均）で試算しています。
+            {industryLabel}は冷媒設備が電力の多くを占め、設置年・冷媒世代に応じた経年劣化（年約2%）も加味すると、
+            高効率化＋経年回復で<strong className="text-ehc-700">全体の実効削減率 {(result.effectiveReductionRate * 100).toFixed(0)}%</strong>
+            （出典: 資源エネルギー庁／業界資料／EHC施工実績）で試算しています。
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <SummaryCell label="想定補助金額" value={`¥${(result.bestSubsidyManYen * 10000).toLocaleString("ja-JP")}`} color="green" />
-            <SummaryCell label="投資回収期間" value={result.yearsToRecover !== null ? `${result.yearsToRecover} 年` : "—"} color="amber" />
+            <SummaryCell label="損益分岐(回収)" value={result.yearsToRecover !== null ? `${result.yearsToRecover} 年` : "—"} color="amber" />
             <SummaryCell label="年間電気代削減" value={`¥${result.saveYenPerYear.toLocaleString("ja-JP")}`} color="blue" />
             <SummaryCell label="15年累計削減" value={`¥${result.total15YearsYen.toLocaleString("ja-JP")}`} color="purple" />
+            <SummaryCell label="CO₂削減/年" value={`${result.co2ReductionTon} t`} color="green" />
           </div>
         </section>
 
@@ -114,8 +138,8 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
               invest={input.invest}
               bestSubsidyManYen={result.bestSubsidyManYen}
               saveYenPerYear={result.saveYenPerYear}
-              kwhPerYear={input.kwh}
-              reductionRate={result.industryReductionRate}
+              kwhPerYear={result.totalKwh || input.kwh}
+              reductionRate={result.effectiveReductionRate}
             />
           </div>
           <div className="text-[11px] text-slate-600 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-2">
@@ -177,7 +201,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
             <Award className="w-4 h-4" />
             7. EHC 導入実績（御社業種マッチ）
           </h2>
-          <AchievementsSection building={input.building} equip={input.equip} />
+          <AchievementsSection building={input.building} equip={result.representativeEquip} />
         </section>
 
         <section className="mb-5">

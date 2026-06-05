@@ -39,17 +39,28 @@ export interface Diff {
   body: string;
 }
 
+// 設備グループ（冷媒・種別・設置年・台数がバラバラな機種を1案件内で複数扱う）
+export type KwhMode = "auto" | "measured"; // auto=総kWh按分 / measured=エニマス等の実測値をグループ別入力
+
+export interface EquipGroup {
+  id: string;
+  refri: RefriType;
+  equip: EquipType;     // ac=パッケージ / multi=ビル用マルチ
+  installYear: number;  // 設置年(西暦)
+  units: number;        // 台数
+  hp?: number;          // 馬力(任意・自動按分の重み付けに使用)
+  kwh?: number;         // 実測モード時のグループ別 年間電力使用量(kWh)
+}
+
 export interface MatchInput {
   bizType: BizType;
   size: SizeType;
   pref: string;
   building: string;
-  equip: EquipType;
-  years: number;
-  refri: RefriType;
-  kwh: number;
+  equipGroups: EquipGroup[];
+  kwhMode: KwhMode;
+  kwh: number;          // 自動按分モード時の年間総電力使用量(kWh)
   invest: number;
-  co2: number;
   customerCompany: string;
   customerContact: string;
   ehcStaff: string;
