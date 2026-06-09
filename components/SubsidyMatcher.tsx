@@ -470,7 +470,7 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
                   {s.name}
                 </h3>
                 <div className="text-xs text-slate-400 mb-2.5 flex flex-wrap gap-1.5">
-                  <span className="bg-ehc-500/15 text-ehc-300 px-2 py-0.5 rounded-md font-medium">適用可能</span>
+                  <span className={`px-2 py-0.5 rounded-md font-medium ${s.infoOnly ? "bg-amber-500/15 text-amber-300" : "bg-ehc-500/15 text-ehc-300"}`}>{s.infoOnly ? "情報提供（要確認）" : "適用可能"}</span>
                   <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">期間: {s.period}</span>
                   <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">補助率: {s.rate}</span>
                   <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">上限: {s.max}</span>
@@ -478,6 +478,9 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
                 <div className="text-xs text-slate-300">
                   <p><strong className="text-white">要件:</strong> {s.requirement}</p>
                   <p className="mt-1"><strong className="text-white">必要書類:</strong> {s.docs}</p>
+                  {s.infoOnly && (
+                    <p className="mt-1 text-amber-300/90">※ 販路開拓・業務効率化が主目的の制度です。設備費が補助対象経費になるかは事業計画次第のため、想定補助金・投資回収には含めていません。</p>
+                  )}
                 </div>
               </div>
             ))}

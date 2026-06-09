@@ -23,6 +23,9 @@ export function SubsidyDB() {
               <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">
                 地域: {s.pref === "all" ? "全国" : s.pref.join("・")}
               </span>
+              {s.infoOnly && (
+                <span className="bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-md">情報提供（小規模のみ・要事業計画）</span>
+              )}
             </div>
             <div className="text-xs text-slate-300 space-y-1">
               <p><strong className="text-white">要件:</strong> {s.requirement}</p>
