@@ -14,6 +14,7 @@ import { RoiChart } from "./RoiChart";
 import { GroupSavingsChart } from "./GroupSavingsChart";
 import { useProject } from "./ProjectContext";
 import { RoadmapView } from "./RoadmapView";
+import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
 
 let GID = 0;
@@ -63,6 +64,7 @@ export function SubsidyMatcher() {
   // 一度でも「即答」を押したら、以降は入力変更に結果を自動連動させる
   const [hasRun, setHasRun] = useState(false);
   const { setProject } = useProject();
+  const [agreed, setAgreed] = useState(false);
 
   const set = <K extends keyof MatchInput>(key: K, val: MatchInput[K]) =>
     setInput((prev) => ({ ...prev, [key]: val }));
@@ -268,7 +270,20 @@ export function SubsidyMatcher() {
         <div id="result-section" className="space-y-5">
           <ResultView result={result} input={input} />
           <RoadmapView input={input} result={result} compact />
-          <CustomerReport input={input} result={result} />
+          <SubsidyDisclaimer />
+          <Card>
+            <label className="flex items-start gap-2.5 text-sm text-slate-200 cursor-pointer">
+              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 w-4 h-4 accent-ehc-400 flex-shrink-0" />
+              <span>上記の補助金情報が<strong className="text-white">あくまで目安</strong>であり、公募内容・締切は予告なく変更されるため、最新条件は公募要領／当社で要確認であることを理解しました。（お客様提案書の表示・PDF出力に同意します）</span>
+            </label>
+          </Card>
+          {agreed ? (
+            <CustomerReport input={input} result={result} />
+          ) : (
+            <Card>
+              <p className="text-sm text-slate-400">☑ 上のチェックを入れると、お客様提案書（PDF出力可）が表示されます。</p>
+            </Card>
+          )}
         </div>
       )}
     </div>

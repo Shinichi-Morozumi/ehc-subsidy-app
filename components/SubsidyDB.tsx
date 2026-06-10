@@ -1,9 +1,12 @@
 import { Card, CardTitle } from "./ui/Card";
 import { SUBSIDIES } from "@/lib/subsidies";
 import { Database, ExternalLink } from "lucide-react";
+import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 
 export function SubsidyDB() {
   return (
+    <div className="space-y-4">
+      <SubsidyDisclaimer />
     <Card>
       <CardTitle icon={<Database className="w-5 h-5" />}>
         2026年度 業務用空調向け 補助金データベース
@@ -43,5 +46,6 @@ export function SubsidyDB() {
         ))}
       </div>
     </Card>
+    </div>
   );
 }

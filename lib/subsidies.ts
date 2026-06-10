@@ -1,5 +1,8 @@
 import { Subsidy } from "./types";
 
+// 補助金データの確認日（注記・鮮度表示に使用）。データ更新時はここも更新。
+export const SUBSIDY_DATA_ASOF = "2026年6月9日";
+
 export const SUBSIDIES: Subsidy[] = [
   {
     id: "sii_iv",
