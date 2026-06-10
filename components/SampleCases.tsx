@@ -1,9 +1,9 @@
 "use client";
 
 import { SAMPLE_CASES, SampleCase } from "@/lib/samples";
-import { Sparkles, MousePointerClick } from "lucide-react";
+import { Sparkles, MousePointerClick, Check } from "lucide-react";
 
-export function SampleCases({ onPick }: { onPick: (sample: SampleCase) => void }) {
+export function SampleCases({ onPick, selectedId }: { onPick: (sample: SampleCase) => void; selectedId?: string | null }) {
   return (
     <div className="bg-night-900 border border-white/10 rounded-2xl p-5 shadow-soft no-print">
       <div className="mb-4">
@@ -21,12 +21,22 @@ export function SampleCases({ onPick }: { onPick: (sample: SampleCase) => void }
           <button
             key={s.id}
             onClick={() => onPick(s)}
-            className="text-left p-3 rounded-xl border border-white/10 hover:border-cobalt-400/50 hover:bg-ehc-500/10 transition-all group"
+            aria-pressed={selectedId === s.id}
+            className={`text-left p-3 rounded-xl border transition-all group relative ${
+              selectedId === s.id
+                ? "border-ehc-400 bg-ehc-500/15 ring-1 ring-ehc-400/60 shadow-card"
+                : "border-white/10 hover:border-cobalt-400/50 hover:bg-ehc-500/10"
+            }`}
           >
-            <div className="text-xs font-semibold text-white group-hover:text-ehc-300 mb-0.5">
+            {selectedId === s.id && (
+              <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-ehc-500 text-white">
+                <Check className="w-3 h-3" />
+              </span>
+            )}
+            <div className={`text-xs font-semibold mb-0.5 ${selectedId === s.id ? "text-ehc-200" : "text-white group-hover:text-ehc-300"}`}>
               {s.label}
             </div>
-            <div className="text-[10px] text-slate-500 group-hover:text-ehc-300 leading-tight">
+            <div className={`text-[10px] leading-tight ${selectedId === s.id ? "text-ehc-300/80" : "text-slate-500 group-hover:text-ehc-300"}`}>
               {s.subtitle}
             </div>
           </button>

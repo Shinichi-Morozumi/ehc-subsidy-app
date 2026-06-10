@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input, Button } from "./ui/Field";
 import { MatchInput, BizType, SizeType, EquipType, RefriType, EquipGroup, KwhMode } from "@/lib/types";
@@ -65,6 +65,9 @@ export function SubsidyMatcher() {
   const [hasRun, setHasRun] = useState(false);
   const { setProject } = useProject();
   const [agreed, setAgreed] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [selectedSampleId, setSelectedSampleId] = useState<string | null>(null);
+  const toastTimer = useRef<number | null>(null);
 
   const set = <K extends keyof MatchInput>(key: K, val: MatchInput[K]) =>
     setInput((prev) => ({ ...prev, [key]: val }));
@@ -85,6 +88,10 @@ export function SubsidyMatcher() {
 
   const applySample = (sample: SampleCase) => {
     setInput((prev) => ({ ...prev, ...sample.data }));
+    setSelectedSampleId(sample.id);
+    setToast(`「${sample.label}」を入力欄に反映しました`);
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 2500);
     // hasRun中はuseEffectが新しい入力で自動再計算する
   };
 
@@ -116,9 +123,15 @@ export function SubsidyMatcher() {
 
   return (
     <div className="space-y-5">
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-ehc-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lift flex items-center gap-2 no-print">
+          <CheckCircle2 className="w-4 h-4" />
+          {toast}
+        </div>
+      )}
       <ReportTeaser />
 
-      <SampleCases onPick={applySample} />
+      <SampleCases onPick={applySample} selectedId={selectedSampleId} />
 
       <Card>
         <CardTitle icon={<User className="w-5 h-5" />}>お客様情報（提案書ヘッダー用）</CardTitle>

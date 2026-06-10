@@ -8,21 +8,115 @@ export interface TimelineStep {
   star?: boolean; // 重要マイルストーン（交付決定など）
 }
 
-// 補助金フロー（公募→申請→交付決定→着工→完工→実績報告→入金）。月数は一般的な概算。
-export function buildSubsidyTimeline(): { steps: TimelineStep[]; caution: string } {
-  return {
-    steps: [
-      { label: "公募開始", month: 0 },
-      { label: "申請締切", month: 1, note: "GビズIDプライム・事業計画・見積を準備" },
-      { label: "交付決定", month: 3, star: true, note: "この前に発注・着工すると補助対象外（フライング厳禁）" },
-      { label: "着工", month: 3 },
-      { label: "完工", month: 5 },
-      { label: "実績報告", month: 6, note: "請求書・施工写真・計測データを提出" },
-      { label: "補助金入金", month: 9, star: true, note: "確定検査後の後払い。概ね2〜3か月で精算" },
-    ],
-    caution:
-      "原則『交付決定後に着工』。決定前の発注・着工は補助対象外です。入金は工事完了→実績報告→確定後の後払いのため、つなぎ資金の確保を推奨します。",
-  };
+// 補助金フロー（公募→申請→交付決定→着工→完工→実績報告→入金）。
+// 各制度の実公募日程と「今日」を比較し、実カレンダー日付＋進捗(完了/現在地/予定)で返す。
+export interface DatedStep {
+  label: string;
+  dateLabel: string;
+  note?: string;
+  status: "done" | "current" | "upcoming";
+  star?: boolean;
+}
+export interface SubsidyTimeline {
+  headline: string;
+  steps: DatedStep[];
+  caution: string;
+  estimated: boolean; // true=日程が概算/未定
+}
+
+const SUBSIDY_CAUTION =
+  "原則『交付決定後に着工』。決定前の発注・着工は補助対象外です。入金は工事完了→実績報告→確定後の後払いのため、つなぎ資金の確保を推奨します。";
+
+function tlParseDate(s?: string): Date | null {
+  if (!s) return null;
+  const d = new Date(s + "T00:00:00");
+  return isNaN(d.getTime()) ? null : d;
+}
+function tlAddMonths(d: Date, m: number): Date {
+  const x = new Date(d);
+  x.setMonth(x.getMonth() + m);
+  return x;
+}
+function tlStartOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function tlYm(d: Date): string {
+  return `${d.getFullYear()}年${d.getMonth() + 1}月`;
+}
+function tlDayDiff(a: Date, b: Date): number {
+  return Math.ceil((tlStartOfDay(b).getTime() - tlStartOfDay(a).getTime()) / 86400000);
+}
+function tlWithStatus(
+  ms: { label: string; date: Date; note?: string; star?: boolean }[],
+  today: Date
+): DatedStep[] {
+  const t = tlStartOfDay(today).getTime();
+  let cur = ms.findIndex((m) => tlStartOfDay(m.date).getTime() >= t);
+  if (cur === -1) cur = ms.length;
+  return ms.map((m, i) => ({
+    label: m.label,
+    dateLabel: tlYm(m.date),
+    note: m.note,
+    star: m.star,
+    status: i < cur ? "done" : i === cur ? "current" : "upcoming",
+  }));
+}
+
+export function buildSubsidyTimeline(
+  subsidy?: { applyOpen?: string; applyClose?: string; scheduleNote?: string } | null,
+  today: Date = new Date()
+): SubsidyTimeline {
+  const close = tlParseDate(subsidy?.applyClose);
+  const open = tlParseDate(subsidy?.applyOpen) || (close ? tlAddMonths(close, -1) : null);
+  const note = subsidy?.scheduleNote;
+  const t = tlStartOfDay(today).getTime();
+
+  // 公募回が判明し、締切が未到来（=今から狙える回）→ 実日付タイムライン
+  if (close && open && tlStartOfDay(close).getTime() >= t) {
+    const grant = tlAddMonths(close, 2);
+    const finish = tlAddMonths(close, 4);
+    const report = tlAddMonths(close, 5);
+    const pay = tlAddMonths(close, 8);
+    const ms = [
+      { label: "公募開始", date: open },
+      { label: "申請締切", date: close, note: "GビズIDプライム・事業計画・見積を準備" },
+      { label: "交付決定", date: grant, star: true, note: "この前の発注・着工は補助対象外（フライング厳禁）" },
+      { label: "着工", date: grant },
+      { label: "完工", date: finish },
+      { label: "実績報告", date: report, note: "請求書・施工写真・計測データを提出" },
+      { label: "補助金入金", date: pay, star: true, note: "確定検査後の後払い。概ね2〜3か月で精算" },
+    ];
+    const steps = tlWithStatus(ms, today);
+    const headline =
+      t < tlStartOfDay(open).getTime()
+        ? `現在: 申請受付前（${tlYm(open)}開始予定・あと約${tlDayDiff(today, open)}日）`
+        : `現在: 公募受付中（締切 ${tlYm(close)}・あと約${tlDayDiff(today, close)}日）`;
+    return { headline, steps, caution: SUBSIDY_CAUTION, estimated: false };
+  }
+
+  // 締切済み or 日程未定 → 次回公募基準の概算
+  const rel = [
+    { label: "次回公募開始", off: 0 },
+    { label: "申請締切", off: 1, note: "GビズIDプライム・事業計画・見積を準備" },
+    { label: "交付決定", off: 3, star: true, note: "この前の発注・着工は補助対象外（フライング厳禁）" },
+    { label: "着工", off: 3 },
+    { label: "完工", off: 5 },
+    { label: "実績報告", off: 6, note: "請求書・施工写真・計測データを提出" },
+    { label: "補助金入金", off: 9, star: true, note: "確定検査後の後払い。概ね2〜3か月で精算" },
+  ];
+  const steps: DatedStep[] = rel.map((s) => ({
+    label: s.label,
+    dateLabel: `公募開始＋約${s.off}か月`,
+    note: s.note,
+    star: s.star,
+    status: "upcoming",
+  }));
+  const headline = close
+    ? `現在: 直近の公募回は締切済み。次回公募待ち（${note || "日程未定"}）`
+    : `現在: 公募日程は未定（${note || "確定後に自動で再計算"}）`;
+  return { headline, steps, caution: SUBSIDY_CAUTION, estimated: true };
 }
 
 // 工事フロー（EHC施工・ENIMAS計測込み）
@@ -37,6 +131,16 @@ export function buildConstructionTimeline(): TimelineStep[] {
   ];
 }
 
+export interface RoadmapCategory {
+  label: string;
+  refri: RefriType;
+  units: number;
+  investManYen: number;
+  saveYenPerYear: number;
+  saveKwhPerYear: number;
+  paybackYears: number | null; // 回収年数＝損益分岐点
+  roiPct: number;              // 年利回り(年間削減/投資)
+}
 export interface RoadmapYear {
   year: number;
   phaseLabel: string;
@@ -47,6 +151,7 @@ export interface RoadmapYear {
   saveKwhPerYear: number;
   co2ReductionTon: number;
   investManYen: number;
+  categories: RoadmapCategory[];
 }
 
 const REFRI_PRIORITY: Record<RefriType, number> = { r22: 0, r410a: 1, unknown: 1, r32: 2 };
@@ -79,6 +184,25 @@ export function buildMultiYearRoadmap(input: MatchInput, maxYears = 3): RoadmapY
     const r = matchSubsidies(subInput);
     const saveKwh = r.groups.reduce((a, g) => a + g.saveKwhPerYear, 0);
     const subsidyName = r.matched.find((s) => !s.infoOnly)?.name || "（対象補助金は要確認）";
+    // カテゴリ(設備群)別に投資を按分し、ROI・損益分岐を算出
+    const gw = yg.map((g) => Math.max(1, g.units) * (g.hp && g.hp > 0 ? g.hp : 1));
+    const gwSum = gw.reduce((a, b) => a + b, 0) || 1;
+    const categories: RoadmapCategory[] = r.groups.map((gr, gi) => {
+      const investManYen = Math.round(subInput.invest * (gw[gi] / gwSum));
+      const saveYen = gr.saveYenPerYear;
+      const paybackYears = saveYen > 0 ? Number(((investManYen * 10000) / saveYen).toFixed(1)) : null;
+      const roiPct = investManYen > 0 ? Math.round((saveYen / (investManYen * 10000)) * 100) : 0;
+      return {
+        label: gr.label,
+        refri: gr.refri,
+        units: gr.units,
+        investManYen,
+        saveYenPerYear: saveYen,
+        saveKwhPerYear: gr.saveKwhPerYear,
+        paybackYears,
+        roiPct,
+      };
+    });
     out.push({
       year: startYear + y,
       phaseLabel: y === 0 ? "今期（Year 1）" : `翌${y === 1 ? "" : y + ""}年（Year ${y + 1}）`,
@@ -89,6 +213,7 @@ export function buildMultiYearRoadmap(input: MatchInput, maxYears = 3): RoadmapY
       saveKwhPerYear: saveKwh,
       co2ReductionTon: r.co2ReductionTon,
       investManYen: subInput.invest,
+      categories,
     });
   }
   return out;
