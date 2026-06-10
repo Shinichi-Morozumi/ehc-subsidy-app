@@ -12,6 +12,8 @@ import { SampleCase } from "@/lib/samples";
 import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge } from "lucide-react";
 import { RoiChart } from "./RoiChart";
 import { GroupSavingsChart } from "./GroupSavingsChart";
+import { useProject } from "./ProjectContext";
+import { RoadmapView } from "./RoadmapView";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
 
 let GID = 0;
@@ -60,6 +62,7 @@ export function SubsidyMatcher() {
   const [result, setResult] = useState<MatchResult | null>(null);
   // 一度でも「即答」を押したら、以降は入力変更に結果を自動連動させる
   const [hasRun, setHasRun] = useState(false);
+  const { setProject } = useProject();
 
   const set = <K extends keyof MatchInput>(key: K, val: MatchInput[K]) =>
     setInput((prev) => ({ ...prev, [key]: val }));
@@ -92,6 +95,10 @@ export function SubsidyMatcher() {
     }
     setResult(matchSubsidies(input));
   }, [input, hasRun]);
+
+  useEffect(() => {
+    if (result) setProject(input, result);
+  }, [result, input, setProject]);
 
   const run = () => {
     if (input.bizType === "personal") {
@@ -260,6 +267,7 @@ export function SubsidyMatcher() {
       {result && (
         <div id="result-section" className="space-y-5">
           <ResultView result={result} input={input} />
+          <RoadmapView input={input} result={result} compact />
           <CustomerReport input={input} result={result} />
         </div>
       )}
