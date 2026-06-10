@@ -12,6 +12,9 @@ import { SampleCase } from "@/lib/samples";
 import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge } from "lucide-react";
 import { RoiChart } from "./RoiChart";
 import { GroupSavingsChart } from "./GroupSavingsChart";
+import { useProject } from "./ProjectContext";
+import { RoadmapView } from "./RoadmapView";
+import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
 
 let GID = 0;
@@ -60,6 +63,8 @@ export function SubsidyMatcher() {
   const [result, setResult] = useState<MatchResult | null>(null);
   // 一度でも「即答」を押したら、以降は入力変更に結果を自動連動させる
   const [hasRun, setHasRun] = useState(false);
+  const { setProject } = useProject();
+  const [agreed, setAgreed] = useState(false);
 
   const set = <K extends keyof MatchInput>(key: K, val: MatchInput[K]) =>
     setInput((prev) => ({ ...prev, [key]: val }));
@@ -92,6 +97,10 @@ export function SubsidyMatcher() {
     }
     setResult(matchSubsidies(input));
   }, [input, hasRun]);
+
+  useEffect(() => {
+    if (result) setProject(input, result);
+  }, [result, input, setProject]);
 
   const run = () => {
     if (input.bizType === "personal") {
@@ -260,7 +269,21 @@ export function SubsidyMatcher() {
       {result && (
         <div id="result-section" className="space-y-5">
           <ResultView result={result} input={input} />
-          <CustomerReport input={input} result={result} />
+          <RoadmapView input={input} result={result} compact />
+          <SubsidyDisclaimer />
+          <Card>
+            <label className="flex items-start gap-2.5 text-sm text-slate-200 cursor-pointer">
+              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 w-4 h-4 accent-ehc-400 flex-shrink-0" />
+              <span>上記の補助金情報が<strong className="text-white">あくまで目安</strong>であり、公募内容・締切は予告なく変更されるため、最新条件は公募要領／当社で要確認であることを理解しました。（お客様提案書の表示・PDF出力に同意します）</span>
+            </label>
+          </Card>
+          {agreed ? (
+            <CustomerReport input={input} result={result} />
+          ) : (
+            <Card>
+              <p className="text-sm text-slate-400">☑ 上のチェックを入れると、お客様提案書（PDF出力可）が表示されます。</p>
+            </Card>
+          )}
         </div>
       )}
     </div>
@@ -470,7 +493,7 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
                   {s.name}
                 </h3>
                 <div className="text-xs text-slate-400 mb-2.5 flex flex-wrap gap-1.5">
-                  <span className="bg-ehc-500/15 text-ehc-300 px-2 py-0.5 rounded-md font-medium">適用可能</span>
+                  <span className={`px-2 py-0.5 rounded-md font-medium ${s.infoOnly ? "bg-amber-500/15 text-amber-300" : "bg-ehc-500/15 text-ehc-300"}`}>{s.infoOnly ? "情報提供（要確認）" : "適用可能"}</span>
                   <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">期間: {s.period}</span>
                   <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">補助率: {s.rate}</span>
                   <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">上限: {s.max}</span>
@@ -478,6 +501,9 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
                 <div className="text-xs text-slate-300">
                   <p><strong className="text-white">要件:</strong> {s.requirement}</p>
                   <p className="mt-1"><strong className="text-white">必要書類:</strong> {s.docs}</p>
+                  {s.infoOnly && (
+                    <p className="mt-1 text-amber-300/90">※ 販路開拓・業務効率化が主目的の制度です。設備費が補助対象経費になるかは事業計画次第のため、想定補助金・投資回収には含めていません。</p>
+                  )}
                 </div>
               </div>
             ))}

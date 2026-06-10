@@ -19,6 +19,7 @@ export interface Subsidy {
   url: string;
   rateNum: number;
   capManYen: number;
+  infoOnly?: boolean; // true=資金額/ROI計算に含めず情報提供のみ（例: 持続化補助金）
 }
 
 export interface Vendor {

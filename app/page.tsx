@@ -6,7 +6,9 @@ import { WeaponList } from "@/components/WeaponList";
 import { DiffList } from "@/components/DiffList";
 import { DropinDept } from "@/components/DropinDept";
 import { BreakerDept } from "@/components/BreakerDept";
-import { Target, Database, Wind, TrendingUp, Award, Wrench, AlertCircle, Droplet, Bolt } from "lucide-react";
+import { Target, Database, Wind, TrendingUp, Award, Wrench, AlertCircle, Droplet, Bolt, CalendarClock } from "lucide-react";
+import { ProjectProvider } from "@/components/ProjectContext";
+import { RoadmapTab } from "@/components/RoadmapTab";
 
 export default function Page() {
   return (
@@ -48,9 +50,11 @@ export default function Page() {
         </div>
       </div>
 
+      <ProjectProvider>
       <Tabs defaultValue="match">
         <TabsList>
           <TabsTrigger value="match" icon={<Target className="w-4 h-4" />}>補助金マッチング</TabsTrigger>
+          <TabsTrigger value="roadmap" icon={<CalendarClock className="w-4 h-4" />}>導入ロードマップ</TabsTrigger>
           <TabsTrigger value="dropin" icon={<Droplet className="w-4 h-4" />}>ドロップイン</TabsTrigger>
           <TabsTrigger value="breaker" icon={<Bolt className="w-4 h-4" />}>電子ブレーカー</TabsTrigger>
           <TabsTrigger value="db" icon={<Database className="w-4 h-4" />}>補助金DB</TabsTrigger>
@@ -59,6 +63,7 @@ export default function Page() {
           <TabsTrigger value="diff" icon={<Award className="w-4 h-4" />}>EHCの強み</TabsTrigger>
         </TabsList>
         <TabsContent value="match"><SubsidyMatcher /></TabsContent>
+        <TabsContent value="roadmap"><RoadmapTab /></TabsContent>
         <TabsContent value="dropin"><DropinDept /></TabsContent>
         <TabsContent value="breaker"><BreakerDept /></TabsContent>
         <TabsContent value="db"><SubsidyDB /></TabsContent>
@@ -66,6 +71,7 @@ export default function Page() {
         <TabsContent value="weapon"><WeaponList /></TabsContent>
         <TabsContent value="diff"><DiffList /></TabsContent>
       </Tabs>
+      </ProjectProvider>
 
       <footer className="text-center text-[11px] text-slate-500 mt-10 py-4 no-print border-t border-white/5">
         © 2026 株式会社EHCソリューションズ ｜ 業務用空調・GX・補助金専門

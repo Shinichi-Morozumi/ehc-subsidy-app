@@ -1,5 +1,8 @@
 import { Subsidy } from "./types";
 
+// 補助金データの確認日（注記・鮮度表示に使用）。データ更新時はここも更新。
+export const SUBSIDY_DATA_ASOF = "2026年6月9日";
+
 export const SUBSIDIES: Subsidy[] = [
   {
     id: "sii_iv",
@@ -85,5 +88,23 @@ export const SUBSIDIES: Subsidy[] = [
     url: "https://www.pref.osaka.lg.jp/",
     rateNum: 0.5,
     capManYen: 500,
+  },
+  {
+    id: "jizokuka",
+    name: "小規模事業者持続化補助金（一般型・通常枠）",
+    org: "全国商工会連合会 / 日本商工会議所（中小企業庁）",
+    period: "令和8年度：受付 2026/11/5〜12/15（電子申請のみ・GビズIDプライム必須）",
+    rate: "2/3（赤字賃上げは3/4）",
+    max: "50万円（インボイス特例+50・賃上げ特例+150で最大250万円）",
+    target: ["ac", "multi"],
+    biz: ["business"],
+    size: ["sme"],
+    pref: "all",
+    requirement: "小規模事業者のみ（商業・サービス業5人以下／製造業その他20人以下）。販路開拓・業務効率化の取組が対象で、商工会・商工会議所の支援を受け事業計画を作成。設備購入が補助対象経費に含まれるかは計画内容次第（単なる更新・修繕は対象外）。大企業・中堅は対象外。",
+    docs: "経営計画書・補助事業計画書・事業支援計画書(様式4/商工会等発行)・GビズIDプライム・電子申請(Jグランツ)",
+    url: "https://www.chusho.meti.go.jp/keiei/shokibo/jizoku/",
+    rateNum: 0.667,
+    capManYen: 50,
+    infoOnly: true,
   },
 ];

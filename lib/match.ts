@@ -154,6 +154,7 @@ export function matchSubsidies(input: MatchInput): MatchResult {
 
   let bestSubsidyManYen = 0;
   matched.forEach((s) => {
+    if (s.infoOnly) return; // 情報提供のみ（持続化等）は資金額/ROIに含めない
     const calc = Math.min(input.invest * s.rateNum, s.capManYen);
     if (calc > bestSubsidyManYen) bestSubsidyManYen = calc;
   });
