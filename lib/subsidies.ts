@@ -6,6 +6,9 @@ export const SUBSIDY_DATA_ASOF = "2026年6月9日";
 export const SUBSIDIES: Subsidy[] = [
   {
     id: "sii_iv",
+    applyOpen: "2026-03-30",
+    applyClose: "2026-04-27",
+    scheduleNote: "2次は夏頃に公募想定（未定）",
     name: "SII 省エネ・非化石転換補助金（設備単位型）",
     org: "一般社団法人 環境共創イニシアチブ（経済産業省）",
     period: "令和7年度補正：1次 2026/3/30〜4/27 / 2次 準備中（夏想定）",
@@ -23,6 +26,7 @@ export const SUBSIDIES: Subsidy[] = [
   },
   {
     id: "sii_gx",
+    scheduleNote: "夏〜秋に複数回公募予定（未定）",
     name: "SII GX設備単位型（メーカー強化枠／トップ性能枠）",
     org: "一般社団法人 環境共創イニシアチブ",
     period: "令和7年度補正：計3回公募予定（夏〜秋）",
@@ -40,6 +44,9 @@ export const SUBSIDIES: Subsidy[] = [
   },
   {
     id: "kanagawa",
+    applyOpen: "2026-06-01",
+    applyClose: "2026-11-30",
+    scheduleNote: "先着順・予算到達で終了",
     name: "神奈川県 中小企業省エネルギー設備導入費補助金",
     org: "神奈川県",
     period: "2026/6/1〜11/30（先着順・予算到達で終了）",
@@ -57,6 +64,7 @@ export const SUBSIDIES: Subsidy[] = [
   },
   {
     id: "hotel_sustainability",
+    scheduleNote: "例年春〜初夏に公募（次回未定）",
     name: "宿泊施設サステナビリティ強化支援事業",
     org: "観光庁",
     period: "例年春〜初夏に公募（前回 2025/3/24〜5/30）。次回公募はウォッチ中",
@@ -74,6 +82,8 @@ export const SUBSIDIES: Subsidy[] = [
   },
   {
     id: "osaka",
+    applyOpen: "2026-04-13",
+    applyClose: "2026-06-30",
     name: "大阪府 中小事業者高効率空調機導入支援事業（R8）",
     org: "大阪府",
     period: "2026/4/13〜6/30（郵送必着・先着順）",
@@ -91,6 +101,8 @@ export const SUBSIDIES: Subsidy[] = [
   },
   {
     id: "jizokuka",
+    applyOpen: "2026-11-05",
+    applyClose: "2026-12-15",
     name: "小規模事業者持続化補助金（一般型・通常枠）",
     org: "全国商工会連合会 / 日本商工会議所（中小企業庁）",
     period: "令和8年度：受付 2026/11/5〜12/15（電子申請のみ・GビズIDプライム必須）",
