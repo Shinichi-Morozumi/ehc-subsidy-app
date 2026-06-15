@@ -3,7 +3,8 @@ import { Card, CardTitle } from "./ui/Card";
 import { MatchInput } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
 import { buildSubsidyTimeline, buildConstructionTimeline, buildMultiYearRoadmap, DatedStep } from "@/lib/timeline";
-import { CalendarClock, Wrench, Map, AlertTriangle, Banknote, Leaf } from "lucide-react";
+import { CalendarClock, Wrench, Map, AlertTriangle, Banknote, Leaf, Receipt } from "lucide-react";
+import { estimateUpdateCost, estimateMachineCost, PRICING_SOURCE } from "@/lib/pricing";
 
 const yen = (n: number) => `¥${Math.round(n).toLocaleString("ja-JP")}`;
 
@@ -73,6 +74,19 @@ export function RoadmapView({ input, result, compact = false }: { input: MatchIn
   const constructionTL = buildConstructionTimeline();
   const roadmap = buildMultiYearRoadmap(input, 3);
 
+  // 実勢工事費レンジ（PN見積基準）：設備群の台数×馬力から機器費+工事費を積算
+  const costStd = input.equipGroups.reduce(
+    (a, g) => {
+      const e = estimateUpdateCost({ units: g.units, hp: g.hp ?? 0, grade: "standard" });
+      return { machine: a.machine + e.machine, work: a.work + e.work, total: a.total + e.total };
+    },
+    { machine: 0, work: 0, total: 0 }
+  );
+  const costSub = input.equipGroups.reduce((a, g) => a + estimateUpdateCost({ units: g.units, hp: g.hp ?? 0, grade: "subsidy" }).total, 0);
+  const totalUnits = input.equipGroups.reduce((a, g) => a + g.units, 0);
+  const investYen = (input.invest || 0) * 10000;
+  const inRange = investYen > 0 && investYen >= costStd.total * 0.7 && investYen <= costSub * 1.3;
+
   const RoadmapYears = (
     <Card>
       <CardTitle icon={<Map className="w-5 h-5" />}>翌年以降の段階更新プラン</CardTitle>
@@ -122,6 +136,42 @@ export function RoadmapView({ input, result, compact = false }: { input: MatchIn
     </Card>
   );
 
+  const CostRef = (
+    <Card>
+      <CardTitle icon={<Receipt className="w-5 h-5" />}>更新工事の実勢費用レンジ（{PRICING_SOURCE}）</CardTitle>
+      <p className="text-xs text-slate-400 mb-3">
+        入力された設備（{totalUnits}台）を全更新した場合の機器費＋工事費の目安。機種グレード・高所/搬入条件・配管長で変動するため<strong className="text-slate-200">参考値</strong>です。
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="border border-white/10 bg-night-900 rounded-xl p-3">
+          <div className="text-[11px] text-slate-400 mb-1">標準グレード機（補助金なし想定）</div>
+          <div className="text-xl font-bold text-slate-100">{yen(costStd.total)}</div>
+          <div className="text-[10px] text-slate-500 mt-1">機器 {yen(costStd.machine)} ／ 工事 {yen(costStd.work)}</div>
+        </div>
+        <div className="border border-ehc-500/30 bg-gradient-to-br from-ehc-500/10 to-night-900 rounded-xl p-3">
+          <div className="text-[11px] text-ehc-300 mb-1">高効率(補助金グレード)機</div>
+          <div className="text-xl font-bold text-ehc-300">{yen(costSub)}</div>
+          <div className="text-[10px] text-slate-500 mt-1">上位機は機器費が約4〜5割高。補助金で差額を相殺する設計に。</div>
+        </div>
+        <div className="border border-white/10 bg-night-900 rounded-xl p-3">
+          <div className="text-[11px] text-slate-400 mb-1">入力した投資額との照合</div>
+          <div className={`text-xl font-bold ${input.invest ? (inRange ? "text-ehc-300" : "text-amber-300") : "text-slate-500"}`}>
+            {input.invest ? yen(investYen) : "未入力"}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-1">
+            {input.invest ? (inRange ? "実勢レンジ内。妥当な水準です。" : "実勢レンジ外。機種グレード・台数・条件を要確認。") : "投資額を入力すると実勢レンジと自動照合します。"}
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] text-slate-400">
+        <div className="bg-night-900/60 rounded-lg px-2 py-1.5">機器費目安 4HP: 標準{yen(estimateMachineCost(4,"standard"))} / 上位{yen(estimateMachineCost(4,"subsidy"))}</div>
+        <div className="bg-night-900/60 rounded-lg px-2 py-1.5">機器費目安 6HP: 標準{yen(estimateMachineCost(6,"standard"))} / 上位{yen(estimateMachineCost(6,"subsidy"))}</div>
+        <div className="bg-night-900/60 rounded-lg px-2 py-1.5">撤去+据付: 約¥113,000/台</div>
+        <div className="bg-night-900/60 rounded-lg px-2 py-1.5">フロン回収¥20,000/系統・破壊¥1,800/kg</div>
+      </div>
+    </Card>
+  );
+
   if (compact) {
     return (
       <Card>
@@ -162,6 +212,7 @@ export function RoadmapView({ input, result, compact = false }: { input: MatchIn
           </div>
         </Card>
       </div>
+      {CostRef}
       {RoadmapYears}
     </div>
   );
