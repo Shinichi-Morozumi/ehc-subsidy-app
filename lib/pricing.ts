@@ -84,4 +84,41 @@ export function estimateUpdateCost(opts: {
   return { machine, work, total: machine + work, units, grade };
 }
 
+// 更新工事の明細内訳（PN見積を再現）。見積シミュレーター表示用。
+export interface EstimateLine { label: string; detail: string; amount: number; }
+export function estimateUpdateBreakdown(opts: {
+  units: number; hp: number; grade?: MachineGrade; systems?: number; kg?: number; taxRate?: number;
+}) {
+  const units = Math.max(0, Math.round(opts.units));
+  const grade = opts.grade ?? "standard";
+  const systems = Math.max(1, opts.systems ?? Math.ceil(units / 2));
+  const kg = Math.max(0, opts.kg ?? units * 3);
+  const taxRate = opts.taxRate ?? 0.1;
+  const mc = estimateMachineCost(opts.hp, grade);
+  const lines: EstimateLine[] = [
+    { label: "機器費（室内外セット）", detail: `${opts.hp || "-"}馬力 × ${units}台（${grade === "subsidy" ? "高効率/補助金グレード" : "標準グレード"}）`, amount: units * mc },
+    { label: "既設室内機 撤去", detail: `¥${WORK.removeIndoorPerUnit.toLocaleString()}/台 × ${units}`, amount: units * WORK.removeIndoorPerUnit },
+    { label: "既設室外機 撤去", detail: `¥${WORK.removeOutdoorPerUnit.toLocaleString()}/台 × ${units}`, amount: units * WORK.removeOutdoorPerUnit },
+    { label: "新設室内機 据付", detail: `¥${WORK.installIndoorPerUnit.toLocaleString()}/台 × ${units}`, amount: units * WORK.installIndoorPerUnit },
+    { label: "新設室外機 据付", detail: `¥${WORK.installOutdoorPerUnit.toLocaleString()}/台 × ${units}`, amount: units * WORK.installOutdoorPerUnit },
+    { label: "配管・電気・高所/脱着ほか", detail: `¥${WORK.pipingElectricPerUnit.toLocaleString()}/台 × ${units}`, amount: units * WORK.pipingElectricPerUnit },
+    { label: "フロンガス回収", detail: `¥${WORK.gasRecoverPerSystem.toLocaleString()}/系統 × ${systems}`, amount: systems * WORK.gasRecoverPerSystem },
+    { label: "フロンガス破壊", detail: `¥${WORK.gasDestroyPerKg.toLocaleString()}/kg × ${kg}kg`, amount: Math.round(kg * WORK.gasDestroyPerKg) },
+    { label: "産業廃棄物処理", detail: "一式", amount: WORK.wastePerJob },
+    { label: "諸経費", detail: "一式", amount: WORK.overheadPerJob },
+  ];
+  const subtotal = lines.reduce((a, l) => a + l.amount, 0);
+  const tax = Math.round(subtotal * taxRate);
+  const machine = units * mc;
+  return { lines, subtotal, tax, total: subtotal + tax, machine, work: subtotal - machine, units, systems, kg, grade };
+}
+
+// 設備グループ（馬力×台数）から設備投資額(万円)を実勢で自動概算。補助金マッチングのROI連動用。
+export function estimateInvestManYenFromGroups(
+  groups: { units: number; hp?: number }[], grade: MachineGrade = "standard"
+): number {
+  const yen = groups.reduce((a, g) => a + estimateUpdateCost({ units: g.units, hp: g.hp ?? 0, grade }).total, 0);
+  return Math.round(yen / 10000);
+}
+
 export const yenJP = (n: number) => `¥${Math.round(n).toLocaleString("ja-JP")}`;

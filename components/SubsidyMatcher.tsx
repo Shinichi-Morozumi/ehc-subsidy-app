@@ -16,6 +16,7 @@ import { useProject } from "./ProjectContext";
 import { RoadmapView } from "./RoadmapView";
 import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
+import { estimateInvestManYenFromGroups } from "@/lib/pricing";
 
 let GID = 0;
 const newGroup = (over: Partial<EquipGroup> = {}): EquipGroup => ({
@@ -251,7 +252,18 @@ export function SubsidyMatcher() {
 
         <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="設備投資概算 (万円)" help={HELP.invest}>
-            <Input type="number" value={input.invest} onChange={(e) => set("invest", Number(e.target.value))} />
+            <div className="flex gap-2">
+              <Input type="number" value={input.invest} onChange={(e) => set("invest", Number(e.target.value))} />
+              <button
+                type="button"
+                onClick={() => set("invest", estimateInvestManYenFromGroups(input.equipGroups))}
+                className="whitespace-nowrap text-[11px] px-2.5 rounded-lg border border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10"
+                title="設備の馬力×台数からPN実勢単価で自動概算"
+              >
+                実勢で自動見積
+              </button>
+            </div>
+            <div className="text-[10px] text-slate-500 mt-1">「自動見積」=設備群の馬力×台数からPN見積実勢（標準グレード）で概算します。</div>
           </Field>
           <div className="flex items-end">
             <div className="text-[11px] text-slate-500 bg-white/5 border border-white/10 rounded-lg p-2.5 w-full">

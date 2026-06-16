@@ -7,29 +7,41 @@ import { estimateDropinCost, DROPIN, PRICING_SOURCE, yenJP } from "@/lib/pricing
 
 const PRICE = 27; // 円/kWh
 const CO2 = 0.000434; // t-CO2/kWh
-// 対象冷媒ごとの想定削減率レンジ（ドロップイン・実測校正前の概算）
+// 対象冷媒ごとの想定削減率ベース（ドロップイン・実測校正前の概算）
 const RATE: Record<string, { rate: number; label: string }> = {
   r404a: { rate: 0.35, label: "R404A 冷凍冷蔵（削減大）" },
   r410a: { rate: 0.25, label: "R410A 空調" },
   r22: { rate: 0.3, label: "R22 旧空調/冷凍" },
   r407c: { rate: 0.22, label: "R407C マルチ" },
 };
+// 業種(稼働プロファイル)別の削減係数。稼働時間が長いほど削減効果が大きい想定。
+const INDUSTRY: Record<string, { factor: number; label: string }> = {
+  refrig: { factor: 1.25, label: "冷凍冷蔵（24h稼働）" },
+  food: { factor: 1.15, label: "飲食店（厨房・長時間）" },
+  retail: { factor: 1.1, label: "スーパー/小売" },
+  factory: { factor: 1.0, label: "工場/倉庫" },
+  clinic: { factor: 0.95, label: "クリニック/福祉" },
+  office: { factor: 0.9, label: "オフィス/店舗" },
+};
+const clamp = (v: number, lo = 0.1, hi = 0.45) => Math.min(hi, Math.max(lo, v));
 
 export function DropinSimulator() {
   const [refri, setRefri] = useState("r410a");
+  const [industry, setIndustry] = useState("factory");
   const [kwh, setKwh] = useState(80000);
   const [rate, setRate] = useState(0.25);
   const [systems, setSystems] = useState(10);          // 系統数
-  const [kgPerSys, setKgPerSys] = useState(DROPIN.defaultKgPerSystem);
+  const [kgPerSys] = useState(DROPIN.defaultKgPerSystem);
   const [manualCost, setManualCost] = useState<number | null>(null); // 手動上書き(万円)
 
-  const onRefri = (v: string) => {
-    setRefri(v);
-    setRate(RATE[v].rate);
-  };
+  const suggest = (r: string, ind: string) =>
+    Math.round(clamp(RATE[r].rate * INDUSTRY[ind].factor) * 100) / 100;
+  const onRefri = (v: string) => { setRefri(v); setRate(suggest(v, industry)); };
+  const onIndustry = (v: string) => { setIndustry(v); setRate(suggest(refri, v)); };
 
   const est = estimateDropinCost(systems, kgPerSys);
-  const costYen = manualCost != null ? manualCost * 10000 : est.total; // 施工費(円)
+  const costYen = manualCost != null ? manualCost * 10000 : est.total; // 施工費(税抜)
+  const costTaxIn = Math.round(costYen * 1.1);
   const saveKwh = Math.round(kwh * rate);
   const saveYen = saveKwh * PRICE;
   const co2 = Number((saveKwh * CO2).toFixed(1));
@@ -39,12 +51,19 @@ export function DropinSimulator() {
     <Card>
       <CardTitle icon={<Gauge className="w-5 h-5" />}>ドロップイン 簡易シミュレーター</CardTitle>
       <p className="text-xs text-slate-400 mb-3">
-        既存機はそのまま、冷媒置換による概算効果。施工費は<strong className="text-ehc-300">PN見積の系統単価</strong>から自動概算（手動上書き可）。削減率は実測（大塚ドロップイン等）の到着後に校正します。
+        既存機はそのまま、冷媒置換による概算効果。施工費は<strong className="text-ehc-300">PN見積の系統単価</strong>から自動概算（手動上書き可）。削減率は冷媒×業種(稼働)から自動提案——実測（大塚ドロップイン等）の到着後に校正します。
       </p>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         <Field label="対象冷媒">
           <Select value={refri} onChange={(e) => onRefri(e.target.value)}>
             {Object.entries(RATE).map(([k, v]) => (
+              <option key={k} value={k}>{v.label}</option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="業種（稼働）">
+          <Select value={industry} onChange={(e) => onIndustry(e.target.value)}>
+            {Object.entries(INDUSTRY).map(([k, v]) => (
               <option key={k} value={k}>{v.label}</option>
             ))}
           </Select>
@@ -73,7 +92,7 @@ export function DropinSimulator() {
           <div><div className="text-slate-500">諸経費</div><div className="text-slate-200">{yenJP(est.overhead)}</div></div>
           <div><div className="text-slate-500">概算合計(税抜)</div><div className="text-ehc-300 font-bold">{yenJP(est.total)}</div></div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] text-slate-400">手動上書き(万円):</span>
           <input
             type="number"
@@ -85,7 +104,7 @@ export function DropinSimulator() {
           {manualCost != null && (
             <button onClick={() => setManualCost(null)} className="text-[10px] text-ehc-300 underline">自動に戻す</button>
           )}
-          <span className="text-[10px] text-slate-500">採用施工費: {yenJP(costYen)}</span>
+          <span className="text-[10px] text-slate-500">採用施工費: {yenJP(costYen)}（税込 {yenJP(costTaxIn)}）</span>
         </div>
       </div>
 
@@ -103,7 +122,7 @@ export function DropinSimulator() {
           <div className="text-xl font-bold text-sky-300">{co2}<span className="text-xs ml-1">t/年</span></div>
         </div>
         <div className="bg-gradient-to-br from-violet-500/10 to-night-900 border border-violet-500/30 rounded-xl p-3">
-          <div className="text-[11px] text-violet-300 mb-1">投資回収</div>
+          <div className="text-[11px] text-violet-300 mb-1">投資回収（税抜）</div>
           <div className="text-xl font-bold text-violet-300">{payback ? `${payback}年` : "—"}</div>
         </div>
       </div>

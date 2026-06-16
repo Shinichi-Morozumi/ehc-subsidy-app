@@ -2,6 +2,7 @@ import { Card, CardTitle } from "./ui/Card";
 import { HYCHILL_PRODUCTS, GWP_COMPARISON, JAPAN_MARKET_SIZE } from "@/lib/hychill";
 import { Droplet, Zap, ShieldCheck, Wrench, Leaf, CheckCircle2, ArrowRight, Mail } from "lucide-react";
 import { DropinSimulator } from "./DropinSimulator";
+import { UpdateEstimator } from "./UpdateEstimator";
 
 const MERITS = [
   { icon: Zap, title: "電気代 15〜40%削減", body: "分子が少ない量で高エネルギー → 消費電力大幅削減", color: "amber" },
@@ -40,6 +41,7 @@ export function DropinDept() {
       </div>
 
       <DropinSimulator />
+      <UpdateEstimator />
 
       <Card>
         <CardTitle icon={<CheckCircle2 className="w-5 h-5" />}>4つのメリット</CardTitle>
