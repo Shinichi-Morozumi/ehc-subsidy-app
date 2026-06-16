@@ -54,16 +54,16 @@ export function estimateMachineCost(hp: number, grade: MachineGrade = "standard"
   return Math.max(MACHINE.min, Math.round(v / 1000) * 1000);
 }
 
-/* 更新工事費(撤去+新設据付ほか)の単価目安。実績(中華そば/某焼き肉/まつむら歯科)より。 */
+/* 更新工事費(撤去+新設据付ほか)の単価目安。全500件・工事明細7,339行の中央値に校正。 */
 export const WORK = {
-  removeIndoorPerUnit: 18000,   // 既設室内機撤去（天カセ）
-  removeOutdoorPerUnit: 15000,  // 既設室外機撤去
-  installIndoorPerUnit: 25000,  // 新設室内機据付
-  installOutdoorPerUnit: 25000, // 新設室外機据付
+  removeIndoorPerUnit: 22000,   // 既設室内機撤去（中央値 ¥22,000/台・n=451）
+  removeOutdoorPerUnit: 28000,  // 既設室外機撤去（中央値 ¥28,700/台・n=320）
+  installIndoorPerUnit: 30000,  // 新設室内機据付（中央値 ¥30,000/台・n=366）
+  installOutdoorPerUnit: 37000, // 新設室外機据付（中央値 ¥37,500/台・n=189）
   pipingElectricPerUnit: 45000, // 配管・電気・高所/脱着ほか（実勢ならし）
-  gasRecoverPerSystem: 20000,   // フロンガス回収
-  gasDestroyPerKg: 1800,        // フロンガス破壊（更新時）
-  wastePerJob: 23000,           // 産業廃棄物処理
+  gasRecoverPerSystem: 25000,   // フロンガス回収（中央値 ¥25,000/系統・n=224）
+  gasDestroyPerKg: 2000,        // フロンガス破壊（更新時・実勢¥1,800〜2,600）
+  wastePerJob: 40000,           // 産業廃棄物処理（産廃中央値 ¥71,429・処分込みならし）
   overheadPerJob: 30000,        // 諸経費（小規模案件）
 };
 
