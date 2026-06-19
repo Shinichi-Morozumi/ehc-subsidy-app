@@ -1,6 +1,7 @@
 import { Card, CardTitle } from "./ui/Card";
 import { HYCHILL_PRODUCTS, GWP_COMPARISON, JAPAN_MARKET_SIZE } from "@/lib/hychill";
 import { Droplet, Zap, ShieldCheck, Wrench, Leaf, CheckCircle2, ArrowRight, Mail } from "lucide-react";
+import { DropinRoiWizard } from "./DropinRoiWizard";
 import { DropinSimulator } from "./DropinSimulator";
 import { UpdateEstimator } from "./UpdateEstimator";
 
@@ -40,6 +41,7 @@ export function DropinDept() {
         </div>
       </div>
 
+      <DropinRoiWizard />
       <DropinSimulator />
       <UpdateEstimator />
 
