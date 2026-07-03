@@ -9,9 +9,10 @@ import { Field, Select, Input } from "./ui/Field";
 import {
   Sparkles, ArrowRight, ArrowLeft, RotateCcw, TrendingDown, Wallet, Leaf, CalendarClock, Mail,
 } from "lucide-react";
+import { useTabSwitch } from "./ui/Tabs";
 import { estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, yenJP } from "@/lib/pricing";
 
-const PRICE = 27;          // 円/kWh
+const DEFAULT_PRICE = 27; // 円/kWh（既定・契約単価で上書き可）
 const CO2 = 0.000438;      // t-CO2/kWh（省エネ効果レポートと同一係数）
 const YEARS = 15;
 const DEGRADE = 0.02;      // 旧機の年あたり電力増（経年劣化）
@@ -44,6 +45,8 @@ export function DropinRoiWizard() {
   const [monthlyBill, setMonthlyBill] = useState<number | "">("");  // 対象設備の月の電気代(円)
   const [systems, setSystems] = useState<number | "">("");          // 系統数(台)
   const [machineType, setMachineType] = useState(DEFAULT_KG_PRESET); // 機器タイプ（冷媒量）
+  const [price, setPrice] = useState(DEFAULT_PRICE);                 // 電力単価(円/kWh)
+  const switchTab = useTabSwitch();
 
   const canNext =
     (step === 0 && industry !== "") ||
@@ -51,13 +54,13 @@ export function DropinRoiWizard() {
     (step === 2 && typeof monthlyBill === "number" && monthlyBill > 0) ||
     (step === 3 && typeof systems === "number" && systems > 0);
 
-  const reset = () => { setStep(0); setIndustry(""); setRefri(""); setMonthlyBill(""); setSystems(""); setMachineType(DEFAULT_KG_PRESET); };
+  const reset = () => { setStep(0); setIndustry(""); setRefri(""); setMonthlyBill(""); setSystems(""); setMachineType(DEFAULT_KG_PRESET); setPrice(DEFAULT_PRICE); };
 
   // ───────── 試算 ─────────
   const bill = typeof monthlyBill === "number" ? monthlyBill : 0;
   const sysN = typeof systems === "number" ? systems : 0;
   const annualBill = bill * 12;
-  const kwh = annualBill / PRICE;
+  const kwh = annualBill / (price || DEFAULT_PRICE);
   const rate =
     industry && refri
       ? Math.round(clamp(RATE[refri].rate * INDUSTRY[industry].factor) * 100) / 100
@@ -140,8 +143,13 @@ export function DropinRoiWizard() {
             <Input type="number" inputMode="numeric" placeholder="例: 120000"
               value={monthlyBill} onChange={(e) => setMonthlyBill(e.target.value === "" ? "" : Number(e.target.value))} />
           </Field>
+          <div className="mt-3 max-w-[180px]">
+            <Field label="電力単価(円/kWh・変更可)">
+              <Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
+            </Field>
+          </div>
           {typeof monthlyBill === "number" && monthlyBill > 0 && (
-            <p className="text-[11px] text-slate-400 mt-2">→ 年間 約{yenJP(monthlyBill * 12)}（電力 約{Math.round((monthlyBill * 12) / PRICE).toLocaleString("ja-JP")}kWh 相当）</p>
+            <p className="text-[11px] text-slate-400 mt-2">→ 年間 約{yenJP(monthlyBill * 12)}（電力 約{Math.round((monthlyBill * 12) / (price || DEFAULT_PRICE)).toLocaleString("ja-JP")}kWh 相当）</p>
           )}
         </StepWrap>
       )}
@@ -192,6 +200,12 @@ export function DropinRoiWizard() {
             <div className={`border rounded-xl px-3 py-2 text-xs flex items-center gap-2 flex-wrap ${VERDICT_C[verdict.tone]}`}>
               <span className="font-bold">{verdict.label}</span>
               <span className="text-slate-300">{verdict.advice}</span>
+              {(verdict.tone === "warn" || verdict.tone === "weak") && switchTab && (
+                <button onClick={() => switchTab("match")}
+                  className="underline font-semibold inline-flex items-center gap-0.5 hover:opacity-80">
+                  補助金マッチングで診断<ArrowRight className="w-3 h-3" />
+                </button>
+              )}
             </div>
           )}
 
@@ -222,11 +236,20 @@ export function DropinRoiWizard() {
           </div>
 
           <p className="text-[10px] text-slate-500 leading-relaxed">
-            ※ 概算（目安）です。投資額＝HCガス代金＋工事費用（電力単価¥{PRICE}/kWh・想定削減率・PN見積の系統単価をもとに自動試算）。実際の効果・費用は機種・稼働・現地条件で±20%程度変動します。正式なお見積りは現地確認のうえご提示します。
+            ※ 概算（目安）です。投資額＝HCガス代金＋工事費用（電力単価¥{price}/kWh・想定削減率・PN見積の系統単価をもとに自動試算）。実際の効果・費用は機種・稼働・現地条件で±20%程度変動します。正式なお見積りは現地確認のうえご提示します。
           </p>
 
           <div className="flex flex-wrap gap-2">
-            <a href="mailto:info@ehcjpn.com?subject=【ドロップイン】ROI診断の正式見積り希望"
+            <a href={`mailto:info@ehcjpn.com?subject=${encodeURIComponent("【ドロップイン】ROI診断の正式見積り希望")}&body=${encodeURIComponent([
+                "ROI診断の条件で正式見積りを希望します。",
+                "",
+                `業種（稼働）: ${INDUSTRY[industry]?.label ?? "—"}`,
+                `対象冷媒: ${RATE[refri]?.label ?? "—"}`,
+                `月の電気代: ${yenJP(bill)}（単価 ¥${price}/kWh）`,
+                `系統数: ${sysN}台（${KG_PRESETS[machineType].label}）`,
+                `概算投資: ${yenJP(invest)}（税込）`,
+                `年間削減: ${yenJP(saveYen)} ／ 投資回収: ${paybackYears != null ? `約${paybackYears}年` : "—"}`,
+              ].join("\n"))}`}
               className="bg-ehc-500/15 text-ehc-300 border border-ehc-500/40 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-ehc-500/25 transition-colors no-print">
               <Mail className="w-4 h-4" />この内容で正式見積りを依頼<ArrowRight className="w-4 h-4" />
             </a>

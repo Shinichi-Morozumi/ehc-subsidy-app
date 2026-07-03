@@ -3,6 +3,15 @@
 // あくまで「目安」。実見積は機種グレード・高所/搬入条件・配管長・電気容量で変動する。
 export const PRICING_SOURCE = "PN見積 全500件分析（第9-10期 / 2024-2025年・参考値）";
 
+/* ── HCガス材料単価（円/kg・税抜）の並記 ──
+   sale: 大塚倉庫 実見積（HyChill 8.14kg＝¥472,120 → ¥58,000/kg・お客様向け販売単価）
+   purchase: 仕入単価は桝口さんへ確認中。回答が届いたら実数に更新し MODE を "purchase" へ切替するだけで全計算に反映。 */
+export const HC_GAS_PRICE: Record<"sale" | "purchase", number> = {
+  sale: 58000,
+  purchase: 58000, // TODO: 暫定＝販売単価と同値（回答待ち）
+};
+export const HC_GAS_PRICE_MODE: "sale" | "purchase" = "sale";
+
 /* ───────── ドロップイン（冷媒置換・既存機流用） ─────────
    基準: J&M奏 ドロップイン工事(ルームエアコン) PN0000000282
    21系統 / 工事代金 ¥610,000(税抜)。内訳から系統単価を抽出。 */
@@ -20,9 +29,8 @@ export const DROPIN = {
   // ── HC冷媒（HyChill）ガス代金 ──
   // HC冷媒は比重が軽く、フロン充填量の約4割の重量で足りる（HyChill技術資料の一般値）
   hcChargeRatio: 0.4,
-  // HCガス材料単価（円/kg・税抜）。出典: 大塚倉庫 実見積（HyChill 8.14kg＝¥472,120 → ¥58,000/kg・お客様向け販売単価）
-  // ※仕入単価ではない点に注意。仕入値ベースに変える場合はここを差し替え。
-  hcGasPerKg: 58000,
+  // HCガス材料単価（円/kg・税抜）。HC_GAS_PRICE / HC_GAS_PRICE_MODE で販売/仕入を切替。
+  hcGasPerKg: HC_GAS_PRICE[HC_GAS_PRICE_MODE],
 };
 
 // 機器タイプ別の系統あたり冷媒量プリセット（業務用パッケージのみ・ルームエアコンは対象外）

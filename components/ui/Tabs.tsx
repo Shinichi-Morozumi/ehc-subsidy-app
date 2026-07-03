@@ -26,6 +26,12 @@ export function Tabs({
   );
 }
 
+// タブ内コンポーネントからタブを切り替えるためのフック（例: ドロップイン→補助金マッチングへの動線）
+export function useTabSwitch(): ((v: string) => void) | null {
+  const ctx = useContext(TabsContext);
+  return ctx ? ctx.setActive : null;
+}
+
 export function TabsList({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div

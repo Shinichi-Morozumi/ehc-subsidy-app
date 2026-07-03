@@ -18,10 +18,15 @@ export function DeadlineBanner() {
   }).sort((a, b) => (a.applyClose! < b.applyClose! ? -1 : 1));
 
   if (!upcoming.length) return null;
-  const s = upcoming[0];
-  const close = new Date(`${s.applyClose}T23:59:59+09:00`);
-  const days = Math.ceil((close.getTime() - now.getTime()) / 86400000);
-  const urgent = days <= 14;
+  const withDays = upcoming.map((s) => ({
+    s,
+    days: Math.ceil((new Date(`${s.applyClose}T23:59:59+09:00`).getTime() - now.getTime()) / 86400000),
+  }));
+  // 締切14日以内はすべて列挙して強調。なければ最も近い1件のみ表示。
+  const urgentList = withDays.filter((x) => x.days <= 14);
+  const urgent = urgentList.length > 0;
+  const shown = urgent ? urgentList : withDays.slice(0, 1);
+  const fmt = (d: string) => d.replace(/^\d{4}-0?(\d+)-0?(\d+)$/, "$1/$2");
 
   return (
     <div
@@ -30,17 +35,17 @@ export function DeadlineBanner() {
       }`}
     >
       <AlarmClock className={`w-4 h-4 flex-shrink-0 mt-0.5 ${urgent ? "text-red-300" : "text-ehc-300"}`} />
-      <div className="text-slate-300">
-        <strong className={urgent ? "text-red-300" : "text-ehc-300"}>
-          締切間近：
-        </strong>{" "}
-        <strong className="text-white">{s.name}</strong> — 申請締切{" "}
-        <strong className="text-white">
-          {s.applyClose!.replace(/^\d{4}-0?(\d+)-0?(\d+)$/, "$1/$2")}
-        </strong>
-        （あと<strong className={urgent ? "text-red-300 text-sm" : "text-white"}>{days}日</strong>）
-        {upcoming.length > 1 && (
-          <span className="text-slate-500">｜他 {upcoming.length - 1} 件が公募中</span>
+      <div className="text-slate-300 space-y-1">
+        {shown.map(({ s, days }) => (
+          <div key={s.id ?? s.name}>
+            <strong className={urgent ? "text-red-300" : "text-ehc-300"}>締切間近：</strong>{" "}
+            <strong className="text-white">{s.name}</strong> — 申請締切{" "}
+            <strong className="text-white">{fmt(s.applyClose!)}</strong>
+            （あと<strong className={urgent ? "text-red-300 text-sm" : "text-white"}>{days}日</strong>）
+          </div>
+        ))}
+        {upcoming.length > shown.length && (
+          <div className="text-slate-500">他 {upcoming.length - shown.length} 件が公募中</div>
         )}
       </div>
     </div>

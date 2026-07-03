@@ -132,6 +132,19 @@ select option:hover {
 }
 .print-only { display: none; }
 
+/* ── ドロップイン簡易見積の印刷ビュー ──────────────
+   body.print-dropin を付けて window.print() すると、このビューだけを印刷する。 */
+.dropin-print-view { display: none; }
+@media print {
+  body.print-dropin .print-container { display: none !important; }
+  body.print-dropin .dropin-print-view {
+    display: block !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .dropin-print-view table { break-inside: avoid; }
+}
+
 /* ── 透かし（画面・印刷共通）───────────────────
    提案書の上に薄く重ねる。スクショ・コピーにも透かしが写り込む抑止策。 */
 .watermark-layer {
