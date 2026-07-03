@@ -39,8 +39,8 @@ export interface MatchResult {
 }
 
 const ELECTRIC_PRICE_YEN_PER_KWH = 27;
-// CO2排出係数（t-CO2/kWh）＝約0.434 kg-CO2/kWh（環境省・電気事業 全国平均ベース）
-const CO2_FACTOR_TON_PER_KWH = 0.000434;
+// CO2排出係数（t-CO2/kWh）＝0.438 kg-CO2/kWh（省エネ効果レポート・ROI一枚ものと同一係数に統一）
+const CO2_FACTOR_TON_PER_KWH = 0.000438;
 const CURRENT_YEAR = new Date().getFullYear();
 const REFRI_LABEL: Record<RefriType, string> = {
   r22: "R22", r410a: "R410A", r32: "R32", unknown: "冷媒不明",
@@ -143,6 +143,7 @@ export function matchSubsidies(input: MatchInput): MatchResult {
 
   // 補助金マッチング（いずれかのグループの種別が対象なら適用）
   const matched = SUBSIDIES.filter((s) => {
+    if (s.closed) return false; // 今年度受付終了はマッチング対象外（補助金DBタブには表示）
     if (!s.biz.includes(input.bizType)) return false;
     if (!s.size.includes(input.size)) return false;
     if (s.pref !== "all" && !s.pref.includes(input.pref)) return false;

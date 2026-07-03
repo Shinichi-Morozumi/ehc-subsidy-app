@@ -20,6 +20,7 @@ export interface Subsidy {
   rateNum: number;
   capManYen: number;
   infoOnly?: boolean; // true=資金額/ROI計算に含めず情報提供のみ（例: 持続化補助金）
+  closed?: boolean;   // true=今年度の受付終了（マッチング対象外・DBには表示）
   applyOpen?: string;   // 公募開始日(ISO yyyy-mm-dd)。判明している回のみ
   applyClose?: string;  // 申請締切日(ISO)。判明している回のみ
   scheduleNote?: string; // 次回公募の見込み等の注記

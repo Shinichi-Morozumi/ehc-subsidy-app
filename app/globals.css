@@ -30,7 +30,7 @@ select, option {
 }
 select option:checked,
 select option:hover {
-  background-color: #2d4295;
+  background-color: #00a651;
   color: #ffffff;
 }
 

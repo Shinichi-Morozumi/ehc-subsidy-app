@@ -56,7 +56,7 @@ export function TabsTrigger({
       className={cn(
         "px-4 py-2.5 text-sm cursor-pointer rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 flex-shrink-0",
         isActive
-          ? "bg-gradient-to-r from-cobalt-600 to-cobalt-500 text-white shadow-glow font-semibold"
+          ? "bg-gradient-to-r from-ehc-600 to-ehc-500 text-white shadow-glow font-semibold"
           : "text-slate-400 hover:text-white hover:bg-white/5 font-medium"
       )}
     >

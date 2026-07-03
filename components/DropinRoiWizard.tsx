@@ -12,7 +12,7 @@ import {
 import { estimateDropinCost, DROPIN, yenJP } from "@/lib/pricing";
 
 const PRICE = 27;          // 円/kWh
-const CO2 = 0.000434;      // t-CO2/kWh
+const CO2 = 0.000438;      // t-CO2/kWh（省エネ効果レポートと同一係数）
 const YEARS = 15;
 const DEGRADE = 0.02;      // 旧機の年あたり電力増（経年劣化）
 

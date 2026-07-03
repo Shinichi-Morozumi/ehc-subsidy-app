@@ -6,7 +6,7 @@ import { Gauge, Calculator } from "lucide-react";
 import { estimateDropinCost, DROPIN, PRICING_SOURCE, yenJP } from "@/lib/pricing";
 
 const PRICE = 27; // 円/kWh
-const CO2 = 0.000434; // t-CO2/kWh
+const CO2 = 0.000438; // t-CO2/kWh（省エネ効果レポートと同一係数）
 // 対象冷媒ごとの想定削減率ベース（ドロップイン・実測校正前の概算）
 const RATE: Record<string, { rate: number; label: string }> = {
   r404a: { rate: 0.35, label: "R404A 冷凍冷蔵（削減大）" },
@@ -51,7 +51,7 @@ export function DropinSimulator() {
     <Card>
       <CardTitle icon={<Gauge className="w-5 h-5" />}>ドロップイン 簡易シミュレーター</CardTitle>
       <p className="text-xs text-slate-400 mb-3">
-        既存機はそのまま、冷媒置換による概算効果。施工費は<strong className="text-ehc-300">PN見積の系統単価</strong>から自動概算（手動上書き可）。削減率は冷媒×業種(稼働)から自動提案——実測（大塚ドロップイン等）の到着後に校正します。
+        既存機はそのまま、冷媒置換による概算効果。施工費は<strong className="text-ehc-300">PN見積の系統単価</strong>から自動概算（手動上書き可）。削減率は冷媒×業種(稼働)から自動提案——都内物流倉庫の厨房系統で<strong className="text-ehc-300">実測 削減率33%</strong>（30日計測・2026年）を確認済み。
       </p>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         <Field label="対象冷媒">

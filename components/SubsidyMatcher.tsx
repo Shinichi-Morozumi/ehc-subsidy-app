@@ -9,7 +9,7 @@ import { ReportTeaser } from "./ReportTeaser";
 import { CustomerReport } from "./CustomerReport";
 import { SampleCases } from "./SampleCases";
 import { SampleCase } from "@/lib/samples";
-import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge } from "lucide-react";
+import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge, Link2 } from "lucide-react";
 import { RoiChart } from "./RoiChart";
 import { GroupSavingsChart } from "./GroupSavingsChart";
 import { useProject } from "./ProjectContext";
@@ -31,6 +31,18 @@ const newGroup = (over: Partial<EquipGroup> = {}): EquipGroup => ({
 
 const PREFS = ["東京都", "神奈川県", "大阪府", "埼玉県", "千葉県", "愛知県", "北海道", "福岡県", "その他"];
 
+// 共有リンク: 入力値をURLの ?d= に埋め込み、開いた側で同じ診断を自動再現する
+const encodeInput = (i: MatchInput) =>
+  btoa(unescape(encodeURIComponent(JSON.stringify(i))));
+const decodeInput = (s: string): MatchInput | null => {
+  try {
+    const parsed = JSON.parse(decodeURIComponent(escape(atob(s))));
+    return parsed && Array.isArray(parsed.equipGroups) && parsed.equipGroups.length ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 const HELP = {
   customerCompany: "提案書のヘッダーに表示されるお客様の会社名（例: 株式会社○○）",
   customerContact: "提案書ヘッダーに表示されるご担当者様のお名前（任意）",
@@ -44,7 +56,7 @@ const HELP = {
   refri: "R22は既に製造禁止（修理部品入手困難）。R410Aは2025年で製造規制完了（修理コスト2-3倍）。R32が現行最有力。",
   kwh: "直近1年間の電力会社請求書の合計kWh。複数事業所がある場合は、空調を更新する事業所分のみで結構です。",
   invest: "新空調機器の本体価格＋設置工事費の合計見積額。参考：業務用パッケージ50〜150万円/台、ビル用マルチ500〜3,000万円。",
-  co2: "年間電力削減量(kWh) × 0.000434 で概算可能。神奈川県補助金は3t/年以上が必須条件です。",
+  co2: "年間電力削減量(kWh) × 0.000438 で概算可能。神奈川県補助金は3t/年以上が必須条件です。",
 };
 
 export function SubsidyMatcher() {
@@ -94,6 +106,30 @@ export function SubsidyMatcher() {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 2500);
     // hasRun中はuseEffectが新しい入力で自動再計算する
+  };
+
+  // 共有リンク(?d=)から入力を復元し、自動で診断を再現
+  useEffect(() => {
+    const d = new URLSearchParams(window.location.search).get("d");
+    if (!d) return;
+    const restored = decodeInput(d);
+    if (restored) {
+      setInput(restored);
+      setHasRun(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const copyShareLink = async () => {
+    const url = `${window.location.origin}${window.location.pathname}?d=${encodeInput(input)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setToast("共有リンクをコピーしました。開くと同じ条件で診断が再現されます");
+    } catch {
+      window.prompt("このURLをコピーしてください:", url);
+    }
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 3000);
   };
 
   // 入力が変わるたびに結果・ROI・提案書をライブ再計算（初回即答後）
@@ -267,7 +303,7 @@ export function SubsidyMatcher() {
           </Field>
           <div className="flex items-end">
             <div className="text-[11px] text-slate-500 bg-white/5 border border-white/10 rounded-lg p-2.5 w-full">
-              CO2削減量は削減kWhから自動計算されます（排出係数 0.000434 t-CO₂/kWh・環境省全国平均）。神奈川県補助金の3t/年要件も自動判定。
+              CO2削減量は削減kWhから自動計算されます（排出係数 0.000438 t-CO₂/kWh・省エネ効果レポートと同一係数）。神奈川県補助金の3t/年要件も自動判定。
             </div>
           </div>
         </div>
@@ -284,9 +320,18 @@ export function SubsidyMatcher() {
           {hasRun ? "再計算（最新の入力で更新）" : "即答（マッチング & 提案書生成）"}
         </Button>
         {hasRun && (
-          <div className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-cobalt-300">
-            <span className="w-1.5 h-1.5 rounded-full bg-cobalt-400 animate-pulse" />
-            ライブ更新中：各項目を変更すると結果・ROI・提案書が自動で再計算されます
+          <div className="mt-2 flex items-center justify-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 text-[11px] text-cobalt-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-cobalt-400 animate-pulse" />
+              ライブ更新中：各項目を変更すると結果・ROI・提案書が自動で再計算されます
+            </div>
+            <button
+              type="button"
+              onClick={copyShareLink}
+              className="text-[11px] px-2.5 py-1 rounded-md border border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10 flex items-center gap-1"
+            >
+              <Link2 className="w-3.5 h-3.5" /> この診断の共有リンクをコピー
+            </button>
           </div>
         )}
       </Card>

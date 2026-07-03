@@ -8,17 +8,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // ブランドキーカラー #00A651（EHC緑）基準のスケール
         ehc: {
-          50: "#ecfdf5",
-          100: "#d1fae5",
-          200: "#a7f3d0",
-          300: "#6ee7b7",
-          400: "#34d399",
-          500: "#10b981",
-          600: "#059669",
-          700: "#047857",
-          800: "#065f46",
-          900: "#064e3b",
+          50: "#e8f8ef",
+          100: "#c8eed9",
+          200: "#94deb4",
+          300: "#5ccb8d",
+          400: "#2bba6c",
+          500: "#00a651",
+          600: "#009148",
+          700: "#00773b",
+          800: "#005d2f",
+          900: "#004423",
         },
         // リファレンス(ISC)準拠: ほぼ黒の背景
         night: {
@@ -48,7 +49,7 @@ const config: Config = {
         soft: "0 1px 2px 0 rgb(0 0 0 / 0.3)",
         card: "0 4px 16px -2px rgb(0 0 0 / 0.5)",
         lift: "0 18px 40px -12px rgb(0 0 0 / 0.7)",
-        glow: "0 0 40px -8px rgb(45 66 149 / 0.45)",
+        glow: "0 0 40px -8px rgb(0 166 81 / 0.45)",
       },
       fontFamily: {
         sans: ['-apple-system', 'BlinkMacSystemFont', 'Hiragino Sans', 'Yu Gothic', 'sans-serif'],

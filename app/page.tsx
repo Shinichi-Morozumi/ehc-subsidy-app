@@ -9,19 +9,20 @@ import { BreakerDept } from "@/components/BreakerDept";
 import { Target, Database, Wind, TrendingUp, Award, Wrench, AlertCircle, Droplet, Bolt, CalendarClock } from "lucide-react";
 import { ProjectProvider } from "@/components/ProjectContext";
 import { RoadmapTab } from "@/components/RoadmapTab";
+import { DeadlineBanner } from "@/components/DeadlineBanner";
 
 export default function Page() {
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8 print-container">
       <header className="relative overflow-hidden rounded-3xl mb-6 no-print bg-night-900 border border-white/10">
-        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-cobalt-600/20 blur-3xl"></div>
+        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-ehc-600/20 blur-3xl"></div>
         <div className="absolute -bottom-32 -left-20 w-80 h-80 rounded-full bg-cobalt-700/10 blur-3xl"></div>
         {/* 軌道風の細線リング */}
         <div className="absolute -bottom-40 right-10 w-[520px] h-[520px] rounded-full border border-white/5"></div>
         <div className="absolute -bottom-32 right-24 w-[380px] h-[380px] rounded-full border border-dashed border-white/10"></div>
         <div className="relative px-6 py-12 md:px-12 md:py-16">
           <div className="flex items-center gap-2 mb-6">
-            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-cobalt-400 to-cobalt-700"></span>
+            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-ehc-400 to-ehc-700"></span>
             <span className="text-[11px] tracking-[0.25em] text-slate-300 font-medium uppercase">
               EHC Solutions
             </span>
@@ -36,10 +37,12 @@ export default function Page() {
           <div className="mt-7 flex flex-wrap items-center gap-2 text-[11px]">
             <span className="px-3 py-1 rounded-full border border-white/15 text-slate-300">補助金 最大3億円</span>
             <span className="px-3 py-1 rounded-full border border-white/15 text-slate-300">電力削減 −15〜40%</span>
-            <span className="px-3 py-1 rounded-full border border-cobalt-400/40 text-cobalt-200 bg-cobalt-600/10">施工実績 22業種</span>
+            <span className="px-3 py-1 rounded-full border border-ehc-400/40 text-ehc-200 bg-ehc-600/10">施工実績 22業種</span>
           </div>
         </div>
       </header>
+
+      <DeadlineBanner />
 
       <div className="bg-cobalt-600/10 border border-cobalt-500/30 px-4 py-3 rounded-xl text-xs mb-5 flex items-start gap-2.5 no-print">
         <AlertCircle className="w-4 h-4 text-cobalt-300 flex-shrink-0 mt-0.5" />
