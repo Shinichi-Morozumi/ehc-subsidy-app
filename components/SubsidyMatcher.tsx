@@ -45,9 +45,9 @@ const decodeInput = (s: string): MatchInput | null => {
 };
 
 const HELP = {
-  customerCompany: "提案書のヘッダーに表示されるお客様の会社名（例: 株式会社○○）",
-  customerContact: "提案書ヘッダーに表示されるご担当者様のお名前（任意）",
-  ehcStaff: "提案書のフッターに表示されるEHC担当者名（桝口、伊藤など）",
+  customerCompany: "提案書のヘッダーに表示されるお客様の会社名（例: 株式会社○○）。空欄のままでも診断・提案書作成はできます。",
+  customerContact: "提案書ヘッダーに表示されるご担当者様のお名前。未定・不明の場合は空欄のままでOKです。",
+  ehcStaff: "提案書のフッターに表示されるEHC側の担当者名（例: 桝口、伊藤）。担当者が決まっていない場合は空欄のままでOKです。",
   bizType: "EHCソリューションズは業務用（法人・事業主）専用です。個人・家庭用の空調は対象外となります。",
   size: "中小企業 = 資本金3億円以下 もしくは 従業員300人以下。多くの補助金で中小企業が優遇されます。",
   pref: "都道府県別補助金（神奈川県・大阪府・東京都等）の適用判定に使用します。",
@@ -199,6 +199,9 @@ export function SubsidyMatcher() {
       <div className="no-print">
       <Card>
         <CardTitle icon={<User className="w-5 h-5" />}>お客様情報（提案書ヘッダー用）</CardTitle>
+        <p className="text-[11px] text-slate-500 -mt-2 mb-3">
+          3項目とも<strong className="text-slate-400">任意</strong>です。提案書の宛名・担当者表示にのみ使われ、空欄でも診断結果は変わりません。
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field label="お客様会社名" help={HELP.customerCompany}>
             <Input
@@ -269,6 +272,11 @@ export function SubsidyMatcher() {
             <button onClick={addGroup} type="button" className="text-[11px] px-2.5 py-1 rounded-md border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-600/15 flex items-center gap-1">
               <Plus className="w-3.5 h-3.5" /> 設備グループ追加
             </button>
+          </div>
+          <div className="text-[10px] text-slate-500 bg-white/5 border border-white/10 rounded-lg p-2 mb-2 leading-relaxed">
+            <strong className="text-slate-400">冷媒</strong>＝室外機側面の銘板シールに記載（R22/R410A/R32）。分からなければ「不明」でOK。
+            <strong className="text-slate-400 ml-1.5">設置年</strong>＝おおよそで結構です。
+            <strong className="text-slate-400 ml-1.5">馬力</strong>＝室外機の能力（例: 3馬力）。不明なら空欄のままでOK（台数のみで按分します）。
           </div>
           <div className="space-y-2">
             {input.equipGroups.map((g) => (
