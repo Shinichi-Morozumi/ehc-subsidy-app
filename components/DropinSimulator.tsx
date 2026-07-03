@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input } from "./ui/Field";
 import { Gauge, Calculator } from "lucide-react";
-import { estimateDropinCost, DROPIN, PRICING_SOURCE, yenJP } from "@/lib/pricing";
+import { estimateDropinCost, dropinRoiVerdict, DROPIN, PRICING_SOURCE, yenJP } from "@/lib/pricing";
 
 const PRICE = 27; // 円/kWh
 const CO2 = 0.000438; // t-CO2/kWh（省エネ効果レポートと同一係数）
@@ -46,6 +46,13 @@ export function DropinSimulator() {
   const saveYen = saveKwh * PRICE;
   const co2 = Number((saveKwh * CO2).toFixed(1));
   const payback = saveYen > 0 ? Number((costYen / saveYen).toFixed(1)) : null;
+  const verdict = dropinRoiVerdict(payback);
+  const VERDICT_C: Record<string, string> = {
+    good: "text-ehc-300 border-ehc-500/40 bg-ehc-500/10",
+    ok: "text-amber-300 border-amber-500/40 bg-amber-500/10",
+    warn: "text-orange-300 border-orange-500/40 bg-orange-500/10",
+    weak: "text-rose-300 border-rose-500/40 bg-rose-500/10",
+  };
 
   return (
     <Card>
@@ -127,6 +134,14 @@ export function DropinSimulator() {
           <div className="text-xl font-bold text-violet-300">{payback ? `${payback}年` : "—"}</div>
         </div>
       </div>
+
+      {verdict && (
+        <div className={`mt-3 border rounded-xl px-3 py-2 text-xs flex items-center gap-2 flex-wrap ${VERDICT_C[verdict.tone]}`}>
+          <span className="font-bold">{verdict.label}</span>
+          <span className="text-slate-300">{verdict.advice}</span>
+          <span className="text-[10px] text-slate-500 ml-auto">目安: 系統あたり月電気代1万円以上≒3年以内回収</span>
+        </div>
+      )}
     </Card>
   );
 }

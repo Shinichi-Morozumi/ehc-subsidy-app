@@ -132,3 +132,14 @@ export function estimateInvestManYenFromGroups(
 }
 
 export const yenJP = (n: number) => `¥${Math.round(n).toLocaleString("ja-JP")}`;
+
+/* ───────── ドロップインROI判定基準 ─────────
+   回収年数から営業判定を返す。目安: 系統あたり月電気代1万円以上≒3年以内回収の鉄板ゾーン。 */
+export type RoiVerdict = { label: string; advice: string; tone: "good" | "ok" | "warn" | "weak" };
+export function dropinRoiVerdict(paybackYears: number | null): RoiVerdict | null {
+  if (paybackYears == null || !isFinite(paybackYears)) return null;
+  if (paybackYears <= 3) return { label: "◎ 鉄板ゾーン", advice: "3年以内で回収。即ご提案を推奨", tone: "good" };
+  if (paybackYears <= 5) return { label: "○ 標準", advice: "5年以内で回収。省エネ・脱炭素ニーズに有効", tone: "ok" };
+  if (paybackYears <= 7) return { label: "△ 要検討", advice: "回収やや長め。実測削減率33%の提示で補強を", tone: "warn" };
+  return { label: "▲ 単体では弱い", advice: "フロン規制対応・機器更新＋補助金との合わせ技で提案", tone: "weak" };
+}

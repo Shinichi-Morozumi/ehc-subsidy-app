@@ -9,7 +9,7 @@ import { Field, Select, Input } from "./ui/Field";
 import {
   Sparkles, ArrowRight, ArrowLeft, RotateCcw, TrendingDown, Wallet, Leaf, CalendarClock, Mail,
 } from "lucide-react";
-import { estimateDropinCost, DROPIN, yenJP } from "@/lib/pricing";
+import { estimateDropinCost, dropinRoiVerdict, DROPIN, yenJP } from "@/lib/pricing";
 
 const PRICE = 27;          // 円/kWh
 const CO2 = 0.000438;      // t-CO2/kWh（省エネ効果レポートと同一係数）
@@ -70,6 +70,13 @@ export function DropinRoiWizard() {
   const investNoTax = est.total;
   const invest = Math.round(investNoTax * 1.1); // 税込（お客様の実支払い目安）
   const paybackYears = saveYen > 0 ? Number((invest / saveYen).toFixed(1)) : null;
+  const verdict = dropinRoiVerdict(paybackYears);
+  const VERDICT_C: Record<string, string> = {
+    good: "text-ehc-300 border-ehc-500/40 bg-ehc-500/10",
+    ok: "text-amber-300 border-amber-500/40 bg-amber-500/10",
+    warn: "text-orange-300 border-orange-500/40 bg-orange-500/10",
+    weak: "text-rose-300 border-rose-500/40 bg-rose-500/10",
+  };
 
   // 累積コスト推移（万円）
   const chart = [];
@@ -171,6 +178,13 @@ export function DropinRoiWizard() {
             <Metric color="violet" icon={<CalendarClock className="w-4 h-4" />} label="投資回収（税込）" value={paybackYears != null ? `${paybackYears}年` : "—"} sub={`10年で約${tenYearGain.toLocaleString("ja-JP")}万円お得`} />
             <Metric color="sky" icon={<Leaf className="w-4 h-4" />} label="CO₂削減" value={`${co2} t/年`} sub="脱炭素経営に貢献" />
           </div>
+
+          {verdict && (
+            <div className={`border rounded-xl px-3 py-2 text-xs flex items-center gap-2 flex-wrap ${VERDICT_C[verdict.tone]}`}>
+              <span className="font-bold">{verdict.label}</span>
+              <span className="text-slate-300">{verdict.advice}</span>
+            </div>
+          )}
 
           {/* 累積ROIグラフ */}
           <div className="bg-night-900/60 border border-white/10 rounded-xl p-3">
