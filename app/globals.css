@@ -95,8 +95,73 @@ select option:hover {
   .animate-fade-in { animation: none !important; }
   .shadow-card, .shadow-soft, .shadow-lift { box-shadow: none !important; }
   .rounded-2xl, .rounded-xl { border-radius: 4px !important; }
-  @page { margin: 1.5cm; size: A4; }
+  @page { margin: 1.2cm; size: A4; }
   h1, h2, h3 { page-break-after: avoid; }
   .page-break { page-break-after: always; }
+
+  /* ── お客様提案書の印刷最適化 ───────────────── */
+  /* ダークUIの外枠を除去して紙面を最大化 */
+  .customer-report {
+    background: #fff !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .customer-report .report-sheet { border: none !important; padding: 0 !important; }
+  /* 途中でぶつ切りにならないよう、小ブロック単位で改ページ制御 */
+  .customer-report section > div,
+  .customer-report section li,
+  .customer-report table,
+  .customer-report footer { break-inside: avoid; }
+  /* ダーク配色ブロック（次のステップ・導入実績）を紙向けのライト配色に変換 */
+  .customer-report :is(.bg-night-900, .bg-night-800) {
+    background: #f8fafc !important;
+    border-color: #dbe3ea !important;
+  }
+  .customer-report :is(.bg-night-900, .bg-night-800) .text-white { color: #0f172a !important; }
+  .customer-report .text-slate-300 { color: #334155 !important; }
+  .customer-report .text-slate-400 { color: #475569 !important; }
+  .customer-report .text-ehc-300 { color: #007a3d !important; }
+  .customer-report .text-ehc-400 { color: #007a3d !important; }
+  .customer-report .text-amber-300 { color: #b45309 !important; }
+  /* 緑バナー（実績サマリー・CTA）は緑地×白文字のまま印刷 */
+  .customer-report :is(.bg-ehc-700, .from-ehc-700) .text-white { color: #ffffff !important; }
+  .customer-report .text-emerald-100 { color: #d1fae5 !important; }
 }
 .print-only { display: none; }
+
+/* ── 透かし（画面・印刷共通）───────────────────
+   提案書の上に薄く重ねる。スクショ・コピーにも透かしが写り込む抑止策。 */
+.watermark-layer {
+  position: absolute;
+  inset: -10%;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  transform: rotate(-24deg);
+}
+.watermark-layer > div {
+  white-space: nowrap;
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  font-size: 22px;
+  line-height: 1;
+  color: rgba(15, 23, 42, 0.055);
+}
+@media print {
+  /* fixedにすると全ページに繰り返し印字される */
+  .watermark-layer {
+    position: fixed;
+    inset: -12%;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .watermark-layer > div { color: rgba(15, 23, 42, 0.07); font-size: 24px; }
+}

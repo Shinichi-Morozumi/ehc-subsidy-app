@@ -6,8 +6,9 @@ import { MatchResult } from "@/lib/match";
 import { RoiChart } from "./RoiChart";
 import { NextSteps } from "./NextSteps";
 import { AchievementsSection } from "./AchievementsSection";
-import { Printer, FileText, Handshake, Calendar, LineChart, Award, ClipboardList } from "lucide-react";
+import { Printer, FileText, Handshake, Calendar, LineChart, Award, ClipboardList, Mail } from "lucide-react";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
+import { QRCodeSVG } from "qrcode.react";
 
 // ── 提案書の送付フロー（将来実装メモ）─────────────────────────
 // 現状: 画面で「印刷 / PDF保存」して手動共有。
@@ -38,8 +39,13 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
 
   const handlePrint = () => window.print();
 
+  // 保存(PDF)後もお問い合わせが届くよう、宛先・件名（提案書番号入り）を仕込んだmailtoリンク
+  const inquiryMailto = `mailto:info@ehcjpn.com?subject=${encodeURIComponent(
+    `【提案書 ${proposalNo}】現地調査・お見積りのご依頼（${input.customerCompany || "御社名"}）`
+  )}`;
+
   return (
-    <Card className="border-2 border-ehc-200">
+    <Card className="border-2 border-ehc-200 customer-report">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5 no-print">
         <CardTitle icon={<FileText className="w-5 h-5" />} className="border-b-0 pb-0 mb-0">
           お客様向け提案書
@@ -53,7 +59,13 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
         </button>
       </div>
 
-      <div className="border-2 border-slate-200 rounded-xl p-6 bg-white">
+      <div className="report-sheet relative overflow-hidden border-2 border-slate-200 rounded-xl p-6 bg-white select-none">
+        {/* 透かし（画面＋全印刷ページ）: コピー・スクショ・無断転載の抑止 */}
+        <div className="watermark-layer" aria-hidden>
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i}>EHC SOLUTIONS ｜ 社外秘 ｜ 無断複製・転載禁止 ｜ {proposalNo}</div>
+          ))}
+        </div>
         <div className="text-center border-b-2 border-ehc-700 pb-4 mb-5">
           <div className="text-xs text-slate-500 mb-1">業務用空調 更新工事 ご提案書</div>
           <h1 className="text-2xl font-bold text-ehc-900 mb-2">
@@ -240,7 +252,30 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
           <NextSteps />
         </section>
 
-        <footer className="border-t-2 border-slate-200 pt-4 mt-6 text-xs">
+        {/* お問い合わせ導線（印刷/PDF保存後も残る・QRから件名入りメールが起動） */}
+        <div className="mt-6 border-2 border-ehc-600 rounded-lg p-4 bg-ehc-50 flex items-center justify-between gap-4 flex-wrap">
+          <div className="min-w-0">
+            <div className="font-bold text-ehc-900 text-sm mb-1 flex items-center gap-1.5">
+              <Mail className="w-4 h-4" />
+              お見積り・現地調査（無料）のお申し込み
+            </div>
+            <div className="text-slate-700 text-xs">
+              メール:{" "}
+              <a href={inquiryMailto} className="font-semibold text-ehc-800 underline">
+                info@ehcjpn.com
+              </a>
+              （件名に提案書番号 <strong>{proposalNo}</strong> をご記載ください）
+            </div>
+            <div className="text-slate-500 text-[10px] mt-1">
+              右のQRコードをスマホのカメラで読み取ると、宛先・件名入りのお問い合わせメールがそのまま開きます。
+            </div>
+          </div>
+          <div className="bg-white p-2 rounded-md border border-slate-200 flex-shrink-0">
+            <QRCodeSVG value={inquiryMailto} size={84} level="M" fgColor="#0a0a0a" bgColor="#ffffff" />
+          </div>
+        </div>
+
+        <footer className="border-t-2 border-slate-200 pt-4 mt-4 text-xs">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <div className="font-bold text-ehc-900 mb-1">株式会社EHCソリューションズ</div>
@@ -249,6 +284,8 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
             </div>
             <div className="text-right text-slate-500 text-[11px]">
               本提案書は試算値に基づくものであり、実際の補助金採択・補助額・電気代削減効果を保証するものではありません。
+              <br />
+              本提案書の無断複製・第三者への転載を禁じます。© 株式会社EHCソリューションズ
             </div>
           </div>
         </footer>
