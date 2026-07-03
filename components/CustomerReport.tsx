@@ -284,9 +284,18 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
             </div>
             <div className="text-right text-slate-500 text-[11px]">
               本提案書は試算値に基づくものであり、実際の補助金採択・補助額・電気代削減効果を保証するものではありません。
-              <br />
-              本提案書の無断複製・第三者への転載を禁じます。© 株式会社EHCソリューションズ
             </div>
+          </div>
+          {/* 無断利用に関する法的注意（著作権法・不正競争防止法に基づく警告） */}
+          <div className="mt-3 border border-slate-300 rounded-md p-3 bg-slate-50 text-[10px] text-slate-600 leading-relaxed">
+            <strong className="text-slate-800">【本提案書の取り扱いについて】</strong>
+            <br />
+            本提案書および記載内容（試算結果・提案プラン・施工実績データ・価格情報等）に関する著作権その他一切の権利は、株式会社EHCソリューションズに帰属し、著作権法により保護されています。
+            当社の書面による事前承諾なく、本提案書の全部または一部を複製・転載・改変・撮影・第三者への開示もしくは提供（相見積り取得を目的とした他社への提示を含む）することを固く禁じます。
+            これらに違反した場合、著作権法に基づく差止請求・損害賠償請求、および不正競争防止法（営業秘密の不正使用）に基づく法的措置の対象となることがあります。
+            本提案書は宛先のお客様に限りご利用いただけます（提案書番号 {proposalNo} にて交付先を管理しています）。
+            <br />
+            © {now.getFullYear()} EHC Solutions Co., Ltd. All Rights Reserved.
           </div>
         </footer>
       </div>
