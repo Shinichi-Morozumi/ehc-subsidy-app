@@ -25,6 +25,15 @@ export const DROPIN = {
   hcGasPerKg: 58000,
 };
 
+// 機器タイプ別の系統あたり冷媒量プリセット（業務用は封入量が多くガス代金に直結）
+export const KG_PRESETS: Record<string, { label: string; kg: number }> = {
+  room: { label: "ルームエアコン級（〜2馬力）", kg: 2 },
+  pkg_small: { label: "小型パッケージ（2〜3馬力）", kg: 2.5 },
+  pkg_mid: { label: "中型パッケージ（4〜6馬力）", kg: 3.5 },
+  pkg_large: { label: "大型パッケージ（8〜10馬力）", kg: 5 },
+};
+export const DEFAULT_KG_PRESET = "pkg_mid";
+
 // ドロップイン概算（税抜・円）= HCガス代金 + 工事費用。systems=系統数, kgPerSystem=系統あたり回収冷媒量
 export function estimateDropinCost(systems: number, kgPerSystem = DROPIN.defaultKgPerSystem) {
   const s = Math.max(0, Math.round(systems));

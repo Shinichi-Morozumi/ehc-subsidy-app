@@ -41,6 +41,10 @@ export function DropinDept() {
         </div>
       </div>
 
+      <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 text-xs text-amber-200">
+        <strong className="text-amber-300">※補助金について:</strong> ドロップイン工事自体は省エネ補助金の対象外が原則です。補助金を活用する場合は高効率機への<strong className="text-amber-300">機器更新</strong>が対象——「補助金マッチング」タブで診断できます。
+      </div>
+
       <DropinRoiWizard />
       <DropinSimulator />
       <UpdateEstimator />

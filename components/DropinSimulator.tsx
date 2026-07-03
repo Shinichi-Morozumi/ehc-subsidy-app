@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input } from "./ui/Field";
 import { Gauge, Calculator } from "lucide-react";
-import { estimateDropinCost, dropinRoiVerdict, DROPIN, PRICING_SOURCE, yenJP } from "@/lib/pricing";
+import { estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, PRICING_SOURCE, yenJP } from "@/lib/pricing";
 
 const PRICE = 27; // 円/kWh
 const CO2 = 0.000438; // t-CO2/kWh（省エネ効果レポートと同一係数）
@@ -30,7 +30,8 @@ export function DropinSimulator() {
   const [kwh, setKwh] = useState(80000);
   const [rate, setRate] = useState(0.25);
   const [systems, setSystems] = useState(10);          // 系統数
-  const [kgPerSys] = useState(DROPIN.defaultKgPerSystem);
+  const [machineType, setMachineType] = useState(DEFAULT_KG_PRESET); // 機器タイプ（冷媒量に直結）
+  const kgPerSys = KG_PRESETS[machineType].kg;
   const [manualCost, setManualCost] = useState<number | null>(null); // 手動上書き(万円)
 
   const suggest = (r: string, ind: string) =>
@@ -59,7 +60,7 @@ export function DropinSimulator() {
       <p className="text-xs text-slate-400 mb-3">
         既存機はそのまま、冷媒置換による概算効果。投資額は<strong className="text-ehc-300">HCガス代金＋工事費用</strong>（PN見積の系統単価ベース）で自動概算（手動上書き可）。削減率は冷媒×業種(稼働)から自動提案——都内物流倉庫の厨房系統で<strong className="text-ehc-300">実測 削減率33%</strong>（30日計測・2026年）を確認済み。
       </p>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
         <Field label="対象冷媒">
           <Select value={refri} onChange={(e) => onRefri(e.target.value)}>
             {Object.entries(RATE).map(([k, v]) => (
@@ -82,6 +83,13 @@ export function DropinSimulator() {
         </Field>
         <Field label="系統数（台）">
           <Input type="number" value={systems} onChange={(e) => { setSystems(Number(e.target.value)); setManualCost(null); }} />
+        </Field>
+        <Field label="機器タイプ（冷媒量）">
+          <Select value={machineType} onChange={(e) => { setMachineType(e.target.value); setManualCost(null); }}>
+            {Object.entries(KG_PRESETS).map(([k, v]) => (
+              <option key={k} value={k}>{v.label}</option>
+            ))}
+          </Select>
         </Field>
       </div>
 
@@ -112,6 +120,7 @@ export function DropinSimulator() {
             <button onClick={() => setManualCost(null)} className="text-[10px] text-ehc-300 underline">自動に戻す</button>
           )}
           <span className="text-[10px] text-slate-500">採用投資額（ガス代金＋工事費用）: {yenJP(costYen)}（税込 {yenJP(costTaxIn)}）</span>
+          <span className="text-[10px] text-slate-500">※実勢±20%程度のレンジあり</span>
         </div>
       </div>
 

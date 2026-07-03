@@ -9,7 +9,7 @@ import { Field, Select, Input } from "./ui/Field";
 import {
   Sparkles, ArrowRight, ArrowLeft, RotateCcw, TrendingDown, Wallet, Leaf, CalendarClock, Mail,
 } from "lucide-react";
-import { estimateDropinCost, dropinRoiVerdict, DROPIN, yenJP } from "@/lib/pricing";
+import { estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, yenJP } from "@/lib/pricing";
 
 const PRICE = 27;          // 円/kWh
 const CO2 = 0.000438;      // t-CO2/kWh（省エネ効果レポートと同一係数）
@@ -43,6 +43,7 @@ export function DropinRoiWizard() {
   const [refri, setRefri] = useState("");
   const [monthlyBill, setMonthlyBill] = useState<number | "">("");  // 対象設備の月の電気代(円)
   const [systems, setSystems] = useState<number | "">("");          // 系統数(台)
+  const [machineType, setMachineType] = useState(DEFAULT_KG_PRESET); // 機器タイプ（冷媒量）
 
   const canNext =
     (step === 0 && industry !== "") ||
@@ -50,7 +51,7 @@ export function DropinRoiWizard() {
     (step === 2 && typeof monthlyBill === "number" && monthlyBill > 0) ||
     (step === 3 && typeof systems === "number" && systems > 0);
 
-  const reset = () => { setStep(0); setIndustry(""); setRefri(""); setMonthlyBill(""); setSystems(""); };
+  const reset = () => { setStep(0); setIndustry(""); setRefri(""); setMonthlyBill(""); setSystems(""); setMachineType(DEFAULT_KG_PRESET); };
 
   // ───────── 試算 ─────────
   const bill = typeof monthlyBill === "number" ? monthlyBill : 0;
@@ -65,7 +66,7 @@ export function DropinRoiWizard() {
   const saveKwh = Math.round(kwh * rate);
   const co2 = Number((saveKwh * CO2).toFixed(1));
 
-  const est = estimateDropinCost(sysN, DROPIN.defaultKgPerSystem);
+  const est = estimateDropinCost(sysN, KG_PRESETS[machineType].kg);
   const investNoTax = est.total;
   const invest = Math.round(investNoTax * 1.1); // 税込（お客様の実支払い目安）
   const paybackYears = saveYen > 0 ? Number((invest / saveYen).toFixed(1)) : null;
@@ -146,11 +147,20 @@ export function DropinRoiWizard() {
       )}
 
       {step === 3 && (
-        <StepWrap title="④ 対象の台数（系統数）は？" hint="ドロップイン対象の室外機（系統）のおおよその台数。ガス代金・工事費用の概算に使います。">
+        <StepWrap title="④ 対象の台数（系統数）は？" hint="ドロップイン対象の室外機（系統）のおおよその台数と機器の大きさ。ガス代金・工事費用の概算に使います。">
           <Field label="系統数（台）">
             <Input type="number" inputMode="numeric" placeholder="例: 10"
               value={systems} onChange={(e) => setSystems(e.target.value === "" ? "" : Number(e.target.value))} />
           </Field>
+          <div className="mt-3">
+            <Field label="主な機器タイプ（不明なら中型のままでOK）">
+              <Select value={machineType} onChange={(e) => setMachineType(e.target.value)}>
+                {Object.entries(KG_PRESETS).map(([k, v]) => (
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
         </StepWrap>
       )}
 
@@ -212,7 +222,7 @@ export function DropinRoiWizard() {
           </div>
 
           <p className="text-[10px] text-slate-500 leading-relaxed">
-            ※ 概算（目安）です。投資額＝HCガス代金＋工事費用（電力単価¥{PRICE}/kWh・想定削減率・PN見積の系統単価をもとに自動試算）。実際の効果・費用は機種・稼働・現地条件で変動します。正式なお見積りは現地確認のうえご提示します。
+            ※ 概算（目安）です。投資額＝HCガス代金＋工事費用（電力単価¥{PRICE}/kWh・想定削減率・PN見積の系統単価をもとに自動試算）。実際の効果・費用は機種・稼働・現地条件で±20%程度変動します。正式なお見積りは現地確認のうえご提示します。
           </p>
 
           <div className="flex flex-wrap gap-2">
