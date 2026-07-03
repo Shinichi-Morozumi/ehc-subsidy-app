@@ -17,9 +17,14 @@ export const DROPIN = {
   overhead: 125000,
   // 系統あたり想定回収冷媒量(kg)の既定値（ルームエアコン基準）
   defaultKgPerSystem: 2,
+  // ── HC冷媒（HyChill）ガス代金 ──
+  // HC冷媒は比重が軽く、フロン充填量の約4割の重量で足りる（HyChill技術資料の一般値）
+  hcChargeRatio: 0.4,
+  // HCガス材料単価（円/kg・税抜）。※仮単価 — 実勢仕入値で要校正（桝口さん確認事項）
+  hcGasPerKg: 8000,
 };
 
-// ドロップイン概算（税抜・円）。systems=系統数, kgPerSystem=系統あたり回収冷媒量
+// ドロップイン概算（税抜・円）= HCガス代金 + 工事費用。systems=系統数, kgPerSystem=系統あたり回収冷媒量
 export function estimateDropinCost(systems: number, kgPerSystem = DROPIN.defaultKgPerSystem) {
   const s = Math.max(0, Math.round(systems));
   const kg = Math.max(0, s * kgPerSystem);
@@ -27,8 +32,12 @@ export function estimateDropinCost(systems: number, kgPerSystem = DROPIN.default
   const gas = Math.round(kg * DROPIN.gasDestroyPerKg);
   const consumable = s * DROPIN.consumablePerSystem;
   const overhead = s > 0 ? DROPIN.overhead : 0;
-  const total = work + gas + consumable + overhead;
-  return { systems: s, kg, work, gas, consumable, overhead, total };
+  // 新冷媒（HCガス）代金: 回収フロン量×充填比×単価
+  const hcKg = Math.round(kg * DROPIN.hcChargeRatio * 10) / 10;
+  const hcGas = Math.round(hcKg * DROPIN.hcGasPerKg);
+  const workTotal = work + gas + consumable + overhead; // 工事費用 計
+  const total = hcGas + workTotal;                      // ガス代金 + 工事費用
+  return { systems: s, kg, work, gas, consumable, overhead, hcKg, hcGas, workTotal, total };
 }
 
 /* ───────── 更新工事（機器入替） ─────────

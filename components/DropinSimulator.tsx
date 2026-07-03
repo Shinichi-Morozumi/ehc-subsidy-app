@@ -51,7 +51,7 @@ export function DropinSimulator() {
     <Card>
       <CardTitle icon={<Gauge className="w-5 h-5" />}>ドロップイン 簡易シミュレーター</CardTitle>
       <p className="text-xs text-slate-400 mb-3">
-        既存機はそのまま、冷媒置換による概算効果。施工費は<strong className="text-ehc-300">PN見積の系統単価</strong>から自動概算（手動上書き可）。削減率は冷媒×業種(稼働)から自動提案——都内物流倉庫の厨房系統で<strong className="text-ehc-300">実測 削減率33%</strong>（30日計測・2026年）を確認済み。
+        既存機はそのまま、冷媒置換による概算効果。投資額は<strong className="text-ehc-300">HCガス代金＋工事費用</strong>（PN見積の系統単価ベース）で自動概算（手動上書き可）。削減率は冷媒×業種(稼働)から自動提案——都内物流倉庫の厨房系統で<strong className="text-ehc-300">実測 削減率33%</strong>（30日計測・2026年）を確認済み。
       </p>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         <Field label="対象冷媒">
@@ -79,13 +79,14 @@ export function DropinSimulator() {
         </Field>
       </div>
 
-      {/* 施工費の自動概算（PN実勢単価） */}
+      {/* ガス代金＋工事費用の自動概算（PN実勢単価） */}
       <div className="bg-night-900/60 border border-white/10 rounded-xl p-3 mb-4">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-300"><Calculator className="w-3.5 h-3.5 text-ehc-300" />施工費 自動概算（{PRICING_SOURCE}）</div>
-          <div className="text-[10px] text-slate-400">回収冷媒 {kgPerSys}kg/系統・計{est.kg}kg</div>
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-300"><Calculator className="w-3.5 h-3.5 text-ehc-300" />ガス代金＋工事費用 自動概算（{PRICING_SOURCE}）</div>
+          <div className="text-[10px] text-slate-400">回収冷媒 {kgPerSys}kg/系統・計{est.kg}kg → HC充填 約{est.hcKg}kg</div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-[10px] mb-2">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-[10px] mb-2">
+          <div><div className="text-slate-500">HCガス代金({est.hcKg}kg)</div><div className="text-ehc-300 font-semibold">{yenJP(est.hcGas)}</div></div>
           <div><div className="text-slate-500">作業費(¥16,000/系統)</div><div className="text-slate-200">{yenJP(est.work)}</div></div>
           <div><div className="text-slate-500">フロン破壊(¥2,600/kg)</div><div className="text-slate-200">{yenJP(est.gas)}</div></div>
           <div><div className="text-slate-500">消耗・ボンベ等</div><div className="text-slate-200">{yenJP(est.consumable)}</div></div>
@@ -104,7 +105,7 @@ export function DropinSimulator() {
           {manualCost != null && (
             <button onClick={() => setManualCost(null)} className="text-[10px] text-ehc-300 underline">自動に戻す</button>
           )}
-          <span className="text-[10px] text-slate-500">採用施工費: {yenJP(costYen)}（税込 {yenJP(costTaxIn)}）</span>
+          <span className="text-[10px] text-slate-500">採用投資額（ガス代金＋工事費用）: {yenJP(costYen)}（税込 {yenJP(costTaxIn)}）</span>
         </div>
       </div>
 

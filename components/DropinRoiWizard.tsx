@@ -140,7 +140,7 @@ export function DropinRoiWizard() {
       )}
 
       {step === 3 && (
-        <StepWrap title="④ 対象の台数（系統数）は？" hint="ドロップイン対象の室外機（系統）のおおよその台数。施工費の概算に使います。">
+        <StepWrap title="④ 対象の台数（系統数）は？" hint="ドロップイン対象の室外機（系統）のおおよその台数。ガス代金・工事費用の概算に使います。">
           <Field label="系統数（台）">
             <Input type="number" inputMode="numeric" placeholder="例: 10"
               value={systems} onChange={(e) => setSystems(e.target.value === "" ? "" : Number(e.target.value))} />
@@ -166,7 +166,7 @@ export function DropinRoiWizard() {
 
           {/* 4指標 */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Metric color="ehc" icon={<Wallet className="w-4 h-4" />} label="概算投資（税込）" value={`${yenJP(invest)}`} sub={`税抜 ${yenJP(investNoTax)}`} />
+            <Metric color="ehc" icon={<Wallet className="w-4 h-4" />} label="概算投資（税込）" value={`${yenJP(invest)}`} sub={`税抜 ${yenJP(investNoTax)}＝ガス${yenJP(est.hcGas)}＋工事${yenJP(est.workTotal)}`} />
             <Metric color="amber" icon={<TrendingDown className="w-4 h-4" />} label="年間 電気代削減" value={`${yenJP(saveYen)}`} sub={`約${saveKwh.toLocaleString("ja-JP")}kWh/年`} />
             <Metric color="violet" icon={<CalendarClock className="w-4 h-4" />} label="投資回収（税込）" value={paybackYears != null ? `${paybackYears}年` : "—"} sub={`10年で約${tenYearGain.toLocaleString("ja-JP")}万円お得`} />
             <Metric color="sky" icon={<Leaf className="w-4 h-4" />} label="CO₂削減" value={`${co2} t/年`} sub="脱炭素経営に貢献" />
@@ -199,7 +199,7 @@ export function DropinRoiWizard() {
           </div>
 
           <p className="text-[10px] text-slate-500 leading-relaxed">
-            ※ 概算（目安）です。電力単価¥{PRICE}/kWh・想定削減率・PN見積の系統単価をもとに自動試算。実際の効果・費用は機種・稼働・現地条件で変動します。正式なお見積りは現地確認のうえご提示します。
+            ※ 概算（目安）です。投資額＝HCガス代金＋工事費用（電力単価¥{PRICE}/kWh・想定削減率・PN見積の系統単価をもとに自動試算）。実際の効果・費用は機種・稼働・現地条件で変動します。正式なお見積りは現地確認のうえご提示します。
           </p>
 
           <div className="flex flex-wrap gap-2">
