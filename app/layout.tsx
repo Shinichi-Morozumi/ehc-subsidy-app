@@ -35,6 +35,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ja">
       <body>
+        {/* サイト全体の斜め透かし（スクショ・無断共有の抑止・画面のみ） */}
+        <div className="site-watermark" aria-hidden>
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i}>{"EHC SOLUTIONS ｜ 社外秘 ｜ 無断複製・転載禁止　".repeat(4)}</div>
+          ))}
+        </div>
         {children}
         <PwaRegister />
       </body>

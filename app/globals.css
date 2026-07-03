@@ -145,6 +145,31 @@ select option:hover {
   .dropin-print-view table { break-inside: avoid; }
 }
 
+/* ── サイト全体の斜め透かし（画面のみ・スクショ抑止） ───────
+   全ページに常時オーバーレイ。印刷時は各印刷ビュー側の透かしに任せて非表示。 */
+.site-watermark {
+  position: fixed;
+  inset: -20%;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  transform: rotate(-24deg);
+}
+.site-watermark > div {
+  white-space: nowrap;
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  font-size: 18px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.04);
+}
+@media print { .site-watermark { display: none !important; } }
+
 /* ── 透かし（画面・印刷共通）───────────────────
    提案書の上に薄く重ねる。スクショ・コピーにも透かしが写り込む抑止策。 */
 .watermark-layer {
