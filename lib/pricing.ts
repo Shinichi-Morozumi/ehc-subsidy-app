@@ -15,8 +15,8 @@ export const DROPIN = {
   consumablePerSystem: 2000,
   // 諸経費（運搬¥50,000+現場¥15,000+会社経費¥60,000）。案件固定の目安。
   overhead: 125000,
-  // 系統あたり想定回収冷媒量(kg)の既定値（ルームエアコン基準）
-  defaultKgPerSystem: 2,
+  // 系統あたり想定回収冷媒量(kg)の既定値（小型パッケージ基準・対象は業務用のみ）
+  defaultKgPerSystem: 2.5,
   // ── HC冷媒（HyChill）ガス代金 ──
   // HC冷媒は比重が軽く、フロン充填量の約4割の重量で足りる（HyChill技術資料の一般値）
   hcChargeRatio: 0.4,
@@ -25,9 +25,8 @@ export const DROPIN = {
   hcGasPerKg: 58000,
 };
 
-// 機器タイプ別の系統あたり冷媒量プリセット（業務用は封入量が多くガス代金に直結）
+// 機器タイプ別の系統あたり冷媒量プリセット（業務用パッケージのみ・ルームエアコンは対象外）
 export const KG_PRESETS: Record<string, { label: string; kg: number }> = {
-  room: { label: "ルームエアコン級（〜2馬力）", kg: 2 },
   pkg_small: { label: "小型パッケージ（2〜3馬力）", kg: 2.5 },
   pkg_mid: { label: "中型パッケージ（4〜6馬力）", kg: 3.5 },
   pkg_large: { label: "大型パッケージ（8〜10馬力）", kg: 5 },

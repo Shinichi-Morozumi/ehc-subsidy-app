@@ -36,7 +36,7 @@ export function DropinDept() {
             <span className="text-emerald-100">冷媒だけ交換</span> = 電気代と環境負荷を大幅削減
           </h2>
           <p className="text-sm text-emerald-50">
-            豪州 HyChill 社製 自然冷媒を業務用空調にドロップイン（対象は空調機器のみ）
+            豪州 HyChill 社製 自然冷媒を業務用空調にドロップイン（対象は業務用空調のみ・ルームエアコン/冷凍冷蔵機器は対象外）
           </p>
         </div>
       </div>
