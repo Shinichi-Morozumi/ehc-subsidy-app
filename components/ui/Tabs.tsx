@@ -30,7 +30,7 @@ export function TabsList({ children, className }: { children: React.ReactNode; c
   return (
     <div
       className={cn(
-        "flex gap-1 mb-5 p-1.5 bg-night-900 rounded-2xl shadow-soft border border-white/10 overflow-x-auto",
+        "flex gap-1 mb-5 p-1.5 bg-night-900 rounded-2xl shadow-soft border border-white/10 overflow-x-auto no-print",
         className
       )}
     >

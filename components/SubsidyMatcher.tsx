@@ -9,7 +9,8 @@ import { ReportTeaser } from "./ReportTeaser";
 import { CustomerReport } from "./CustomerReport";
 import { SampleCases } from "./SampleCases";
 import { SampleCase } from "@/lib/samples";
-import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge, Link2 } from "lucide-react";
+import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge, Link2, QrCode, Printer } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { RoiChart } from "./RoiChart";
 import { GroupSavingsChart } from "./GroupSavingsChart";
 import { useProject } from "./ProjectContext";
@@ -80,6 +81,8 @@ export function SubsidyMatcher() {
   const [agreed, setAgreed] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [selectedSampleId, setSelectedSampleId] = useState<string | null>(null);
+  const [showQr, setShowQr] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string>("");
   const toastTimer = useRef<number | null>(null);
 
   const set = <K extends keyof MatchInput>(key: K, val: MatchInput[K]) =>
@@ -120,8 +123,29 @@ export function SubsidyMatcher() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const buildShareUrl = () =>
+    `${window.location.origin}${window.location.pathname}?d=${encodeInput(input)}`;
+
+  // ②QRコード表示（商談中にお客様のスマホで読み取り）
+  const toggleQr = () => {
+    if (!showQr) setShareUrl(buildShareUrl());
+    setShowQr((v) => !v);
+  };
+
+  // ③提案書の印刷ビュー（同意済みならそのまま印刷、未同意なら誘導）
+  const printReport = () => {
+    if (!agreed) {
+      setToast("下部の同意チェックを入れると、お客様提案書を印刷できます");
+      if (toastTimer.current) window.clearTimeout(toastTimer.current);
+      toastTimer.current = window.setTimeout(() => setToast(null), 3000);
+      document.getElementById("agree-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    window.print();
+  };
+
   const copyShareLink = async () => {
-    const url = `${window.location.origin}${window.location.pathname}?d=${encodeInput(input)}`;
+    const url = buildShareUrl();
     try {
       await navigator.clipboard.writeText(url);
       setToast("共有リンクをコピーしました。開くと同じ条件で診断が再現されます");
@@ -168,8 +192,11 @@ export function SubsidyMatcher() {
       )}
       <ReportTeaser />
 
+      <div className="no-print">
       <SampleCases onPick={applySample} selectedId={selectedSampleId} />
+      </div>
 
+      <div className="no-print">
       <Card>
         <CardTitle icon={<User className="w-5 h-5" />}>お客様情報（提案書ヘッダー用）</CardTitle>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -332,28 +359,59 @@ export function SubsidyMatcher() {
             >
               <Link2 className="w-3.5 h-3.5" /> この診断の共有リンクをコピー
             </button>
+            <button
+              type="button"
+              onClick={toggleQr}
+              className={`text-[11px] px-2.5 py-1 rounded-md border flex items-center gap-1 ${showQr ? "border-ehc-400 bg-ehc-500/15 text-ehc-200" : "border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10"}`}
+            >
+              <QrCode className="w-3.5 h-3.5" /> QRでスマホに送る
+            </button>
+            <button
+              type="button"
+              onClick={printReport}
+              className="text-[11px] px-2.5 py-1 rounded-md border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-600/15 flex items-center gap-1"
+            >
+              <Printer className="w-3.5 h-3.5" /> 提案書を印刷 / PDF
+            </button>
+          </div>
+        )}
+        {hasRun && showQr && shareUrl && (
+          <div className="mt-3 flex flex-col items-center gap-2 animate-fade-in">
+            <div className="bg-white p-3 rounded-xl shadow-lift">
+              <QRCodeSVG value={shareUrl} size={168} level="M" fgColor="#0a0a0a" bgColor="#ffffff" />
+            </div>
+            <div className="text-[10px] text-slate-500 text-center">
+              お客様のスマホカメラで読み取ると、この診断結果がそのまま開きます
+              <br />（入力を変えた場合は一度閉じて再表示してください）
+            </div>
           </div>
         )}
       </Card>
+      </div>
 
       {result && (
         <div id="result-section" className="space-y-5">
           <ResultView result={result} input={input} />
-          <RoadmapView input={input} result={result} compact />
-          <SubsidyDisclaimer />
+          <div className="no-print">
+            <RoadmapView input={input} result={result} compact />
+          </div>
+          <div className="no-print">
+            <SubsidyDisclaimer />
+          </div>
+          <div id="agree-section" className="no-print">
           <Card>
             <label className="flex items-start gap-2.5 text-sm text-slate-200 cursor-pointer">
               <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 w-4 h-4 accent-ehc-400 flex-shrink-0" />
               <span>上記の補助金情報が<strong className="text-white">あくまで目安</strong>であり、公募内容・締切は予告なく変更されるため、最新条件は公募要領／当社で要確認であることを理解しました。（お客様提案書の表示・PDF出力に同意します）</span>
             </label>
           </Card>
-          {agreed ? (
-            <CustomerReport input={input} result={result} />
-          ) : (
+          {!agreed && (
             <Card>
               <p className="text-sm text-slate-400">☑ 上のチェックを入れると、お客様提案書（PDF出力可）が表示されます。</p>
             </Card>
           )}
+          </div>
+          {agreed && <CustomerReport input={input} result={result} />}
         </div>
       )}
     </div>
@@ -438,8 +496,61 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
     return { y, cum, net: cum - netInvestYen };
   });
   const totalKwhForChart = result.totalKwh || input.kwh;
+  // ①実質負担額の即答: 補助なし回収年数との比較
+  const investYen = input.invest * 10000;
+  const subsidyYen = result.bestSubsidyManYen * 10000;
+  const yearsNoSubsidy = result.saveYenPerYear > 0 ? Math.round((investYen / result.saveYenPerYear) * 10) / 10 : null;
+  const yearsShortened =
+    yearsNoSubsidy !== null && result.yearsToRecover !== null
+      ? Math.round((yearsNoSubsidy - result.yearsToRecover) * 10) / 10
+      : null;
   return (
     <div className="space-y-5 no-print">
+      {/* 実質負担額ヒーロー（即答の主役） */}
+      <div className="relative overflow-hidden rounded-2xl border border-ehc-500/40 bg-gradient-to-br from-ehc-600/20 via-night-900 to-night-900 p-5 md:p-6 shadow-lift">
+        <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-ehc-500/15 blur-3xl" />
+        <div className="relative grid grid-cols-1 md:grid-cols-2 gap-5 items-center">
+          <div>
+            <div className="text-[11px] tracking-widest text-ehc-300 font-semibold mb-1">補助金適用後の実質負担額</div>
+            <div className="text-4xl md:text-5xl font-bold text-white tracking-tight">
+              ¥{netInvestYen.toLocaleString("ja-JP")}
+            </div>
+            <div className="text-xs text-slate-400 mt-2">
+              設備投資 ¥{investYen.toLocaleString("ja-JP")} − 想定補助金{" "}
+              <span className="text-ehc-300 font-semibold">¥{subsidyYen.toLocaleString("ja-JP")}</span>
+              {subsidyYen > 0 && (
+                <span className="ml-1.5 text-ehc-300 font-semibold">
+                  （{Math.round((subsidyYen / investYen) * 100)}%オフ）
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+            <div className="text-[11px] text-slate-400 mb-2">投資回収年数の比較</div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div>
+                <div className="text-[10px] text-slate-500">補助金なし</div>
+                <div className="text-xl font-bold text-slate-300 line-through decoration-red-400/60">
+                  {yearsNoSubsidy !== null ? `${yearsNoSubsidy}年` : "—"}
+                </div>
+              </div>
+              <div className="text-ehc-400 text-xl font-bold">→</div>
+              <div>
+                <div className="text-[10px] text-ehc-300">補助金あり</div>
+                <div className="text-3xl font-bold text-ehc-300">
+                  {result.yearsToRecover !== null ? `${result.yearsToRecover}年` : "—"}
+                </div>
+              </div>
+              {yearsShortened !== null && yearsShortened > 0 && (
+                <div className="ml-auto bg-ehc-500/15 border border-ehc-500/40 text-ehc-200 text-xs font-bold px-2.5 py-1.5 rounded-lg">
+                  {yearsShortened}年 短縮
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <Card>
         <CardTitle icon={<BarChart3 className="w-5 h-5" />}>ROI シミュレーション</CardTitle>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

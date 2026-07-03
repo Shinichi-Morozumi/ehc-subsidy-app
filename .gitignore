@@ -46,3 +46,4 @@ next-env.d.ts
 *.docx
 *.pptx
 *.xlsx
+/hozon.skill

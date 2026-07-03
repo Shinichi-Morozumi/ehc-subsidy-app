@@ -10,6 +10,7 @@ import { Target, Database, Wind, TrendingUp, Award, Wrench, AlertCircle, Droplet
 import { ProjectProvider } from "@/components/ProjectContext";
 import { RoadmapTab } from "@/components/RoadmapTab";
 import { DeadlineBanner } from "@/components/DeadlineBanner";
+import { DataFreshnessAlert } from "@/components/DataFreshnessAlert";
 
 export default function Page() {
   return (
@@ -43,6 +44,7 @@ export default function Page() {
       </header>
 
       <DeadlineBanner />
+      <DataFreshnessAlert />
 
       <div className="bg-cobalt-600/10 border border-cobalt-500/30 px-4 py-3 rounded-xl text-xs mb-5 flex items-start gap-2.5 no-print">
         <AlertCircle className="w-4 h-4 text-cobalt-300 flex-shrink-0 mt-0.5" />
