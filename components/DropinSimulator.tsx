@@ -8,15 +8,14 @@ import { estimateDropinCost, dropinRoiVerdict, DROPIN, PRICING_SOURCE, yenJP } f
 const PRICE = 27; // 円/kWh
 const CO2 = 0.000438; // t-CO2/kWh（省エネ効果レポートと同一係数）
 // 対象冷媒ごとの想定削減率ベース（ドロップイン・実測校正前の概算）
+// ※ドロップイン対象は業務用空調のみ（冷凍冷蔵機器は対象外）
 const RATE: Record<string, { rate: number; label: string }> = {
-  r404a: { rate: 0.35, label: "R404A 冷凍冷蔵（削減大）" },
   r410a: { rate: 0.25, label: "R410A 空調" },
-  r22: { rate: 0.3, label: "R22 旧空調/冷凍" },
+  r22: { rate: 0.3, label: "R22 旧型空調" },
   r407c: { rate: 0.22, label: "R407C マルチ" },
 };
 // 業種(稼働プロファイル)別の削減係数。稼働時間が長いほど削減効果が大きい想定。
 const INDUSTRY: Record<string, { factor: number; label: string }> = {
-  refrig: { factor: 1.25, label: "冷凍冷蔵（24h稼働）" },
   food: { factor: 1.15, label: "飲食店（厨房・長時間）" },
   retail: { factor: 1.1, label: "スーパー/小売" },
   factory: { factor: 1.0, label: "工場/倉庫" },

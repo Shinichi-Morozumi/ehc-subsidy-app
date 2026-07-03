@@ -33,7 +33,7 @@ export const HYCHILL_PRODUCTS: HyChillProduct[] = [
     name: "Minus 50",
     type: "R22/R404A/R407C/R410A対応混合冷媒",
     targetRefri: ["R22", "R404A", "R407C", "R410A"],
-    description: "業務用冷凍冷蔵 + 空調の最も汎用性の高い混合冷媒。EHC主力商材。",
+    description: "R22〜R410Aまで対応する最も汎用性の高い混合冷媒。EHC主力商材（空調向け）。",
   },
   {
     id: "minus60",

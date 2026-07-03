@@ -17,16 +17,15 @@ const YEARS = 15;
 const DEGRADE = 0.02;      // 旧機の年あたり電力増（経年劣化）
 
 // 対象冷媒ごとのドロップイン想定削減率ベース
+// ※ドロップイン対象は業務用空調のみ（冷凍冷蔵機器は対象外）
 const RATE: Record<string, { rate: number; label: string }> = {
-  r404a: { rate: 0.35, label: "R404A 冷凍冷蔵（削減大）" },
   r410a: { rate: 0.25, label: "R410A 業務用空調（最多）" },
-  r22: { rate: 0.3, label: "R22 旧型空調/冷凍" },
+  r22: { rate: 0.3, label: "R22 旧型空調" },
   r407c: { rate: 0.22, label: "R407C ビル用マルチ" },
   unknown: { rate: 0.25, label: "わからない（標準で試算）" },
 };
 // 業種(稼働プロファイル)別の削減係数
 const INDUSTRY: Record<string, { factor: number; label: string }> = {
-  refrig: { factor: 1.25, label: "冷凍冷蔵・食品（24h稼働）" },
   food: { factor: 1.15, label: "飲食店（厨房・長時間）" },
   retail: { factor: 1.1, label: "スーパー/小売" },
   factory: { factor: 1.0, label: "工場/倉庫" },
@@ -135,7 +134,7 @@ export function DropinRoiWizard() {
       )}
 
       {step === 2 && (
-        <StepWrap title="③ 対象設備の月の電気代は？" hint="空調・冷凍設備にかかる1ヶ月の電気代の概算（円）。請求書のおおよそでOK。">
+        <StepWrap title="③ 対象の空調にかかる月の電気代は？" hint="空調設備にかかる1ヶ月の電気代の概算（円）。請求書のおおよそでOK。">
           <Field label="月の電気代（円）">
             <Input type="number" inputMode="numeric" placeholder="例: 120000"
               value={monthlyBill} onChange={(e) => setMonthlyBill(e.target.value === "" ? "" : Number(e.target.value))} />

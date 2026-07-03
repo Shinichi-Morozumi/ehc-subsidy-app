@@ -36,7 +36,7 @@ export function DropinDept() {
             <span className="text-emerald-100">冷媒だけ交換</span> = 電気代と環境負荷を大幅削減
           </h2>
           <p className="text-sm text-emerald-50">
-            豪州 HyChill 社製 自然冷媒を業務用空調・冷凍冷蔵機器にドロップイン
+            豪州 HyChill 社製 自然冷媒を業務用空調にドロップイン（対象は空調機器のみ）
           </p>
         </div>
       </div>
@@ -90,7 +90,7 @@ export function DropinDept() {
         </div>
         <div className="mt-4 bg-ehc-500/10 border border-ehc-500/30 rounded-lg p-3 text-xs">
           <strong className="text-ehc-300">Hychill GAS の GWP は CO2 とほぼ同等。</strong>
-          R404A（GWP 3920）の冷凍機をHychillに置換すれば、1kgあたり約4トンのCO2換算削減になります。
+          R410A（GWP 2090）の空調をHychillに置換すれば、冷媒1kgあたり約2トンのCO2換算削減になります。
         </div>
       </Card>
 
