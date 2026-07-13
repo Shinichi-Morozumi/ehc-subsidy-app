@@ -1,4 +1,4 @@
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent, TabHint } from "@/components/ui/Tabs";
 import { SubsidyMatcher } from "@/components/SubsidyMatcher";
 import { SubsidyDB } from "@/components/SubsidyDB";
 import { VendorTable } from "@/components/VendorTable";
@@ -11,6 +11,17 @@ import { ProjectProvider } from "@/components/ProjectContext";
 import { RoadmapTab } from "@/components/RoadmapTab";
 import { DeadlineBanner } from "@/components/DeadlineBanner";
 import { DataFreshnessAlert } from "@/components/DataFreshnessAlert";
+
+const TAB_HINTS: Record<string, string> = {
+  match: "設備の情報から使える補助金を自動診断し、実質負担額とROIを試算します。",
+  roadmap: "申請から施工・補助金入金までの流れとスケジュールを可視化します。",
+  dropin: "既存の業務用空調はそのまま、冷媒だけ交換して電気代と環境負荷を削減します。",
+  breaker: "電気の基本料金（契約電力）を見直し、電子ブレーカーで固定費を削減します。",
+  db: "国・自治体の補助金を、対象・補助率・締切・申請難易度で一覧比較できます。",
+  vendor: "主要メーカーの高効率機種のスペックや特徴を比較します。",
+  weapon: "冷媒規制・脱炭素など、商談で使える最新の業界トピックスをまとめています。",
+  diff: "競合と比べたEHCグループの強み・差別化ポイントを紹介します。",
+};
 
 export default function Page() {
   return (
@@ -58,15 +69,16 @@ export default function Page() {
       <ProjectProvider>
       <Tabs defaultValue="match">
         <TabsList>
-          <TabsTrigger value="match" icon={<Target className="w-4 h-4" />}>補助金マッチング</TabsTrigger>
-          <TabsTrigger value="roadmap" icon={<CalendarClock className="w-4 h-4" />}>導入ロードマップ</TabsTrigger>
-          <TabsTrigger value="dropin" icon={<Droplet className="w-4 h-4" />}>ドロップイン</TabsTrigger>
-          <TabsTrigger value="breaker" icon={<Bolt className="w-4 h-4" />}>電子ブレーカー</TabsTrigger>
-          <TabsTrigger value="db" icon={<Database className="w-4 h-4" />}>補助金DB</TabsTrigger>
-          <TabsTrigger value="vendor" icon={<Wind className="w-4 h-4" />}>メーカー機器</TabsTrigger>
-          <TabsTrigger value="weapon" icon={<TrendingUp className="w-4 h-4" />}>業界トピックス</TabsTrigger>
-          <TabsTrigger value="diff" icon={<Award className="w-4 h-4" />}>EHCの強み</TabsTrigger>
+          <TabsTrigger value="match" icon={<Target className="w-4 h-4" />} hint={TAB_HINTS.match}>補助金マッチング</TabsTrigger>
+          <TabsTrigger value="roadmap" icon={<CalendarClock className="w-4 h-4" />} hint={TAB_HINTS.roadmap}>導入ロードマップ</TabsTrigger>
+          <TabsTrigger value="dropin" icon={<Droplet className="w-4 h-4" />} hint={TAB_HINTS.dropin}>ドロップイン</TabsTrigger>
+          <TabsTrigger value="breaker" icon={<Bolt className="w-4 h-4" />} hint={TAB_HINTS.breaker}>電子ブレーカー</TabsTrigger>
+          <TabsTrigger value="db" icon={<Database className="w-4 h-4" />} hint={TAB_HINTS.db}>補助金DB</TabsTrigger>
+          <TabsTrigger value="vendor" icon={<Wind className="w-4 h-4" />} hint={TAB_HINTS.vendor}>メーカー機器</TabsTrigger>
+          <TabsTrigger value="weapon" icon={<TrendingUp className="w-4 h-4" />} hint={TAB_HINTS.weapon}>業界トピックス</TabsTrigger>
+          <TabsTrigger value="diff" icon={<Award className="w-4 h-4" />} hint={TAB_HINTS.diff}>EHCの強み</TabsTrigger>
         </TabsList>
+        <TabHint hints={TAB_HINTS} />
         <TabsContent value="match"><SubsidyMatcher /></TabsContent>
         <TabsContent value="roadmap"><RoadmapTab /></TabsContent>
         <TabsContent value="dropin"><DropinDept /></TabsContent>
