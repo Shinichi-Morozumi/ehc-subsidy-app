@@ -32,6 +32,10 @@ const newGroup = (over: Partial<EquipGroup> = {}): EquipGroup => ({
 
 const PREFS = ["東京都", "神奈川県", "大阪府", "埼玉県", "千葉県", "愛知県", "北海道", "福岡県", "その他"];
 
+const REFRI_SHORT: Record<RefriType, string> = { r22: "R22", r410a: "R410A", r32: "R32", unknown: "冷媒不明" };
+const groupLabel = (g: EquipGroup, i: number) =>
+  `設備${i + 1}：${REFRI_SHORT[g.refri]}・${g.equip === "multi" ? "マルチ" : "パッケージ"}・${g.units}台`;
+
 // 共有リンク: 入力値をURLの ?d= に埋め込み、開いた側で同じ診断を自動再現する
 const encodeInput = (i: MatchInput) =>
   btoa(unescape(encodeURIComponent(JSON.stringify(i))));
@@ -283,7 +287,6 @@ export function SubsidyMatcher() {
               <GroupRow
                 key={g.id}
                 g={g}
-                measured={input.kwhMode === "measured"}
                 canRemove={input.equipGroups.length > 1}
                 onChange={(p) => updateGroup(g.id, p)}
                 onRemove={() => removeGroup(g.id)}
@@ -315,8 +318,33 @@ export function SubsidyMatcher() {
               <div className="text-[10px] text-slate-500 mt-1">各設備グループへ「台数×馬力」で自動按分します（馬力未入力は台数で按分）。</div>
             </Field>
           ) : (
-            <div className="text-[11px] text-slate-400 bg-white/5 border border-white/10 rounded-lg p-2.5">
-              各設備グループの行に「実測kWh」欄が表示されます。エニマス等のデマンド計測値を入力してください（合計が年間総使用量になります）。
+            <div className="space-y-2">
+              <div className="text-[11px] text-slate-400 bg-white/5 border border-white/10 rounded-lg p-2.5">
+                各設備グループのエニマス等デマンド実測値（kWh/年）を下の欄に入力してください。合計が年間総使用量になります。
+              </div>
+              <div className="space-y-1.5">
+                {input.equipGroups.map((g, i) => (
+                  <div key={g.id} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-2.5 py-2">
+                    <div className="text-[11px] text-slate-300 flex-1 min-w-0 truncate">{groupLabel(g, i)}</div>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={g.kwh ?? ""}
+                      placeholder="実測kWh/年"
+                      onChange={(e) => updateGroup(g.id, { kwh: e.target.value ? Number(e.target.value) : undefined })}
+                      className="w-40 px-2 py-1.5 border border-cobalt-500/40 rounded-md text-xs bg-night-800 text-white focus:outline-none focus:border-cobalt-500"
+                    />
+                    <span className="text-[10px] text-slate-500 w-8">kWh</span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[11px] text-slate-400 text-right pr-1">
+                合計:{" "}
+                <span className="text-cobalt-200 font-semibold">
+                  {input.equipGroups.reduce((a, g) => a + (g.kwh || 0), 0).toLocaleString("ja-JP")}
+                </span>{" "}
+                kWh/年
+              </div>
             </div>
           )}
         </div>
@@ -429,13 +457,11 @@ export function SubsidyMatcher() {
 // 設備グループ1行の編集UI
 function GroupRow({
   g,
-  measured,
   canRemove,
   onChange,
   onRemove,
 }: {
   g: EquipGroup;
-  measured: boolean;
   canRemove: boolean;
   onChange: (p: Partial<EquipGroup>) => void;
   onRemove: () => void;
@@ -468,29 +494,15 @@ function GroupRow({
           <label className="text-[10px] text-slate-500">台数</label>
           <input type="number" className={cls} value={g.units} onChange={(e) => onChange({ units: Number(e.target.value) })} />
         </div>
-        <div className="md:col-span-1">
+        <div className="md:col-span-2">
           <label className="text-[10px] text-slate-500">馬力</label>
           <input type="number" className={cls} value={g.hp ?? ""} placeholder="任意" onChange={(e) => onChange({ hp: e.target.value ? Number(e.target.value) : undefined })} />
         </div>
-        {measured ? (
-          <div className="md:col-span-2">
-            <label className="text-[10px] text-cobalt-200">実測kWh/年</label>
-            <input type="number" className={cls} value={g.kwh ?? ""} placeholder="エニマス等" onChange={(e) => onChange({ kwh: e.target.value ? Number(e.target.value) : undefined })} />
-          </div>
-        ) : (
-          <div className="md:col-span-1 flex justify-end">
-            <button type="button" onClick={onRemove} disabled={!canRemove} className={`p-1.5 rounded-md ${canRemove ? "text-red-300 hover:bg-red-500/10" : "text-slate-600 cursor-not-allowed"}`} title="削除">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-        {measured && (
-          <div className="md:col-span-12 flex justify-end">
-            <button type="button" onClick={onRemove} disabled={!canRemove} className={`text-[10px] flex items-center gap-1 px-2 py-1 rounded ${canRemove ? "text-red-300 hover:bg-red-500/10" : "text-slate-600 cursor-not-allowed"}`}>
-              <Trash2 className="w-3 h-3" /> この設備グループを削除
-            </button>
-          </div>
-        )}
+        <div className="md:col-span-1 flex justify-end">
+          <button type="button" onClick={onRemove} disabled={!canRemove} className={`p-1.5 rounded-md ${canRemove ? "text-red-300 hover:bg-red-500/10" : "text-slate-600 cursor-not-allowed"}`} title="削除">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -599,6 +611,20 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
                 </span>
               )}
             </div>
+            {appliedSubsidyManYen > 0 && selected ? (
+              <div className="mt-2 inline-flex items-start gap-1.5 bg-ehc-500/15 border border-ehc-500/40 rounded-lg px-2.5 py-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-ehc-400 flex-shrink-0 mt-0.5" />
+                <span className="text-[11px] text-ehc-200 font-semibold leading-snug">
+                  適用中の補助金：{selected.name}（補助率 {selected.rate}）
+                </span>
+              </div>
+            ) : (
+              <div className="mt-2 text-[11px] text-amber-300/90">
+                {wantSubsidy
+                  ? "補助金は未反映（下の「補助金プランを選ぶ」で補助金を選び、要件にチェックを入れてください）"
+                  : "補助金なし（自己負担）で試算中"}
+              </div>
+            )}
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-4">
             <div className="text-[11px] text-slate-400 mb-2">投資回収年数の比較</div>
