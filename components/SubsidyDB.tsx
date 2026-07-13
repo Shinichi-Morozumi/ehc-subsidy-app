@@ -36,6 +36,9 @@ export function SubsidyDB() {
             </div>
             <div className="text-xs text-slate-300 space-y-1">
               <p><strong className="text-white">要件:</strong> {s.requirement}</p>
+              {s.adoptionRate && (
+                <p><strong className="text-white">採択率の目安:</strong> {s.adoptionRate}</p>
+              )}
               <p><strong className="text-white">必要書類:</strong> {s.docs}</p>
               <a
                 href={s.url}

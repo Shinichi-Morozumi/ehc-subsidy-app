@@ -19,6 +19,7 @@ export interface Subsidy {
   url: string;
   rateNum: number;
   capManYen: number;
+  adoptionRate?: string; // 採択率の参考値（回次・年度により変動。自治体先着型は「予算枠」等）
   infoOnly?: boolean; // true=資金額/ROI計算に含めず情報提供のみ（例: 持続化補助金）
   closed?: boolean;   // true=今年度の受付終了（マッチング対象外・DBには表示）
   applyOpen?: string;   // 公募開始日(ISO yyyy-mm-dd)。判明している回のみ
