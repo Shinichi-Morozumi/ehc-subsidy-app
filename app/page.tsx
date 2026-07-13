@@ -69,7 +69,7 @@ export default function Page() {
       <ProjectProvider>
       <Tabs defaultValue="match">
         <TabsList>
-          <TabsTrigger value="match" icon={<Target className="w-4 h-4" />} hint={TAB_HINTS.match}>補助金マッチング</TabsTrigger>
+          <TabsTrigger value="match" icon={<Target className="w-4 h-4" />} hint={TAB_HINTS.match}>空調更新＋補助金マッチング</TabsTrigger>
           <TabsTrigger value="roadmap" icon={<CalendarClock className="w-4 h-4" />} hint={TAB_HINTS.roadmap}>導入ロードマップ</TabsTrigger>
           <TabsTrigger value="dropin" icon={<Droplet className="w-4 h-4" />} hint={TAB_HINTS.dropin}>ドロップイン</TabsTrigger>
           <TabsTrigger value="breaker" icon={<Bolt className="w-4 h-4" />} hint={TAB_HINTS.breaker}>電子ブレーカー</TabsTrigger>
