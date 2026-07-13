@@ -242,7 +242,7 @@ export function DropinRoiWizard() {
           </p>
 
           <div className="flex flex-wrap gap-2">
-            <a href={`mailto:info@ehcjpn.com?subject=${encodeURIComponent("【ドロップイン】ROI診断の正式見積り希望")}&body=${encodeURIComponent([
+            <a href={`mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent("【ドロップイン】ROI診断の正式見積り希望")}&body=${encodeURIComponent([
                 "ROI診断の条件で正式見積りを希望します。",
                 "",
                 `業種（稼働）: ${INDUSTRY[industry]?.label ?? "—"}`,

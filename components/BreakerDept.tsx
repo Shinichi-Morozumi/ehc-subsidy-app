@@ -295,7 +295,7 @@ export function BreakerDept() {
             <div className="text-sm text-amber-100">電気料金明細を拝見し、削減ポテンシャルを無料診断します</div>
           </div>
           <a
-            href="mailto:info@ehcjpn.com?subject=【電子ブレーカー部門】導入相談"
+            href="mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=【電子ブレーカー部門】導入相談"
             className="bg-night-900 text-amber-300 px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-amber-500/10 transition-colors no-print"
           >
             <Mail className="w-4 h-4" />

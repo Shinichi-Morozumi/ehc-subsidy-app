@@ -44,7 +44,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
   };
 
   // 保存(PDF)後もお問い合わせが届くよう、宛先・件名（提案書番号入り）を仕込んだmailtoリンク
-  const inquiryMailto = `mailto:info@ehcjpn.com?subject=${encodeURIComponent(
+  const inquiryMailto = `mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent(
     `【提案書 ${proposalNo}】現地調査・お見積りのご依頼（${input.customerCompany || "御社名"}）`
   )}`;
 

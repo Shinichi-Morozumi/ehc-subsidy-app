@@ -158,7 +158,7 @@ export function DropinDept() {
             <div className="text-sm text-emerald-100">既存設備を確認させていただき、最適な提案をいたします</div>
           </div>
           <a
-            href="mailto:info@ehcjpn.com?subject=【ドロップイン部門】導入相談"
+            href="mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=【ドロップイン部門】導入相談"
             className="bg-night-900 text-ehc-300 px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-emerald-500/10 transition-colors no-print"
           >
             <Mail className="w-4 h-4" />

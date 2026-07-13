@@ -74,7 +74,7 @@ export function DropinSimulator() {
     `概算投資額: ${yenJP(costYen)}（税込 ${yenJP(costTaxIn)}）`,
     `年間電気代削減: ${yenJP(saveYen)} ／ 投資回収: ${payback != null ? `約${payback}年` : "—"}`,
   ].join("\n");
-  const mailHref = `mailto:info@ehcjpn.com?subject=${encodeURIComponent("【ドロップイン】簡易見積の相談")}&body=${encodeURIComponent(mailBody)}`;
+  const mailHref = `mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent("【ドロップイン】簡易見積の相談")}&body=${encodeURIComponent(mailBody)}`;
 
   // 印刷: body に print-dropin を付け、印刷専用ビューのみ出力
   const printQuote = () => {
