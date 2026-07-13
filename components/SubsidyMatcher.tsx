@@ -136,8 +136,15 @@ export function SubsidyMatcher() {
     setShowQr((v) => !v);
   };
 
-  // ③提案書の印刷ビュー（同意済みならそのまま印刷、未同意なら誘導）
+  // ③提案書の印刷ビュー（顧客情報→同意の順に確認してから印刷）
   const printReport = () => {
+    if (!(input.customerCompany ?? "").trim()) {
+      setToast("印刷前にお客様情報（会社名）を入力してください");
+      if (toastTimer.current) window.clearTimeout(toastTimer.current);
+      toastTimer.current = window.setTimeout(() => setToast(null), 3000);
+      document.getElementById("customer-info-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     if (!agreed) {
       setToast("下部の同意チェックを入れると、お客様提案書を印刷できます");
       if (toastTimer.current) window.clearTimeout(toastTimer.current);
@@ -200,7 +207,7 @@ export function SubsidyMatcher() {
       <SampleCases onPick={applySample} selectedId={selectedSampleId} />
       </div>
 
-      <div className="no-print">
+      <div className="no-print" id="customer-info-section">
       <Card>
         <CardTitle icon={<User className="w-5 h-5" />}>お客様情報（提案書ヘッダー用）</CardTitle>
         <p className="text-[11px] text-slate-500 -mt-2 mb-3">

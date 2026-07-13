@@ -37,7 +37,11 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
   const rewardYen = Math.round(result.bestSubsidyManYen * 10000 * 0.1);
   const industryLabel = (INDUSTRY_PROFILES[input.building] ?? INDUSTRY_PROFILES.other).label;
 
-  const handlePrint = () => window.print();
+  const customerReady = (input.customerCompany ?? "").trim().length > 0;
+  const handlePrint = () => {
+    if (!customerReady) return;
+    window.print();
+  };
 
   // 保存(PDF)後もお問い合わせが届くよう、宛先・件名（提案書番号入り）を仕込んだmailtoリンク
   const inquiryMailto = `mailto:info@ehcjpn.com?subject=${encodeURIComponent(
@@ -50,13 +54,26 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
         <CardTitle icon={<FileText className="w-5 h-5" />} className="border-b-0 pb-0 mb-0">
           お客様向け提案書
         </CardTitle>
-        <button
-          onClick={handlePrint}
-          className="bg-gradient-to-r from-ehc-700 to-ehc-600 hover:from-ehc-800 hover:to-ehc-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-card hover:shadow-lift transition-all"
-        >
-          <Printer className="w-4 h-4" />
-          印刷 / PDF保存
-        </button>
+        <div className="flex flex-col items-end gap-1.5">
+          <button
+            onClick={handlePrint}
+            disabled={!customerReady}
+            title={customerReady ? "" : "先にお客様情報（会社名）を入力してください"}
+            className={
+              customerReady
+                ? "bg-gradient-to-r from-ehc-700 to-ehc-600 hover:from-ehc-800 hover:to-ehc-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-card hover:shadow-lift transition-all"
+                : "bg-slate-200 text-slate-400 cursor-not-allowed px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
+            }
+          >
+            <Printer className="w-4 h-4" />
+            印刷 / PDF保存
+          </button>
+          {!customerReady && (
+            <span className="text-[11px] text-amber-600 font-medium">
+              印刷前にお客様情報（会社名）の入力が必要です
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="report-sheet relative overflow-hidden border-2 border-slate-200 rounded-xl p-6 bg-white select-none">
