@@ -20,9 +20,10 @@ export function UpdateEstimator() {
   const [grade, setGrade] = useState<MachineGrade>("standard");
   const [rateKey, setRateKey] = useState("two_thirds");
   const [capManYen, setCapManYen] = useState(0); // 補助上限(万円, 0=なし)
+  const [ancillaryManYen, setAncillaryManYen] = useState(0); // 付帯工事(万円)
 
   const kg = units * 3;
-  const est = estimateUpdateBreakdown({ units, hp, grade, systems, kg });
+  const est = estimateUpdateBreakdown({ units, hp, grade, systems, kg, ancillary: ancillaryManYen * 10000 });
   const rate = RATES.find((r) => r.key === rateKey)?.rate ?? 0;
   let subsidy = Math.round(est.subtotal * rate); // 税抜ベースで補助
   if (capManYen > 0) subsidy = Math.min(subsidy, capManYen * 10000);
@@ -36,7 +37,7 @@ export function UpdateEstimator() {
         実見積は機種グレード・高所/搬入・配管長で変動する<strong className="text-slate-200">参考値</strong>です。
       </p>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
         <Field label="馬力">
           <Input type="number" value={hp} onChange={(e) => setHp(Number(e.target.value))} />
         </Field>
@@ -56,6 +57,9 @@ export function UpdateEstimator() {
           <Select value={rateKey} onChange={(e) => setRateKey(e.target.value)}>
             {RATES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
           </Select>
+        </Field>
+        <Field label="付帯工事(万円・任意)">
+          <Input type="number" value={ancillaryManYen} onChange={(e) => setAncillaryManYen(Number(e.target.value))} placeholder="0" />
         </Field>
       </div>
 

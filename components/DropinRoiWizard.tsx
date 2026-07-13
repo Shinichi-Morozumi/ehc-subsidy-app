@@ -33,7 +33,8 @@ const INDUSTRY: Record<string, { factor: number; label: string }> = {
   clinic: { factor: 0.95, label: "クリニック/福祉/ホテル" },
   office: { factor: 0.9, label: "オフィス/店舗" },
 };
-const clamp = (v: number, lo = 0.1, hi = 0.45) => Math.min(hi, Math.max(lo, v));
+// 桝口さん確認: 消費電力の削減想定は25〜30%が現実的。電気「料金」削減率は保証しない。
+const clamp = (v: number, lo = 0.1, hi = 0.35) => Math.min(hi, Math.max(lo, v));
 
 type Step = 0 | 1 | 2 | 3 | 4;
 const STEP_LABELS = ["業種", "冷媒", "電気代", "規模", "ご提案"];
@@ -69,7 +70,7 @@ export function DropinRoiWizard() {
   const saveKwh = Math.round(kwh * rate);
   const co2 = Number((saveKwh * CO2).toFixed(1));
 
-  const est = estimateDropinCost(sysN, KG_PRESETS[machineType].kg);
+  const est = estimateDropinCost(sysN, KG_PRESETS[machineType].kg, KG_PRESETS[machineType].work);
   const investNoTax = est.total;
   const invest = Math.round(investNoTax * 1.1); // 税込（お客様の実支払い目安）
   const paybackYears = saveYen > 0 ? Number((invest / saveYen).toFixed(1)) : null;
@@ -143,9 +144,10 @@ export function DropinRoiWizard() {
             <Input type="number" inputMode="numeric" placeholder="例: 120000"
               value={monthlyBill} onChange={(e) => setMonthlyBill(e.target.value === "" ? "" : Number(e.target.value))} />
           </Field>
-          <div className="mt-3 max-w-[180px]">
+          <div className="mt-3 max-w-[220px]">
             <Field label="電力単価(円/kWh・変更可)">
               <Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
+              <p className="text-[9px] text-slate-500 mt-1 leading-tight">※基本料金＋従量で変動。大手電力HPの従量単価が目安</p>
             </Field>
           </div>
           {typeof monthlyBill === "number" && monthlyBill > 0 && (

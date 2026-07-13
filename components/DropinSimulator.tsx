@@ -24,7 +24,8 @@ const INDUSTRY: Record<string, { factor: number; label: string }> = {
   clinic: { factor: 0.95, label: "クリニック/福祉" },
   office: { factor: 0.9, label: "オフィス/店舗" },
 };
-const clamp = (v: number, lo = 0.1, hi = 0.45) => Math.min(hi, Math.max(lo, v));
+// 桝口さん確認: 電気「使用量」削減の想定は25〜30%が現実的。電気「料金」の削減率は保証しない。
+const clamp = (v: number, lo = 0.1, hi = 0.35) => Math.min(hi, Math.max(lo, v));
 
 export function DropinSimulator() {
   const [refri, setRefri] = useState("r410a");
@@ -34,6 +35,7 @@ export function DropinSimulator() {
   const [systems, setSystems] = useState(10);          // 系統数
   const [machineType, setMachineType] = useState(DEFAULT_KG_PRESET); // 機器タイプ（冷媒量に直結）
   const kgPerSys = KG_PRESETS[machineType].kg;
+  const workPerSys = KG_PRESETS[machineType].work;
   const [manualCost, setManualCost] = useState<number | null>(null); // 手動上書き(万円)
   const [price, setPrice] = useState(DEFAULT_PRICE); // 電力単価(円/kWh)
   const switchTab = useTabSwitch();
@@ -45,7 +47,7 @@ export function DropinSimulator() {
   const onRefri = (v: string) => { setRefri(v); setRate(suggest(v, industry)); };
   const onIndustry = (v: string) => { setIndustry(v); setRate(suggest(refri, v)); };
 
-  const est = estimateDropinCost(systems, kgPerSys);
+  const est = estimateDropinCost(systems, kgPerSys, workPerSys);
   const costYen = manualCost != null ? manualCost * 10000 : est.total; // 施工費(税抜)
   const costTaxIn = Math.round(costYen * 1.1);
   const saveKwh = Math.round(kwh * rate);
@@ -86,7 +88,7 @@ export function DropinSimulator() {
     <Card>
       <CardTitle icon={<Gauge className="w-5 h-5" />}>ドロップイン 簡易シミュレーター</CardTitle>
       <p className="text-xs text-slate-400 mb-3">
-        既存機はそのまま、冷媒置換による概算効果。投資額は<strong className="text-ehc-300">HCガス代金＋工事費用</strong>（PN見積の系統単価ベース）で自動概算（手動上書き可）。削減率は冷媒×業種(稼働)から自動提案——都内物流倉庫の厨房系統で<strong className="text-ehc-300">実測 削減率33%</strong>（30日計測・2026年）を確認済み。
+        既存機はそのまま、冷媒置換による概算効果。投資額は<strong className="text-ehc-300">HCガス代金＋工事費用</strong>（PN見積の系統単価ベース）で自動概算（手動上書き可）。削減率は冷媒×業種(稼働)から自動提案——想定は<strong className="text-ehc-300">消費電力の25〜30%</strong>（都内物流倉庫の厨房系統で実測−33%・30日計測/2026年）。※電気「料金」の削減率は契約条件により変動し保証されません。
       </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <Field label="対象冷媒">
@@ -108,9 +110,10 @@ export function DropinSimulator() {
         </Field>
         <Field label="電力単価(円/kWh)">
           <Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
+          <p className="text-[9px] text-slate-500 mt-1 leading-tight">※基本料金＋従量で変動。大手電力(東電/関電/中電/九電/東北電/北電)HPの従量単価が目安</p>
         </Field>
         <Field label={`想定削減率: ${Math.round(rate * 100)}%`}>
-          <input type="range" min={10} max={45} value={Math.round(rate * 100)} onChange={(e) => setRate(Number(e.target.value) / 100)} className="w-full accent-ehc-400" />
+          <input type="range" min={10} max={35} value={Math.round(rate * 100)} onChange={(e) => setRate(Number(e.target.value) / 100)} className="w-full accent-ehc-400" />
         </Field>
         <Field label="系統数（台）">
           <Input type="number" value={systems} onChange={(e) => { setSystems(Number(e.target.value)); setManualCost(null); }} />
@@ -132,10 +135,10 @@ export function DropinSimulator() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-[10px] mb-2">
           <div><div className="text-slate-500">HCガス代金({est.hcKg}kg)</div><div className="text-ehc-300 font-semibold">{yenJP(est.hcGas)}</div></div>
-          <div><div className="text-slate-500">作業費(¥16,000/系統)</div><div className="text-slate-200">{yenJP(est.work)}</div></div>
-          <div><div className="text-slate-500">フロン破壊(¥2,600/kg)</div><div className="text-slate-200">{yenJP(est.gas)}</div></div>
+          <div><div className="text-slate-500">作業費(¥{workPerSys.toLocaleString()}/系統)</div><div className="text-slate-200">{yenJP(est.work)}</div></div>
+          <div><div className="text-slate-500">フロン破壊(¥3,000/kg)</div><div className="text-slate-200">{yenJP(est.gas)}</div></div>
           <div><div className="text-slate-500">消耗・ボンベ等</div><div className="text-slate-200">{yenJP(est.consumable)}</div></div>
-          <div><div className="text-slate-500">諸経費</div><div className="text-slate-200">{yenJP(est.overhead)}</div></div>
+          <div><div className="text-slate-500">諸経費(約27%)</div><div className="text-slate-200">{yenJP(est.overhead)}</div></div>
           <div><div className="text-slate-500">概算合計(税抜)</div><div className="text-ehc-300 font-bold">{yenJP(est.total)}</div></div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -261,8 +264,10 @@ export function DropinSimulator() {
 
           <div className="text-[10px] text-slate-600 leading-relaxed">
             ※本書は概算（目安）です。実際の効果・費用は機種・稼働・現地条件により±20%程度変動します。正式なお見積りは現地確認のうえご提示します。<br />
-            ※ドロップイン対象は業務用空調のみ（ルームエアコン/冷凍冷蔵機器は対象外）。ドロップイン工事自体は省エネ補助金の対象外が原則です。<br />
-            ※単価出典: {PRICING_SOURCE}。都内物流倉庫の厨房系統で実測 削減率33%（30日計測・2026年）を確認済み。
+            ※ドロップイン対象は業務用パッケージ（4馬力以上）のみ。ルームエアコン/小型パッケージ/冷凍冷蔵機器は対象外です。<br />
+            ※ドロップイン工事は省エネ補助金の対象外です（補助金で更新した機器にはドロップインを施工できません）。<br />
+            ※削減率は消費電力ベースの想定（25〜30%）。電気「料金」の削減率は契約条件により変動し保証されません。<br />
+            ※単価出典: {PRICING_SOURCE}。都内物流倉庫の厨房系統で消費電力 実測−33%（30日計測・2026年）を確認済み。
           </div>
           <div className="mt-3 pt-2 border-t border-slate-300 text-[10px] text-slate-600 flex justify-between">
             <span>お問い合わせ: info@ehcjpn.com</span>

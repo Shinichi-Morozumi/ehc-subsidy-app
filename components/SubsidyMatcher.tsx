@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input, Button } from "./ui/Field";
-import { MatchInput, BizType, SizeType, EquipType, RefriType, EquipGroup, KwhMode } from "@/lib/types";
+import { MatchInput, BizType, SizeType, EquipType, RefriType, EquipGroup, KwhMode, Subsidy } from "@/lib/types";
 import { matchSubsidies, MatchResult, GroupResult } from "@/lib/match";
 import { ReportTeaser } from "./ReportTeaser";
 import { CustomerReport } from "./CustomerReport";
 import { SampleCases } from "./SampleCases";
 import { SampleCase } from "@/lib/samples";
-import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge, Link2, QrCode, Printer } from "lucide-react";
+import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge, Link2, QrCode, Printer, Wallet, ClipboardCheck } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { RoiChart } from "./RoiChart";
 import { GroupSavingsChart } from "./GroupSavingsChart";
@@ -496,9 +496,72 @@ function GroupRow({
   );
 }
 
+// 補助金の想定交付額(万円)＝補助率×投資、上限でクリップ。情報提供のみ(infoOnly)は資金化しない
+function subsidyAmountManYen(s: Subsidy, invest: number): number {
+  if (s.infoOnly) return 0;
+  return Math.min(invest * s.rateNum, s.capManYen);
+}
+// 要件文（。区切り）をチェックリスト項目に分割
+function splitRequirements(req: string): string[] {
+  return req.split("。").map((t) => t.trim()).filter((t) => t.length > 0);
+}
+
 function ResultView({ result, input }: { result: MatchResult; input: MatchInput }) {
   const [view, setView] = useState<"overall" | "groups">("overall");
-  const netInvestYen = Math.max(0, input.invest - result.bestSubsidyManYen) * 10000;
+
+  // ===== 補助金プランナー（希望有無 / 希望する補助金 / 要件クリア可否 で ROI に連動） =====
+  const fundable = useMemo(
+    () => result.matched.filter((s) => !s.infoOnly),
+    [result.matched]
+  );
+  const bestId = useMemo(() => {
+    let id = "";
+    let best = -1;
+    fundable.forEach((s) => {
+      const a = subsidyAmountManYen(s, input.invest);
+      if (a > best) {
+        best = a;
+        id = s.id;
+      }
+    });
+    return id;
+  }, [fundable, input.invest]);
+
+  const [wantSubsidy, setWantSubsidy] = useState(true);
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [reqChecks, setReqChecks] = useState<Record<string, boolean[]>>({});
+
+  // マッチ結果が変わったら、選択を最適補助金へ同期＆要件チェックを初期化（全クリア＝true）
+  useEffect(() => {
+    setSelectedId((prev) => (fundable.some((s) => s.id === prev) ? prev : bestId));
+    setReqChecks((prev) => {
+      const next = { ...prev };
+      fundable.forEach((s) => {
+        const n = splitRequirements(s.requirement).length;
+        if (!next[s.id] || next[s.id].length !== n) next[s.id] = Array(n).fill(true);
+      });
+      return next;
+    });
+  }, [fundable, bestId]);
+
+  const selected = fundable.find((s) => s.id === selectedId) || null;
+  const selectedReqs = selected ? splitRequirements(selected.requirement) : [];
+  const selectedChecks = (selected && reqChecks[selected.id]) || [];
+  const allReqMet = selectedChecks.length > 0 && selectedChecks.every(Boolean);
+  const selectedAmountManYen = selected ? subsidyAmountManYen(selected, input.invest) : 0;
+  // 実際にROI・グラフへ反映する補助金額
+  const appliedSubsidyManYen = wantSubsidy && selected && allReqMet ? selectedAmountManYen : 0;
+
+  const toggleReq = (i: number) => {
+    if (!selected) return;
+    setReqChecks((prev) => {
+      const arr = [...(prev[selected.id] || [])];
+      arr[i] = !arr[i];
+      return { ...prev, [selected.id]: arr };
+    });
+  };
+
+  const netInvestYen = Math.max(0, input.invest - appliedSubsidyManYen) * 10000;
   const horizons = [5, 10, 15].map((y) => {
     const cum = result.saveYenPerYear * y;
     return { y, cum, net: cum - netInvestYen };
@@ -506,11 +569,15 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
   const totalKwhForChart = result.totalKwh || input.kwh;
   // ①実質負担額の即答: 補助なし回収年数との比較
   const investYen = input.invest * 10000;
-  const subsidyYen = result.bestSubsidyManYen * 10000;
+  const subsidyYen = appliedSubsidyManYen * 10000;
   const yearsNoSubsidy = result.saveYenPerYear > 0 ? Math.round((investYen / result.saveYenPerYear) * 10) / 10 : null;
+  const appliedYearsToRecover =
+    result.saveYenPerYear > 0
+      ? Math.round(((input.invest - appliedSubsidyManYen) / (result.saveYenPerYear / 10000)) * 10) / 10
+      : null;
   const yearsShortened =
-    yearsNoSubsidy !== null && result.yearsToRecover !== null
-      ? Math.round((yearsNoSubsidy - result.yearsToRecover) * 10) / 10
+    yearsNoSubsidy !== null && appliedYearsToRecover !== null
+      ? Math.round((yearsNoSubsidy - appliedYearsToRecover) * 10) / 10
       : null;
   return (
     <div className="space-y-5 no-print">
@@ -546,7 +613,7 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
               <div>
                 <div className="text-[10px] text-ehc-300">補助金あり</div>
                 <div className="text-3xl font-bold text-ehc-300">
-                  {result.yearsToRecover !== null ? `${result.yearsToRecover}年` : "—"}
+                  {appliedYearsToRecover !== null ? `${appliedYearsToRecover}年` : "—"}
                 </div>
               </div>
               {yearsShortened !== null && yearsShortened > 0 && (
@@ -559,11 +626,107 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
         </div>
       </div>
 
+      {/* 補助金プランナー：希望有無 → 補助金選択 → 要件クリア可否 でグラフ連動 */}
+      <Card>
+        <CardTitle icon={<Wallet className="w-5 h-5" />}>補助金プランを選ぶ</CardTitle>
+        <p className="text-xs text-slate-400 -mt-1 mb-3">
+          希望の有無・使いたい補助金・要件クリア可否を切り替えると、下のグラフ・実質負担額・回収年数が自動で連動します。
+        </p>
+
+        {/* ① 希望しますか */}
+        <div className="mb-4">
+          <div className="text-xs font-semibold text-slate-300 mb-1.5">① 今回は補助金を希望しますか？</div>
+          <div className="flex gap-1 p-1 bg-night-800 border border-white/10 rounded-lg w-fit flex-wrap">
+            {([[true, "希望する"], [false, "希望しない（自己負担で更新）"]] as [boolean, string][]).map(([v, label]) => (
+              <button
+                key={String(v)}
+                type="button"
+                onClick={() => setWantSubsidy(v)}
+                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${wantSubsidy === v ? "bg-ehc-600 text-white" : "text-slate-400 hover:text-white"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {wantSubsidy ? (
+          fundable.length ? (
+            <>
+              {/* ② どの補助金 */}
+              <div className="mb-4">
+                <div className="text-xs font-semibold text-slate-300 mb-1.5">② どの補助金を希望しますか？</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {fundable.map((s) => {
+                    const amt = subsidyAmountManYen(s, input.invest);
+                    const active = s.id === selectedId;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSelectedId(s.id)}
+                        className={`text-left rounded-xl border p-3 transition-colors ${active ? "border-ehc-400 bg-ehc-500/10" : "border-white/10 bg-night-900 hover:border-ehc-500/40"}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-xs font-semibold text-slate-100 leading-snug">{s.name}</div>
+                          {active && <CheckCircle2 className="w-4 h-4 text-ehc-400 flex-shrink-0" />}
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-1">補助率 {s.rate} ／ 上限 {s.max}</div>
+                        <div className="text-sm font-bold text-ehc-300 mt-1">想定 ¥{(amt * 10000).toLocaleString("ja-JP")}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ③ 要件クリア可否 */}
+              {selected && (
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                  <div className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
+                    <ClipboardCheck className="w-4 h-4 text-cobalt-300" />
+                    ③ これらの要件はクリアできますか？（外すと非該当として計算）
+                  </div>
+                  <div className="space-y-1.5">
+                    {selectedReqs.map((r, i) => (
+                      <label key={i} className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedChecks[i] ?? true}
+                          onChange={() => toggleReq(i)}
+                          className="mt-0.5 w-4 h-4 accent-ehc-400 flex-shrink-0"
+                        />
+                        <span>{r}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div
+                    className={`mt-3 rounded-lg px-3 py-2 text-xs font-semibold ${allReqMet ? "bg-ehc-500/15 border border-ehc-500/40 text-ehc-200" : "bg-amber-500/10 border border-amber-500/30 text-amber-300"}`}
+                  >
+                    {allReqMet
+                      ? `全要件クリア → この補助金 ¥${(selectedAmountManYen * 10000).toLocaleString("ja-JP")} をグラフに反映中`
+                      : "未クリアの要件があります → 補助金なし（自己負担）で試算中。クリアできる場合はチェックを入れてください"}
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-2">必要書類: {selected.docs}</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-slate-500">
+              現在の条件でマッチする資金化可能な補助金がありません。所在地・規模・建物用途を変更するか、「希望しない」で自己負担の試算ができます。
+            </p>
+          )
+        ) : (
+          <p className="text-sm text-slate-400">
+            補助金なし（自己負担）で試算します。下のグラフの「更新（補助金あり）」線は補助金なしと同じ位置になります。
+          </p>
+        )}
+      </Card>
+
       <Card>
         <CardTitle icon={<BarChart3 className="w-5 h-5" />}>ROI シミュレーション</CardTitle>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <RoiBox label="想定補助金" value={`¥${(result.bestSubsidyManYen * 10000).toLocaleString("ja-JP")}`} accent="green" />
-          <RoiBox label="損益分岐(投資回収)" value={result.yearsToRecover !== null ? `${result.yearsToRecover} 年` : "計算不能"} accent="amber" />
+          <RoiBox label="想定補助金" value={`¥${(appliedSubsidyManYen * 10000).toLocaleString("ja-JP")}`} accent="green" />
+          <RoiBox label="損益分岐(投資回収)" value={appliedYearsToRecover !== null ? `${appliedYearsToRecover} 年` : "計算不能"} accent="amber" />
           <RoiBox label="年間電気代削減" value={`¥${result.saveYenPerYear.toLocaleString("ja-JP")}`} accent="blue" />
           <RoiBox label="15年間累計削減" value={`¥${result.total15YearsYen.toLocaleString("ja-JP")}`} accent="purple" />
           <RoiBox label="CO₂削減(自動)" value={`${result.co2ReductionTon} t/年`} accent="green" />
@@ -601,7 +764,7 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
             </table>
           </div>
           <div className="text-[10px] text-slate-500 mt-2">
-            損益分岐点 = {result.yearsToRecover !== null ? `約${result.yearsToRecover}年` : "—"}。純便益がプラスに転じる時点。電気単価27円/kWhで試算。
+            損益分岐点 = {appliedYearsToRecover !== null ? `約${appliedYearsToRecover}年` : "—"}。純便益がプラスに転じる時点。電気単価27円/kWhで試算。
           </div>
         </div>
 
@@ -633,7 +796,7 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
           <>
             <RoiChart
               invest={input.invest}
-              bestSubsidyManYen={result.bestSubsidyManYen}
+              bestSubsidyManYen={appliedSubsidyManYen}
               saveYenPerYear={result.saveYenPerYear}
               kwhPerYear={totalKwhForChart}
               reductionRate={result.effectiveReductionRate}
