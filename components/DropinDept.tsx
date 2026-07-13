@@ -3,7 +3,6 @@ import { HYCHILL_PRODUCTS, GWP_COMPARISON, JAPAN_MARKET_SIZE } from "@/lib/hychi
 import { Droplet, Zap, ShieldCheck, Wrench, Leaf, CheckCircle2, ArrowRight, Mail } from "lucide-react";
 import { DropinRoiWizard } from "./DropinRoiWizard";
 import { DropinSimulator } from "./DropinSimulator";
-import { UpdateEstimator } from "./UpdateEstimator";
 
 const MERITS = [
   { icon: Zap, title: "電気代 15〜40%削減", body: "分子が少ない量で高エネルギー → 消費電力大幅削減", color: "amber" },
@@ -42,12 +41,11 @@ export function DropinDept() {
       </div>
 
       <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 text-xs text-amber-200">
-        <strong className="text-amber-300">※補助金について:</strong> ドロップイン工事は省エネ補助金の<strong className="text-amber-300">対象外</strong>です（補助金で更新した機器にはドロップインを施工できません）。高効率機への<strong className="text-amber-300">機器更新</strong>で補助金をご検討の場合は「補助金マッチング」タブで診断できます。
+        <strong className="text-amber-300">※補助金について:</strong> ドロップイン（冷媒置換のみ）で使える補助金は<strong className="text-amber-300">現状ありません</strong>。省エネ補助金は高効率機の新規導入が要件で、既存機を残すドロップインは<strong className="text-amber-300">対象外</strong>です（補助金で更新した機器にはドロップインを施工できません）。補助金を使う<strong className="text-amber-300">機器更新</strong>は「補助金マッチング」タブで診断・見積もりできます。
       </div>
 
       <DropinRoiWizard />
       <DropinSimulator />
-      <UpdateEstimator />
 
       <Card>
         <CardTitle icon={<CheckCircle2 className="w-5 h-5" />}>4つのメリット</CardTitle>
