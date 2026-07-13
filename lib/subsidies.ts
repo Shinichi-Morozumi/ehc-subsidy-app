@@ -24,6 +24,8 @@ export const SUBSIDIES: Subsidy[] = [
     rateNum: 0.33,
     capManYen: 10000,
     adoptionRate: "非公表（省エネ量・費用対効果で審査。要件充足で採択可能性）",
+    difficulty: "高",
+    difficultyNote: "省エネ計算書・事業計画・補助事業ポータル登録が必須。審査型で書類量が多い",
   },
   {
     id: "sii_gx",
@@ -45,6 +47,8 @@ export const SUBSIDIES: Subsidy[] = [
     rateNum: 0.5,
     capManYen: 30000,
     adoptionRate: "非公表（トップランナー水準機器で要件充足が前提）",
+    difficulty: "高",
+    difficultyNote: "トップランナー水準機器＋省エネ要件(10%/1kl等)の立証が必要",
   },
   {
     id: "kanagawa",
@@ -66,6 +70,8 @@ export const SUBSIDIES: Subsidy[] = [
     rateNum: 0.33,
     capManYen: 500,
     adoptionRate: "先着順・予算枠方式（要件充足かつ枠内なら採択。前年度は早期終了）",
+    difficulty: "中",
+    difficultyNote: "CO2削減計算と見積が必要だが自治体先着型で審査は比較的シンプル。早期の枠確保がカギ",
   },
   {
     id: "hotel_sustainability",
@@ -85,6 +91,8 @@ export const SUBSIDIES: Subsidy[] = [
     rateNum: 0.5,
     capManYen: 1000,
     adoptionRate: "約91%（令和7年度実績・要件充足前提）",
+    difficulty: "中",
+    difficultyNote: "旅館業許可・高付加価値経営旅館の登録が前提だが、採択率が高く要件を満たせば通りやすい",
   },
   {
     id: "osaka",
@@ -107,6 +115,8 @@ export const SUBSIDIES: Subsidy[] = [
     rateNum: 0.5,
     capManYen: 500,
     adoptionRate: "先着順・予算枠方式（R8は申請1,201件→交付決定220件・7/2時点）",
+    difficulty: "中",
+    difficultyNote: "脱炭素経営宣言の登録＋書類。先着型で審査自体は要件確認中心",
   },
   {
     id: "tokyo_zeroemi",
@@ -127,6 +137,8 @@ export const SUBSIDIES: Subsidy[] = [
     rateNum: 0.667,
     capManYen: 2500,
     adoptionRate: "予算枠方式（要件充足で交付。回次ごとの予算枠あり・早めの申請推奨）",
+    difficulty: "中",
+    difficultyNote: "省エネ診断の受診または自己作成の省エネ計画が必要。補助率2/3と高い分、書類はやや多め",
   },
   {
     id: "saitama",
@@ -147,6 +159,8 @@ export const SUBSIDIES: Subsidy[] = [
     rateNum: 0.5,
     capManYen: 1000,
     adoptionRate: "先着順・予算枠方式（予算到達で終了。早めの申請推奨）",
+    difficulty: "中",
+    difficultyNote: "先着型・省エネ計算書と見積が中心。早期の枠確保がカギ",
   },
   {
     id: "chiba",
@@ -167,6 +181,8 @@ export const SUBSIDIES: Subsidy[] = [
     rateNum: 0.5,
     capManYen: 1000,
     adoptionRate: "予算枠方式（省エネ診断に基づく要件充足で交付。締切10/7）",
+    difficulty: "高",
+    difficultyNote: "省エネ診断の受診が前提（補助率1/2）。簡易自己診断なら手間は減るが補助率1/4に低下",
   },
   {
     id: "jizokuka",
@@ -188,5 +204,7 @@ export const SUBSIDIES: Subsidy[] = [
     capManYen: 50,
     infoOnly: true,
     adoptionRate: "約48%（第18回 48.1%／通常枠・年度回次で変動）",
+    difficulty: "中",
+    difficultyNote: "商工会・商工会議所の支援を受け経営計画を作成。GビズID・電子申請。空調単純更新は対象外の点に注意",
   },
 ];

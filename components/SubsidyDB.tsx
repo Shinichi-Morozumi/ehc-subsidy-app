@@ -30,6 +30,19 @@ export function SubsidyDB() {
               <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">
                 地域: {s.pref === "all" ? "全国" : s.pref.join("・")}
               </span>
+              {s.difficulty && (
+                <span
+                  className={`px-2 py-0.5 rounded-md font-semibold ${
+                    s.difficulty === "低"
+                      ? "bg-emerald-500/15 text-emerald-300"
+                      : s.difficulty === "中"
+                      ? "bg-amber-500/15 text-amber-300"
+                      : "bg-red-500/15 text-red-300"
+                  }`}
+                >
+                  難易度: {s.difficulty}
+                </span>
+              )}
               {s.infoOnly && (
                 <span className="bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-md">情報提供（小規模のみ・要事業計画）</span>
               )}
@@ -38,6 +51,9 @@ export function SubsidyDB() {
               <p><strong className="text-white">要件:</strong> {s.requirement}</p>
               {s.adoptionRate && (
                 <p><strong className="text-white">採択率の目安:</strong> {s.adoptionRate}</p>
+              )}
+              {s.difficultyNote && (
+                <p><strong className="text-white">難易度の目安:</strong> {s.difficultyNote}</p>
               )}
               <p><strong className="text-white">必要書類:</strong> {s.docs}</p>
               <a
