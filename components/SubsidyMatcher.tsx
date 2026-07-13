@@ -627,27 +627,48 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
             )}
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <div className="text-[11px] text-slate-400 mb-2">投資回収年数の比較</div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <div>
-                <div className="text-[10px] text-slate-500">補助金なし</div>
-                <div className="text-xl font-bold text-slate-300 line-through decoration-red-400/60">
-                  {yearsNoSubsidy !== null ? `${yearsNoSubsidy}年` : "—"}
+            {appliedSubsidyManYen > 0 ? (
+              <>
+                <div className="text-[11px] text-slate-400 mb-2">投資回収年数の比較</div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div>
+                    <div className="text-[10px] text-slate-500">補助金なし</div>
+                    <div className="text-xl font-bold text-slate-300 line-through decoration-red-400/60">
+                      {yearsNoSubsidy !== null ? `${yearsNoSubsidy}年` : "—"}
+                    </div>
+                  </div>
+                  <div className="text-ehc-400 text-xl font-bold">→</div>
+                  <div>
+                    <div className="text-[10px] text-ehc-300">補助金あり</div>
+                    <div className="text-3xl font-bold text-ehc-300">
+                      {appliedYearsToRecover !== null ? `${appliedYearsToRecover}年` : "—"}
+                    </div>
+                  </div>
+                  {yearsShortened !== null && yearsShortened > 0 && (
+                    <div className="ml-auto bg-ehc-500/15 border border-ehc-500/40 text-ehc-200 text-xs font-bold px-2.5 py-1.5 rounded-lg">
+                      {yearsShortened}年 短縮
+                    </div>
+                  )}
                 </div>
-              </div>
-              <div className="text-ehc-400 text-xl font-bold">→</div>
-              <div>
-                <div className="text-[10px] text-ehc-300">補助金あり</div>
-                <div className="text-3xl font-bold text-ehc-300">
-                  {appliedYearsToRecover !== null ? `${appliedYearsToRecover}年` : "—"}
+              </>
+            ) : (
+              <>
+                <div className="text-[11px] text-slate-400 mb-2">
+                  投資回収年数{wantSubsidy ? "（補助金なしで試算中）" : "（自己負担）"}
                 </div>
-              </div>
-              {yearsShortened !== null && yearsShortened > 0 && (
-                <div className="ml-auto bg-ehc-500/15 border border-ehc-500/40 text-ehc-200 text-xs font-bold px-2.5 py-1.5 rounded-lg">
-                  {yearsShortened}年 短縮
+                <div className="flex items-baseline gap-2">
+                  <div className="text-3xl font-bold text-slate-200">
+                    {yearsNoSubsidy !== null ? `${yearsNoSubsidy}年` : "—"}
+                  </div>
+                  <div className="text-[10px] text-slate-500">電気代削減で回収</div>
                 </div>
-              )}
-            </div>
+                {wantSubsidy && (
+                  <div className="text-[10px] text-amber-300/90 mt-2">
+                    補助金を反映すると回収年数が短縮されます（下で補助金を選択）
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
