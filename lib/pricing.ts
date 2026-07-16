@@ -20,8 +20,8 @@ export const HC_GAS_MARGIN_PER_KG = HC_GAS_PRICE.sale - HC_GAS_PRICE.purchase;
 export const DROPIN = {
   // フロンガス破壊費（円/kg）※桝口さん確認 3,000/kg
   gasDestroyPerKg: 3000,
-  // 消耗・ボンベ・証明書・窒素等（系統あたり目安。実際はガス量・台数で勘案）
-  consumablePerSystem: 2000,
+  // 消耗・ボンベ・証明書・窒素等（系統あたり）。桝口さん 2026-07 実績値 ¥4,285/系統
+  consumablePerSystem: 4285,
   // 諸経費率: 工事小計（作業＋破壊＋消耗）に対する比率。桝口さん目安「全体の25〜30%」→中央27%
   overheadRate: 0.27,
   // 系統あたり想定回収冷媒量(kg)の既定値（4馬力パッケージ基準）

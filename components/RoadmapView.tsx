@@ -166,8 +166,8 @@ export function RoadmapView({ input, result, compact = false }: { input: MatchIn
       <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] text-slate-400">
         <div className="bg-night-900/60 rounded-lg px-2 py-1.5">機器費目安 4HP: 標準{yen(estimateMachineCost(4,"standard"))} / 上位{yen(estimateMachineCost(4,"subsidy"))}</div>
         <div className="bg-night-900/60 rounded-lg px-2 py-1.5">機器費目安 6HP: 標準{yen(estimateMachineCost(6,"standard"))} / 上位{yen(estimateMachineCost(6,"subsidy"))}</div>
-        <div className="bg-night-900/60 rounded-lg px-2 py-1.5">撤去+据付: 約¥113,000/台</div>
-        <div className="bg-night-900/60 rounded-lg px-2 py-1.5">フロン回収¥20,000/系統・破壊¥1,800/kg</div>
+        <div className="bg-night-900/60 rounded-lg px-2 py-1.5">撤去+据付: 約¥117,000/台</div>
+        <div className="bg-night-900/60 rounded-lg px-2 py-1.5">フロン回収¥25,000/系統・破壊¥3,000/kg</div>
       </div>
     </Card>
   );
