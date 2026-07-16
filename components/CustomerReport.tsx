@@ -37,12 +37,20 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
   const rewardYen = Math.round(result.bestSubsidyManYen * 10000 * 0.1);
   const industryLabel = (INDUSTRY_PROFILES[input.building] ?? INDUSTRY_PROFILES.other).label;
 
-  const customerReady = (input.customerCompany ?? "").trim().length > 0;
+  // 会社名・メール・電話・住所を必須にする
+  const requiredFields = [
+    { val: input.customerCompany, id: "customer-company-input" },
+    { val: input.customerEmail, id: "customer-email-input" },
+    { val: input.customerPhone, id: "customer-phone-input" },
+    { val: input.customerAddress, id: "customer-address-input" },
+  ];
+  const firstMissing = requiredFields.find((f) => !(f.val ?? "").trim());
+  const customerReady = !firstMissing;
   const handlePrint = () => {
-    if (!customerReady) {
-      // 会社名が未入力なら、印刷を止めて入力欄まで自動スクロール＆フォーカスして誘導
+    if (firstMissing) {
+      // 未入力の必須項目があれば、印刷を止めて該当欄まで自動スクロール＆フォーカスして誘導
       const section = document.getElementById("customer-info-section");
-      const field = document.getElementById("customer-company-input") as HTMLInputElement | null;
+      const field = document.getElementById(firstMissing.id) as HTMLInputElement | null;
       (section ?? field)?.scrollIntoView({ behavior: "smooth", block: "center" });
       if (field) {
         window.setTimeout(() => {
@@ -73,7 +81,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
         <div className="flex flex-col items-end gap-1.5">
           <button
             onClick={handlePrint}
-            title={customerReady ? "" : "押すとお客様会社名の入力欄へご案内します"}
+            title={customerReady ? "" : "押すと未入力の必須項目（会社名・メール・電話・住所）へご案内します"}
             className="bg-gradient-to-r from-ehc-700 to-ehc-600 hover:from-ehc-800 hover:to-ehc-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-card hover:shadow-lift transition-all"
           >
             <Printer className="w-4 h-4" />
@@ -107,6 +115,13 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
             {input.customerContact && <span>ご担当: {input.customerContact} 様</span>}
             <span className="text-slate-400">提案書番号: {proposalNo}</span>
           </div>
+          {(input.customerAddress || input.customerPhone || input.customerEmail) && (
+            <div className="flex items-center justify-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500 flex-wrap mt-1.5">
+              {input.customerAddress && <span>{input.customerAddress}</span>}
+              {input.customerPhone && <span>TEL: {input.customerPhone}</span>}
+              {input.customerEmail && <span>{input.customerEmail}</span>}
+            </div>
+          )}
         </div>
 
         <section className="mb-5">

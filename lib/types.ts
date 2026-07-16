@@ -71,5 +71,8 @@ export interface MatchInput {
   invest: number;
   customerCompany: string;
   customerContact: string;
+  customerEmail: string;
+  customerPhone: string;
+  customerAddress: string;
   ehcStaff: string;
 }

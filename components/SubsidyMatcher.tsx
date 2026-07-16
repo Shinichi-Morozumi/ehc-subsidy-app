@@ -32,6 +32,24 @@ const newGroup = (over: Partial<EquipGroup> = {}): EquipGroup => ({
 
 const PREFS = ["東京都", "神奈川県", "大阪府", "埼玉県", "千葉県", "愛知県", "北海道", "福岡県", "その他"];
 
+// 全47都道府県（住所文字列からの判定用）
+const ALL_PREFS = [
+  "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
+  "茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県",
+  "新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県",
+  "静岡県", "愛知県", "三重県", "滋賀県", "京都府", "大阪府", "兵庫県",
+  "奈良県", "和歌山県", "鳥取県", "島根県", "岡山県", "広島県", "山口県",
+  "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県",
+  "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
+];
+
+// 住所文字列から都道府県を検出。ドロップダウン候補にあればその値、無ければ"その他"。未検出はnull
+const prefFromAddress = (address: string): string | null => {
+  const hit = ALL_PREFS.find((p) => address.includes(p));
+  if (!hit) return null;
+  return PREFS.includes(hit) ? hit : "その他";
+};
+
 const REFRI_SHORT: Record<RefriType, string> = { r22: "R22", r410a: "R410A", r32: "R32", unknown: "冷媒不明" };
 const groupLabel = (g: EquipGroup, i: number) =>
   `設備${i + 1}：${REFRI_SHORT[g.refri]}・${g.equip === "multi" ? "マルチ" : "パッケージ"}・${g.units}台`;
@@ -49,8 +67,11 @@ const decodeInput = (s: string): MatchInput | null => {
 };
 
 const HELP = {
-  customerCompany: "提案書のヘッダーに表示されるお客様の会社名（例: 株式会社○○）。空欄のままでも診断・提案書作成はできます。",
+  customerCompany: "提案書のヘッダーに表示されるお客様の会社名（例: 株式会社○○）。提案書PDF出力には必須です。",
   customerContact: "提案書ヘッダーに表示されるご担当者様のお名前。未定・不明の場合は空欄のままでOKです。",
+  customerEmail: "提案書の送付・ご連絡に使うお客様のメールアドレス。提案書PDF出力には必須です。",
+  customerPhone: "ご連絡用のお客様の電話番号。提案書PDF出力には必須です。",
+  customerAddress: "お客様の所在地（住所）。都道府県を自動判定し、一都三県など地域補助金の該当可否に反映します。提案書PDF出力には必須です。",
   ehcStaff: "提案書のフッターに表示されるEHC側の担当者名（例: 桝口、伊藤）。担当者が決まっていない場合は空欄のままでOKです。",
   bizType: "EHCソリューションズは業務用（法人・事業主）専用です。個人・家庭用の空調は対象外となります。",
   size: "中小企業 = 資本金3億円以下 もしくは 従業員300人以下。多くの補助金で中小企業が優遇されます。",
@@ -76,6 +97,9 @@ export function SubsidyMatcher() {
     invest: 500,
     customerCompany: "",
     customerContact: "",
+    customerEmail: "",
+    customerPhone: "",
+    customerAddress: "",
     ehcStaff: "",
   });
   const [result, setResult] = useState<MatchResult | null>(null);
@@ -138,11 +162,20 @@ export function SubsidyMatcher() {
 
   // ③提案書の印刷ビュー（顧客情報→同意の順に確認してから印刷）
   const printReport = () => {
-    if (!(input.customerCompany ?? "").trim()) {
-      setToast("印刷前にお客様情報（会社名）を入力してください");
+    const required: { val: string; label: string; id: string }[] = [
+      { val: input.customerCompany, label: "会社名", id: "customer-company-input" },
+      { val: input.customerEmail, label: "メールアドレス", id: "customer-email-input" },
+      { val: input.customerPhone, label: "電話番号", id: "customer-phone-input" },
+      { val: input.customerAddress, label: "住所", id: "customer-address-input" },
+    ];
+    const missing = required.find((r) => !(r.val ?? "").trim());
+    if (missing) {
+      setToast(`印刷前にお客様情報（${missing.label}）を入力してください`);
       if (toastTimer.current) window.clearTimeout(toastTimer.current);
       toastTimer.current = window.setTimeout(() => setToast(null), 3000);
       document.getElementById("customer-info-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const el = document.getElementById(missing.id) as HTMLInputElement | null;
+      if (el) window.setTimeout(() => el.focus(), 400);
       return;
     }
     if (!agreed) {
@@ -211,10 +244,10 @@ export function SubsidyMatcher() {
       <Card>
         <CardTitle icon={<User className="w-5 h-5" />}>お客様情報（提案書ヘッダー用）</CardTitle>
         <p className="text-[11px] text-slate-500 -mt-2 mb-3">
-          3項目とも<strong className="text-slate-400">任意</strong>です。提案書の宛名・担当者表示にのみ使われ、空欄でも診断結果は変わりません。
+          <strong className="text-amber-400">*</strong> の付いた<strong className="text-slate-300">会社名・メール・電話・住所</strong>は提案書PDF出力に必須です。担当者名・EHC担当は任意。住所からは都道府県を自動判定し、一都三県など地域補助金の該当可否に反映します。
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Field label="お客様会社名" help={HELP.customerCompany}>
+          <Field label="お客様会社名 *" help={HELP.customerCompany}>
             <Input
               id="customer-company-input"
               value={input.customerCompany}
@@ -222,6 +255,48 @@ export function SubsidyMatcher() {
               placeholder="例: 株式会社○○"
             />
           </Field>
+          <Field label="メールアドレス *" help={HELP.customerEmail}>
+            <Input
+              id="customer-email-input"
+              type="email"
+              value={input.customerEmail ?? ""}
+              onChange={(e) => set("customerEmail", e.target.value)}
+              placeholder="例: info@example.co.jp"
+            />
+          </Field>
+          <Field label="電話番号 *" help={HELP.customerPhone}>
+            <Input
+              id="customer-phone-input"
+              type="tel"
+              value={input.customerPhone ?? ""}
+              onChange={(e) => set("customerPhone", e.target.value)}
+              placeholder="例: 03-1234-5678"
+            />
+          </Field>
+          <div className="md:col-span-2">
+            <Field label="住所 *" help={HELP.customerAddress}>
+              <Input
+                id="customer-address-input"
+                value={input.customerAddress ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const p = prefFromAddress(v);
+                  setInput((prev) => ({ ...prev, customerAddress: v, ...(p ? { pref: p } : {}) }));
+                }}
+                placeholder="例: 東京都新宿区西新宿1-1-1 ○○ビル3F"
+              />
+            </Field>
+            {(input.customerAddress ?? "").trim() &&
+              (prefFromAddress(input.customerAddress) ? (
+                <p className="text-[11px] text-ehc-300 mt-1">
+                  住所から「{prefFromAddress(input.customerAddress)}」と判定 → 地域補助金の該当判定に反映しました。
+                </p>
+              ) : (
+                <p className="text-[11px] text-amber-500 mt-1">
+                  住所から都道府県を判定できませんでした。下の「所在地（都道府県）」で選択してください。
+                </p>
+              ))}
+          </div>
           <Field label="ご担当者名" help={HELP.customerContact}>
             <Input
               value={input.customerContact}
