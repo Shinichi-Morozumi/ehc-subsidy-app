@@ -39,7 +39,23 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
 
   const customerReady = (input.customerCompany ?? "").trim().length > 0;
   const handlePrint = () => {
-    if (!customerReady) return;
+    if (!customerReady) {
+      // 会社名が未入力なら、印刷を止めて入力欄まで自動スクロール＆フォーカスして誘導
+      const section = document.getElementById("customer-info-section");
+      const field = document.getElementById("customer-company-input") as HTMLInputElement | null;
+      (section ?? field)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (field) {
+        window.setTimeout(() => {
+          field.focus();
+          field.classList.add("ring-2", "ring-amber-400", "border-amber-400");
+          window.setTimeout(
+            () => field.classList.remove("ring-2", "ring-amber-400", "border-amber-400"),
+            2000
+          );
+        }, 400);
+      }
+      return;
+    }
     window.print();
   };
 
@@ -57,20 +73,15 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
         <div className="flex flex-col items-end gap-1.5">
           <button
             onClick={handlePrint}
-            disabled={!customerReady}
-            title={customerReady ? "" : "先にお客様情報（会社名）を入力してください"}
-            className={
-              customerReady
-                ? "bg-gradient-to-r from-ehc-700 to-ehc-600 hover:from-ehc-800 hover:to-ehc-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-card hover:shadow-lift transition-all"
-                : "bg-slate-200 text-slate-400 cursor-not-allowed px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"
-            }
+            title={customerReady ? "" : "押すとお客様会社名の入力欄へご案内します"}
+            className="bg-gradient-to-r from-ehc-700 to-ehc-600 hover:from-ehc-800 hover:to-ehc-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-card hover:shadow-lift transition-all"
           >
             <Printer className="w-4 h-4" />
             印刷 / PDF保存
           </button>
           {!customerReady && (
             <span className="text-[11px] text-amber-600 font-medium">
-              印刷前にお客様情報（会社名）の入力が必要です
+              押すと会社名の入力欄へご案内します（会社名の入力後に出力できます）
             </span>
           )}
         </div>

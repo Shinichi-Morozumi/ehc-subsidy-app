@@ -216,6 +216,7 @@ export function SubsidyMatcher() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field label="お客様会社名" help={HELP.customerCompany}>
             <Input
+              id="customer-company-input"
               value={input.customerCompany}
               onChange={(e) => set("customerCompany", e.target.value)}
               placeholder="例: 株式会社○○"
@@ -442,19 +443,38 @@ export function SubsidyMatcher() {
             <SubsidyDisclaimer />
           </div>
           <div id="agree-section" className="no-print">
-          <Card>
+          <Card className={!agreed ? "border-2 border-amber-400/70 ring-2 ring-amber-400/20" : ""}>
             <label className="flex items-start gap-2.5 text-sm text-slate-200 cursor-pointer">
-              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 w-4 h-4 accent-ehc-400 flex-shrink-0" />
+              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 w-5 h-5 accent-amber-400 flex-shrink-0" />
               <span>上記の補助金情報が<strong className="text-white">あくまで目安</strong>であり、公募内容・締切は予告なく変更されるため、最新条件は公募要領／当社で要確認であることを理解しました。（お客様提案書の表示・PDF出力に同意します）</span>
             </label>
           </Card>
-          {!agreed && (
-            <Card>
-              <p className="text-sm text-slate-400">☑ 上のチェックを入れると、お客様提案書（PDF出力可）が表示されます。</p>
-            </Card>
-          )}
           </div>
           {agreed && <CustomerReport input={input} result={result} />}
+
+          {/* 同意するまで画面下に固定するバー（見落とし防止）。押すと同意→提案書表示へ */}
+          {!agreed && (
+            <div className="fixed bottom-0 left-0 right-0 z-40 no-print px-3 pb-3 pt-0 pointer-events-none">
+              <div className="pointer-events-auto max-w-3xl mx-auto bg-night-800/95 backdrop-blur border-2 border-amber-400/80 shadow-lift rounded-2xl px-4 py-3 flex items-center gap-3">
+                <span className="relative flex h-3 w-3 flex-shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-70"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400"></span>
+                </span>
+                <p className="text-[13px] text-slate-200 leading-snug flex-1">
+                  <strong className="text-white">あと1ステップ。</strong> 内容に同意すると<strong className="text-amber-300">お客様提案書（PDF出力可）</strong>が表示されます。
+                </p>
+                <button
+                  onClick={() => {
+                    setAgreed(true);
+                    setTimeout(() => document.getElementById("result-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+                  }}
+                  className="flex-shrink-0 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-night-900 font-bold text-sm px-4 py-2.5 rounded-xl shadow-card transition-all whitespace-nowrap"
+                >
+                  同意して提案書を表示
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
