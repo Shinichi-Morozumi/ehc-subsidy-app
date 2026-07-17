@@ -202,6 +202,11 @@ CO₂削減/年: ${result.co2ReductionTon} t
     `【提案書 ${proposalNo}】現地調査・お見積りのご依頼（${input.customerCompany || "御社名"}）`
   )}&body=${encodeURIComponent(inquiryBody)}`;
 
+  // QRコード用は本文を含めない短いmailto（本文入りだとQRの容量上限を超えてクラッシュするため）。
+  const inquiryMailtoShort = `mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent(
+    `【提案書 ${proposalNo}】現地調査・お見積りのご依頼（${input.customerCompany || "御社名"}）`
+  )}`;
+
   return (
     <Card className="border-2 border-ehc-200 customer-report">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5 no-print">
@@ -503,7 +508,7 @@ CO₂削減/年: ${result.co2ReductionTon} t
             </div>
           </div>
           <div className="bg-white p-2 rounded-md border border-slate-200 flex-shrink-0">
-            <QRCodeSVG value={inquiryMailto} size={84} level="M" fgColor="#0a0a0a" bgColor="#ffffff" />
+            <QRCodeSVG value={inquiryMailtoShort} size={84} level="M" fgColor="#0a0a0a" bgColor="#ffffff" />
           </div>
         </div>
 
