@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { MatchInput } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
@@ -49,8 +49,13 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
   const customerReady = !firstMissing;
   // クリック時の注意メッセージ（一定時間で自動的に消える）
   const [reqNotice, setReqNotice] = useState<string | null>(null);
-  // 印刷/PDF後にお問い合わせメール下書きを開いた旨のお知らせ
-  const [postNotice, setPostNotice] = useState<string | null>(null);
+  // 印刷/PDF後の「EHC・PNへ自動送信」確認パネルの表示制御と送信状態
+  const [showSend, setShowSend] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  // PDF化する提案書本体（この要素をそのままキャプチャして添付）
+  const reportRef = useRef<HTMLDivElement>(null);
+
   const handlePrint = () => {
     if (firstMissing) {
       // 未入力の必須項目があれば、印刷を止めてクリック時にメッセージを表示し、該当欄まで自動スクロール＆フォーカスして誘導
@@ -74,21 +79,84 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
       return;
     }
     setReqNotice(null);
-    // 印刷/PDF保存が終わったら、そのまま info@ehcjpn.com（cc: PN）宛の
-    // お問い合わせメール下書きを開く（会社情報・台数・試算サマリーを本文に自動転記）
+    // 印刷/PDF保存が終わったら「この内容で EHC・PN へ自動送信」確認パネルを表示（確認を1つ挟む）
     const onAfterPrint = () => {
       window.removeEventListener("afterprint", onAfterPrint);
-      setPostNotice(
-        "お問い合わせメール（info@ehcjpn.com ／ PN cc）の下書きを開きます。宛先・内容をご確認のうえ送信してください。PDFを保存済みの場合は添付をお願いします。"
-      );
-      window.setTimeout(() => setPostNotice(null), 12000);
-      // メーラー起動（実際の送信はご確認のうえ送信ボタンで）
-      window.setTimeout(() => {
-        window.location.href = inquiryMailto;
-      }, 400);
+      setSendResult(null);
+      setShowSend(true);
     };
     window.addEventListener("afterprint", onAfterPrint);
     window.print();
+  };
+
+  // 提案書本体を画面のままPDF化して base64 を返す
+  const buildProposalPdf = async (): Promise<{ base64: string; filename: string }> => {
+    const [{ default: html2canvas }, jsPDFmod] = await Promise.all([
+      import("html2canvas"),
+      import("jspdf"),
+    ]);
+    const JsPDF = (jsPDFmod as { jsPDF?: typeof import("jspdf").jsPDF }).jsPDF ?? (jsPDFmod as unknown as { default: typeof import("jspdf").jsPDF }).default;
+    const node = reportRef.current;
+    if (!node) throw new Error("提案書の描画が見つかりません。");
+    const canvas = await html2canvas(node, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      windowWidth: node.scrollWidth,
+    });
+    const imgData = canvas.toDataURL("image/jpeg", 0.92);
+    const pdf = new JsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgW = pageW;
+    const imgH = (canvas.height * imgW) / canvas.width;
+    let heightLeft = imgH;
+    let position = 0;
+    pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH);
+    heightLeft -= pageH;
+    while (heightLeft > 0) {
+      position -= pageH;
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH);
+      heightLeft -= pageH;
+    }
+    return { base64: pdf.output("datauristring"), filename: `提案書_${proposalNo}.pdf` };
+  };
+
+  // 確認パネルの「送信する」= PDF生成 → /api/send-proposal で EHC(+PN cc) へ自動送信
+  const handleAutoSend = async () => {
+    setSending(true);
+    setSendResult(null);
+    try {
+      const { base64, filename } = await buildProposalPdf();
+      const res = await fetch("/api/send-proposal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pdfBase64: base64,
+          filename,
+          subject: `【提案書 ${proposalNo}】現地調査・お見積りのご依頼（${input.customerCompany || "御社名"}）`,
+          text: inquiryBody,
+          replyTo: input.customerEmail || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({ ok: false, error: "応答の解析に失敗しました。" }));
+      if (res.ok && data.ok) {
+        setSendResult({ ok: true, msg: "送信しました。EHC（info@ehcjpn.com）とPNにPDF付きで届きます。" });
+      } else {
+        setSendResult({
+          ok: false,
+          msg: (data && data.error) || "送信に失敗しました。下の「メーラーで送る」からお送りください。",
+        });
+      }
+    } catch {
+      setSendResult({
+        ok: false,
+        msg: "PDF生成または送信でエラーが発生しました。下の「メーラーで送る」からお送りください。",
+      });
+    } finally {
+      setSending(false);
+    }
   };
 
   // 問い合わせ内容が一目で分かるよう、会社情報・設備台数・試算サマリーを本文に差し込む
@@ -162,18 +230,61 @@ CO₂削減/年: ${result.co2ReductionTon} t
               {reqNotice}
             </div>
           )}
-          {postNotice && (
-            <div
-              role="status"
-              className="max-w-[300px] text-right text-[12px] leading-snug text-ehc-800 bg-ehc-50 border border-ehc-300 rounded-lg px-3 py-2 shadow-card"
-            >
-              {postNotice}
+          {showSend && (
+            <div className="max-w-[320px] text-right text-[12px] leading-snug text-ehc-900 bg-ehc-50 border border-ehc-300 rounded-lg px-3 py-2.5 shadow-card space-y-2">
+              <p className="font-semibold text-left">
+                この提案書を EHC（info@ehcjpn.com）と PN へ
+                <br />
+                PDF添付で自動送信しますか？
+              </p>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setShowSend(false)}
+                  disabled={sending}
+                  className="px-3 py-1.5 rounded-md text-[12px] font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  閉じる
+                </button>
+                <button
+                  onClick={handleAutoSend}
+                  disabled={sending}
+                  className="px-3 py-1.5 rounded-md text-[12px] font-semibold text-white bg-gradient-to-r from-ehc-700 to-ehc-600 hover:from-ehc-800 hover:to-ehc-700 disabled:opacity-60 flex items-center gap-1.5"
+                >
+                  {sending ? (
+                    <>
+                      <span className="inline-block w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      送信中…
+                    </>
+                  ) : (
+                    "この内容で自動送信（PDF添付）"
+                  )}
+                </button>
+              </div>
+              {sendResult && (
+                <p
+                  className={`text-left text-[12px] ${
+                    sendResult.ok ? "text-emerald-700" : "text-red-600"
+                  }`}
+                >
+                  {sendResult.msg}
+                </p>
+              )}
+              <p className="text-left text-[11px] text-slate-500">
+                うまくいかない場合は
+                <a href={inquiryMailto} className="text-ehc-700 underline font-medium">
+                  メーラーで送る
+                </a>
+                （PDFはご自身で添付）。
+              </p>
             </div>
           )}
         </div>
       </div>
 
-      <div className="report-sheet relative overflow-hidden border-2 border-slate-200 rounded-xl p-6 bg-white select-none">
+      <div
+        ref={reportRef}
+        className="report-sheet relative overflow-hidden border-2 border-slate-200 rounded-xl p-6 bg-white select-none"
+      >
         {/* 透かし（画面＋全印刷ページ）: コピー・スクショ・無断転載の抑止 */}
         <div className="watermark-layer" aria-hidden>
           {Array.from({ length: 7 }).map((_, i) => (
