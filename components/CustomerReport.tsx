@@ -49,6 +49,8 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
   const customerReady = !firstMissing;
   // クリック時の注意メッセージ（一定時間で自動的に消える）
   const [reqNotice, setReqNotice] = useState<string | null>(null);
+  // 印刷/PDF後にお問い合わせメール下書きを開いた旨のお知らせ
+  const [postNotice, setPostNotice] = useState<string | null>(null);
   const handlePrint = () => {
     if (firstMissing) {
       // 未入力の必須項目があれば、印刷を止めてクリック時にメッセージを表示し、該当欄まで自動スクロール＆フォーカスして誘導
@@ -72,13 +74,65 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
       return;
     }
     setReqNotice(null);
+    // 印刷/PDF保存が終わったら、そのまま info@ehcjpn.com（cc: PN）宛の
+    // お問い合わせメール下書きを開く（会社情報・台数・試算サマリーを本文に自動転記）
+    const onAfterPrint = () => {
+      window.removeEventListener("afterprint", onAfterPrint);
+      setPostNotice(
+        "お問い合わせメール（info@ehcjpn.com ／ PN cc）の下書きを開きます。宛先・内容をご確認のうえ送信してください。PDFを保存済みの場合は添付をお願いします。"
+      );
+      window.setTimeout(() => setPostNotice(null), 12000);
+      // メーラー起動（実際の送信はご確認のうえ送信ボタンで）
+      window.setTimeout(() => {
+        window.location.href = inquiryMailto;
+      }, 400);
+    };
+    window.addEventListener("afterprint", onAfterPrint);
     window.print();
   };
 
-  // 保存(PDF)後もお問い合わせが届くよう、宛先・件名（提案書番号入り）を仕込んだmailtoリンク
+  // 問い合わせ内容が一目で分かるよう、会社情報・設備台数・試算サマリーを本文に差し込む
+  const totalUnits = result.groups.reduce((s, g) => s + g.units, 0);
+  const groupsText = result.groups
+    .map(
+      (g) =>
+        `・${g.refri.toUpperCase()} ${g.equip === "multi" ? "マルチ" : "パッケージ"} / 設置${g.installYear}年 / ${g.units}台`
+    )
+    .join("\n");
+  const inquiryBody = `EHC 補助金・空調更新のお問い合わせです。以下の内容でご確認をお願いします。
+
+■ 提案書番号: ${proposalNo}
+■ 発行日: ${today}
+
+【お客様情報】
+会社名: ${input.customerCompany || "（未入力）"}
+ご担当: ${input.customerContact || "（未入力）"}
+メール: ${input.customerEmail || "（未入力）"}
+電話: ${input.customerPhone || "（未入力）"}
+住所: ${input.customerAddress || "（未入力）"}
+
+【ヒアリング内容】
+業種・用途: ${BUILDING_LABELS[input.building] ?? "—"}（${industryLabel}）
+対象設備: 合計 ${totalUnits}台
+${groupsText}
+年間電力使用量: ${result.totalKwh.toLocaleString("ja-JP")} kWh（${input.kwhMode === "measured" ? "実測" : "自動按分"}）
+設備投資概算: ${input.invest.toLocaleString("ja-JP")} 万円
+
+【試算サマリー】
+想定補助金額: ¥${(result.bestSubsidyManYen * 10000).toLocaleString("ja-JP")}
+損益分岐(回収): ${result.yearsToRecover !== null ? `${result.yearsToRecover}年` : "—"}
+年間電気代削減: ¥${result.saveYenPerYear.toLocaleString("ja-JP")}
+15年累計削減: ¥${result.total15YearsYen.toLocaleString("ja-JP")}
+CO₂削減/年: ${result.co2ReductionTon} t
+
+【EHC担当】${input.ehcStaff || "—"}
+
+※このメールは提案書PDFの内容を要約したものです。PDFを保存済みの場合は添付してください。`;
+
+  // 保存(PDF)後もお問い合わせが届くよう、宛先(EHC)＋cc(PN)・件名・本文（会社情報/台数/試算）を仕込んだmailtoリンク
   const inquiryMailto = `mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent(
     `【提案書 ${proposalNo}】現地調査・お見積りのご依頼（${input.customerCompany || "御社名"}）`
-  )}`;
+  )}&body=${encodeURIComponent(inquiryBody)}`;
 
   return (
     <Card className="border-2 border-ehc-200 customer-report">
@@ -106,6 +160,14 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
               className="max-w-[280px] text-right text-[12px] leading-snug text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 shadow-card"
             >
               {reqNotice}
+            </div>
+          )}
+          {postNotice && (
+            <div
+              role="status"
+              className="max-w-[300px] text-right text-[12px] leading-snug text-ehc-800 bg-ehc-50 border border-ehc-300 rounded-lg px-3 py-2 shadow-card"
+            >
+              {postNotice}
             </div>
           )}
         </div>
