@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { MatchInput } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
@@ -39,16 +40,22 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
 
   // 会社名・メール・電話・住所を必須にする
   const requiredFields = [
-    { val: input.customerCompany, id: "customer-company-input" },
-    { val: input.customerEmail, id: "customer-email-input" },
-    { val: input.customerPhone, id: "customer-phone-input" },
-    { val: input.customerAddress, id: "customer-address-input" },
+    { val: input.customerCompany, id: "customer-company-input", label: "会社名" },
+    { val: input.customerEmail, id: "customer-email-input", label: "メールアドレス" },
+    { val: input.customerPhone, id: "customer-phone-input", label: "電話番号" },
+    { val: input.customerAddress, id: "customer-address-input", label: "住所" },
   ];
   const firstMissing = requiredFields.find((f) => !(f.val ?? "").trim());
   const customerReady = !firstMissing;
+  // クリック時の注意メッセージ（一定時間で自動的に消える）
+  const [reqNotice, setReqNotice] = useState<string | null>(null);
   const handlePrint = () => {
     if (firstMissing) {
-      // 未入力の必須項目があれば、印刷を止めて該当欄まで自動スクロール＆フォーカスして誘導
+      // 未入力の必須項目があれば、印刷を止めてクリック時にメッセージを表示し、該当欄まで自動スクロール＆フォーカスして誘導
+      setReqNotice(
+        `PDFを取得するには必要情報（会社名・メール・電話・住所）の記入が必要です。未入力の「${firstMissing.label}」欄へご案内しました。`
+      );
+      window.setTimeout(() => setReqNotice(null), 6000);
       const section = document.getElementById("customer-info-section");
       const field = document.getElementById(firstMissing.id) as HTMLInputElement | null;
       (section ?? field)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -64,6 +71,7 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
       }
       return;
     }
+    setReqNotice(null);
     window.print();
   };
 
@@ -89,8 +97,16 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
           </button>
           {!customerReady && (
             <span className="text-[11px] text-amber-600 font-medium">
-              押すと会社名の入力欄へご案内します（会社名の入力後に出力できます）
+              PDF出力には会社名・メール・電話・住所の入力が必要です
             </span>
+          )}
+          {reqNotice && (
+            <div
+              role="alert"
+              className="max-w-[280px] text-right text-[12px] leading-snug text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 shadow-card"
+            >
+              {reqNotice}
+            </div>
           )}
         </div>
       </div>
