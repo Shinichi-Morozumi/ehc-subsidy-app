@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,11 +7,23 @@ export const dynamic = "force-dynamic";
 // 提案書PDFを添付して EHC（＋PN cc）へ自動送信する。
 // 宛先はサーバー側で固定（クライアントからは指定不可＝悪用防止）。
 // 全ページが EHC_PASSCODE の cookie ゲート配下にあるため、実質ログイン済みのみ到達可能。
+//
+// 送信は Gmail / Google Workspace の SMTP（アプリパスワード）経由。
+// 必要な環境変数（Vercel）:
+//   SMTP_USER … 送信元Googleアカウント（例: info@neneweb.com）
+//   SMTP_PASS … Googleアプリパスワード（16桁・スペース無し）
+//   SMTP_HOST … 省略可（既定 smtp.gmail.com）
+//   SMTP_PORT … 省略可（既定 465＝SSL）
+//   PROPOSAL_FROM_EMAIL … 省略可（既定は表示名付きの SMTP_USER）
+//   PROPOSAL_TO_EMAIL   … 省略可（既定 info@ehcjpn.com）
+//   PROPOSAL_CC_EMAIL   … 省略可（既定 info@project-neo.co.jp）
 export async function POST(req: Request) {
-  const apiKey = process.env.RESEND_API_KEY;
-  // Resendで送信ドメインを認証したら PROPOSAL_FROM_EMAIL に "EHC <info@ehcjpn.com>" を設定。
-  // 未設定時はResendのテスト送信元（アカウント所有者宛にのみ届く）を使用。
-  const from = process.env.PROPOSAL_FROM_EMAIL || "EHC提案書 <onboarding@resend.dev>";
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+  const smtpPort = Number(process.env.SMTP_PORT || "465");
+
+  const from = process.env.PROPOSAL_FROM_EMAIL || (smtpUser ? `EHC提案書 <${smtpUser}>` : "");
   const to = (process.env.PROPOSAL_TO_EMAIL || "info@ehcjpn.com")
     .split(",")
     .map((s) => s.trim())
@@ -21,9 +33,9 @@ export async function POST(req: Request) {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  if (!apiKey) {
+  if (!smtpUser || !smtpPass) {
     return NextResponse.json(
-      { ok: false, error: "メール送信が未設定です（管理者向け: Vercelに RESEND_API_KEY を設定してください）。" },
+      { ok: false, error: "メール送信が未設定です（管理者向け: Vercelに SMTP_USER と SMTP_PASS を設定してください）。" },
       { status: 503 }
     );
   }
@@ -50,21 +62,30 @@ export async function POST(req: Request) {
   const raw = String(pdfBase64);
   const base64 = raw.includes(",") ? raw.slice(raw.indexOf(",") + 1) : raw;
 
-  const resend = new Resend(apiKey);
+  const transporter = nodemailer.createTransport({
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpPort === 465, // 465=SSL, 587=STARTTLS
+    auth: { user: smtpUser, pass: smtpPass },
+  });
+
   try {
-    const { data, error } = await resend.emails.send({
+    const info = await transporter.sendMail({
       from,
       to,
       cc,
       replyTo: replyTo && /.+@.+\..+/.test(replyTo) ? replyTo : undefined,
       subject,
       text: text || "提案書PDFを添付します。",
-      attachments: [{ filename: filename || "proposal.pdf", content: base64 }],
+      attachments: [
+        {
+          filename: filename || "proposal.pdf",
+          content: Buffer.from(base64, "base64"),
+          contentType: "application/pdf",
+        },
+      ],
     });
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message || String(error) }, { status: 502 });
-    }
-    return NextResponse.json({ ok: true, id: data?.id ?? null });
+    return NextResponse.json({ ok: true, id: info.messageId ?? null });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
