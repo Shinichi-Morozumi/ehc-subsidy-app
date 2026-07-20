@@ -8,6 +8,7 @@ import { matchSubsidies, MatchResult, GroupResult } from "@/lib/match";
 import { ReportTeaser } from "./ReportTeaser";
 import { CustomerReport } from "./CustomerReport";
 import { SampleCases } from "./SampleCases";
+import { HearingChat } from "./HearingChat";
 import { SampleCase } from "@/lib/samples";
 import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge, Link2, QrCode, Printer, Wallet, ClipboardCheck } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -235,6 +236,10 @@ export function SubsidyMatcher() {
         </div>
       )}
       <ReportTeaser />
+
+      <div className="no-print">
+      <HearingChat input={input} setInput={setInput} onComplete={run} />
+      </div>
 
       <div className="no-print">
       <SampleCases onPick={applySample} selectedId={selectedSampleId} />
