@@ -366,7 +366,7 @@ export function HearingChat({
   setInput: React.Dispatch<React.SetStateAction<MatchInput>>;
   onComplete: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [tone, setTone] = useState<Tone | null>(null);
   const [idx, setIdx] = useState(0);
   const [gi, setGi] = useState(0); // 現在編集中の設備群インデックス
@@ -580,22 +580,37 @@ export function HearingChat({
   const canGoBack = tone && history.length > 0;
 
   return (
-    <div className="no-print rounded-2xl border border-ehc-500/30 bg-gradient-to-br from-night-900 to-night-800 overflow-hidden">
+    <div className="no-print relative rounded-2xl border-2 border-ehc-400/50 bg-gradient-to-br from-ehc-900/40 via-night-900 to-night-800 overflow-hidden shadow-[0_0_45px_-10px_rgba(16,185,129,0.55)] ring-1 ring-ehc-400/20">
+      {/* 目立たせる：おすすめリボン */}
+      <span className="absolute top-0 right-0 z-10 flex items-center gap-1 px-3 py-1 rounded-bl-xl bg-gradient-to-r from-amber-400 to-amber-500 text-night-900 text-[10px] font-black tracking-wide shadow-md">
+        <Sparkles className="w-3 h-3" /> いちばんカンタン
+      </span>
+      {/* 目立たせる：発光リング */}
+      <span className="pointer-events-none absolute -top-16 -left-10 w-52 h-52 rounded-full bg-ehc-500/20 blur-3xl" />
+
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/5 transition-colors"
+        className="relative w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-white/5 transition-colors"
       >
-        <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-ehc-400 to-ehc-700 flex-shrink-0">
-          <MessageCircle className="w-5 h-5 text-white" />
-        </span>
-        <span className="flex-1 min-w-0">
-          <span className="block text-sm font-bold text-white">AIヒアリング（会話で入力）</span>
-          <span className="block text-[11px] text-slate-400">
-            チャットで答えるだけで、下の入力フォームが自動で埋まります。わからない項目はAIが概算で補完。
+        <span className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-ehc-400 to-ehc-700 flex-shrink-0 shadow-lg shadow-ehc-600/30">
+          <MessageCircle className="w-6 h-6 text-white" />
+          {/* 呼びかけドット */}
+          <span className="absolute -top-1 -right-1 flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400" />
           </span>
         </span>
-        {open ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+        <span className="flex-1 min-w-0">
+          <span className="flex items-center gap-2">
+            <span className="block text-[15px] font-black text-white">AIヒアリング（会話で入力）</span>
+            <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-cobalt-500/20 border border-cobalt-400/40 text-cobalt-100 text-[10px] font-bold">最短30秒</span>
+          </span>
+          <span className="block text-[12px] text-slate-300 mt-0.5">
+            チャットで答えるだけ。専門用語がわからなくてもOK、AIが概算で補完します。
+          </span>
+        </span>
+        {open ? <ChevronUp className="w-5 h-5 text-ehc-300 flex-shrink-0" /> : <ChevronDown className="w-5 h-5 text-ehc-300 flex-shrink-0 animate-bounce" />}
       </button>
 
       {open && (
