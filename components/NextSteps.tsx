@@ -1,4 +1,4 @@
-import { FileSearch, Building, FileText, ClipboardCheck, Wrench } from "lucide-react";
+import { FileSearch, Building, FileText, ClipboardCheck, Wrench, CalendarCheck, ArrowRight } from "lucide-react";
 
 const STEPS = [
   {
@@ -64,16 +64,21 @@ export function NextSteps() {
           );
         })}
       </div>
-      <div className="mt-5 bg-ehc-700 text-white rounded-xl p-4 text-sm flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <div className="font-bold mb-0.5">まずは無料の現地調査から</div>
-          <div className="text-xs text-emerald-100">EHC担当者がご訪問し、最適プランをご提案します</div>
+      <div className="mt-5 rounded-2xl p-5 flex items-center justify-between flex-wrap gap-4 bg-gradient-to-br from-ehc-600 to-ehc-800 ring-1 ring-ehc-400/40 shadow-[0_18px_50px_-12px_rgba(0,166,81,0.55)]">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2 py-0.5 rounded-full bg-amber-400 text-night-900 text-[10px] font-black tracking-wide">無料</span>
+            <span className="text-base font-black text-white">まずは無料の現地調査から</span>
+          </div>
+          <div className="text-xs text-emerald-100">EHC担当者がご訪問し、最適プランをご提案します（費用・キャンセル料はかかりません）</div>
         </div>
         <a
           href="mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=【補助金マッチング】現地調査のご依頼"
-          className="bg-night-900 text-ehc-300 px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-500/10 transition-colors no-print"
+          className="no-print group flex items-center gap-2 px-6 py-3.5 rounded-xl bg-amber-400 text-night-900 text-base font-black shadow-lg shadow-amber-500/30 hover:bg-amber-300 hover:shadow-amber-400/50 hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap w-full sm:w-auto justify-center"
         >
-          現地調査を依頼する →
+          <CalendarCheck className="w-5 h-5" />
+          現地調査を依頼する
+          <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
         </a>
       </div>
     </div>
