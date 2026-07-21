@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MatchInput, SizeType, EquipType, RefriType } from "@/lib/types";
 import { estimateInvestManYenFromGroups } from "@/lib/pricing";
-import { MessageCircle, Send, Sparkles, ChevronDown, ChevronUp, RotateCcw, Wand2, CheckCircle2, CornerUpLeft } from "lucide-react";
+import { MessageCircle, Send, Sparkles, X, RotateCcw, Wand2, CheckCircle2, CornerUpLeft } from "lucide-react";
 
 /* ───────────────────────────────────────────────────────────
    会話型AIヒアリング
@@ -580,43 +580,58 @@ export function HearingChat({
   const canGoBack = tone && history.length > 0;
 
   return (
-    <div className="no-print relative rounded-2xl border-2 border-ehc-400/50 bg-gradient-to-br from-ehc-900/40 via-night-900 to-night-800 overflow-hidden shadow-[0_0_45px_-10px_rgba(16,185,129,0.55)] ring-1 ring-ehc-400/20">
-      {/* 目立たせる：おすすめリボン */}
-      <span className="absolute top-0 right-0 z-10 flex items-center gap-1 px-3 py-1 rounded-bl-xl bg-gradient-to-r from-amber-400 to-amber-500 text-night-900 text-[10px] font-black tracking-wide shadow-md">
-        <Sparkles className="w-3 h-3" /> いちばんカンタン
-      </span>
-      {/* 目立たせる：発光リング */}
-      <span className="pointer-events-none absolute -top-16 -left-10 w-52 h-52 rounded-full bg-ehc-500/20 blur-3xl" />
+    <>
+      {/* ランチャー（閉じている時／右下固定） */}
+      {!open && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="AIヒアリングを開く"
+          className="no-print fixed bottom-5 right-5 z-50 flex items-center gap-2.5 pl-3 pr-4 py-3 rounded-full bg-gradient-to-br from-ehc-500 to-ehc-700 text-white shadow-[0_10px_35px_-8px_rgba(0,166,81,0.7)] hover:from-ehc-400 hover:to-ehc-600 transition-all active:scale-95"
+        >
+          <span className="relative flex items-center justify-center w-8 h-8 rounded-full bg-white/15 flex-shrink-0">
+            <MessageCircle className="w-5 h-5" />
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400" />
+            </span>
+          </span>
+          <span className="text-left leading-tight">
+            <span className="block text-[13px] font-black">AIで入力</span>
+            <span className="block text-[10px] text-white/80">会話でかんたん・最短30秒</span>
+          </span>
+        </button>
+      )}
 
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="relative w-full flex items-center gap-3 px-4 py-4 text-left hover:bg-white/5 transition-colors"
-      >
-        <span className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-ehc-400 to-ehc-700 flex-shrink-0 shadow-lg shadow-ehc-600/30">
-          <MessageCircle className="w-6 h-6 text-white" />
-          {/* 呼びかけドット */}
-          <span className="absolute -top-1 -right-1 flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400" />
-          </span>
-        </span>
-        <span className="flex-1 min-w-0">
-          <span className="flex items-center gap-2">
-            <span className="block text-[15px] font-black text-white">AIヒアリング（会話で入力）</span>
-            <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-cobalt-500/20 border border-cobalt-400/40 text-cobalt-100 text-[10px] font-bold">最短30秒</span>
-          </span>
-          <span className="block text-[12px] text-slate-300 mt-0.5">
-            チャットで答えるだけ。専門用語がわからなくてもOK、AIが概算で補完します。
-          </span>
-        </span>
-        {open ? <ChevronUp className="w-5 h-5 text-ehc-300 flex-shrink-0" /> : <ChevronDown className="w-5 h-5 text-ehc-300 flex-shrink-0 animate-bounce" />}
-      </button>
-
+      {/* パネル（開いている時／右下固定） */}
       {open && (
-        <div className="border-t border-white/10 px-3 pb-3 pt-3">
+        <div className="no-print fixed bottom-5 right-5 z-50 w-[min(380px,calc(100vw-2rem))] max-h-[76vh] flex flex-col rounded-2xl border-2 border-ehc-400/50 bg-gradient-to-br from-ehc-900/40 via-night-900 to-night-800 shadow-[0_24px_70px_-15px_rgba(0,0,0,0.85)] ring-1 ring-ehc-400/20 overflow-hidden animate-fade-in">
+          {/* ヘッダー */}
+          <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-white/10 flex-shrink-0 bg-white/[0.02]">
+            <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-ehc-400 to-ehc-700 flex-shrink-0 shadow-lg shadow-ehc-600/30">
+              <MessageCircle className="w-5 h-5 text-white" />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="flex items-center gap-1.5">
+                <span className="text-[14px] font-black text-white">AIヒアリング</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-night-900 text-[9px] font-black">最短30秒</span>
+              </span>
+              <span className="block text-[10.5px] text-slate-300">会話で答えるだけ・AIが概算補完</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="閉じる"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 flex-shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* 本体 */}
+          <div className="flex-1 min-h-0 flex flex-col px-3 pb-3 pt-3">
           {!tone ? (
-            <div className="text-center py-4">
+            <div className="text-center py-6 my-auto">
               <p className="text-sm text-slate-300 mb-3">どちらの立場で入力しますか？</p>
               <div className="flex items-center justify-center gap-2 flex-wrap">
                 <button
@@ -639,7 +654,7 @@ export function HearingChat({
             <>
               <div
                 ref={scrollRef}
-                className="max-h-[340px] overflow-y-auto space-y-2.5 pr-1 mb-3"
+                className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1 mb-3"
               >
                 {messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -800,8 +815,9 @@ export function HearingChat({
               )}
             </>
           )}
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
