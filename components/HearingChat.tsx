@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MatchInput, BizType, SizeType, EquipType, RefriType } from "@/lib/types";
+import { MatchInput, SizeType, EquipType, RefriType } from "@/lib/types";
 import { estimateInvestManYenFromGroups } from "@/lib/pricing";
-import { MessageCircle, Send, Sparkles, ChevronDown, ChevronUp, RotateCcw, Wand2, CheckCircle2 } from "lucide-react";
+import { MessageCircle, Send, Sparkles, ChevronDown, ChevronUp, RotateCcw, Wand2, CheckCircle2, CornerUpLeft } from "lucide-react";
 
 /* ───────────────────────────────────────────────────────────
    会話型AIヒアリング
@@ -13,11 +13,30 @@ import { MessageCircle, Send, Sparkles, ChevronDown, ChevronUp, RotateCcw, Wand2
        ① 言い換え（かんたんな代わりの質問／ざっくり選択肢）
        ② それでも不明なら アプリ既定値／実勢から自動補完
        ③ 補完した項目は「AIの概算」として最後にまとめて確認
+   ・エアコンが複数の時期・系統に分かれて導入されたケースは、
+     設備群を追加して系統ごとに（冷媒・設置年・台数）を登録できる。
    ・LLM APIには依存しない（オフラインでも即時・確実にフォームを充足）。
    ─────────────────────────────────────────────────────────── */
 
 const CY = new Date().getFullYear();
 const UNKNOWN = "__unknown__";
+// 自由入力で「わからない」系の言葉が来たら、わからないボタンと同じ扱いにする
+const UNKNOWN_WORDS = /^(わからない|分からない|わかりません|分かりません|わかんない|不明|しらない|知らない|おまかせ|お任せ|特になし|なし)$/;
+
+// 設備群ステップの範囲（この間だけ「N系統目」を頭に付ける）
+const GROUP_START = 7; // refri
+const GROUP_END = 11; // hp
+const MORE_STEP = 12; // moreEquip
+
+let HGID = 0;
+const newGroup = (): MatchInput["equipGroups"][number] => ({
+  id: `hc${++HGID}_${Date.now()}`,
+  refri: "unknown",
+  equip: "ac",
+  installYear: CY - 10,
+  units: 1,
+  hp: undefined,
+});
 
 const ALL_PREFS = [
   "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
@@ -39,10 +58,20 @@ type Tone = "sales" | "customer";
 type Msg = { role: "bot" | "user"; text: string };
 type Chip = { label: string; value: string; display?: string };
 
+// 「1つ戻る」用のスナップショット
+type Snap = {
+  idx: number;
+  phase: "ask" | "rephrase";
+  messages: Msg[];
+  assumed: string[];
+  input: MatchInput;
+  gi: number;
+};
+
 type Ctx = {
   input: MatchInput;
   setInput: React.Dispatch<React.SetStateAction<MatchInput>>;
-  patchGroup0: (patch: Partial<MatchInput["equipGroups"][number]>) => void;
+  patchGroup: (patch: Partial<MatchInput["equipGroups"][number]>) => void;
 };
 
 type Step = {
@@ -197,7 +226,7 @@ const STEPS: Step[] = [
       { label: "わからない / 不明", value: "unknown" },
     ],
     allowUnknown: false, // 「不明」チップが実値なので3段階処理は不要
-    apply: (v, { patchGroup0 }) => patchGroup0({ refri: v as RefriType }),
+    apply: (v, { patchGroup }) => patchGroup({ refri: v as RefriType }),
   },
   {
     id: "equip",
@@ -206,9 +235,9 @@ const STEPS: Step[] = [
       { label: "パッケージ", value: "ac" },
       { label: "マルチ（ビル用）", value: "multi" },
     ],
-    apply: (v, { patchGroup0 }) => patchGroup0({ equip: v as EquipType }),
-    fallback: ({ patchGroup0 }) => {
-      patchGroup0({ equip: "ac" });
+    apply: (v, { patchGroup }) => patchGroup({ equip: v as EquipType }),
+    fallback: ({ patchGroup }) => {
+      patchGroup({ equip: "ac" });
       return { note: "エアコン種別：パッケージとして概算" };
     },
   },
@@ -218,7 +247,7 @@ const STEPS: Step[] = [
     freeInput: "text",
     placeholder: "例: 2012 / 12年前",
     parse: parseYear,
-    apply: (v, { patchGroup0 }) => patchGroup0({ installYear: Number(v) }),
+    apply: (v, { patchGroup }) => patchGroup({ installYear: Number(v) }),
     rephrase: {
       ask: () => "だいたいで大丈夫です。新しめ・普通・古い、どれに近いですか？",
       chips: [
@@ -228,8 +257,8 @@ const STEPS: Step[] = [
       ],
       freeInput: "none",
     },
-    fallback: ({ patchGroup0 }) => {
-      patchGroup0({ installYear: CY - 12 });
+    fallback: ({ patchGroup }) => {
+      patchGroup({ installYear: CY - 12 });
       return { note: `設置年：約${CY - 12}年（12年前想定）で概算` };
     },
   },
@@ -242,7 +271,7 @@ const STEPS: Step[] = [
       const n = toNum(raw);
       return n != null && n >= 1 ? String(Math.round(n)) : null;
     },
-    apply: (v, { patchGroup0 }) => patchGroup0({ units: Number(v) }),
+    apply: (v, { patchGroup }) => patchGroup({ units: Number(v) }),
     rephrase: {
       ask: () => "ざっくりで大丈夫です。台数の目安を選んでください。",
       chips: [
@@ -252,8 +281,8 @@ const STEPS: Step[] = [
       ],
       freeInput: "none",
     },
-    fallback: ({ patchGroup0 }) => {
-      patchGroup0({ units: 5 });
+    fallback: ({ patchGroup }) => {
+      patchGroup({ units: 5 });
       return { note: "台数：5台として概算" };
     },
   },
@@ -266,11 +295,22 @@ const STEPS: Step[] = [
       const n = toNum(raw);
       return n != null && n > 0 ? String(n) : null;
     },
-    apply: (v, { patchGroup0 }) => patchGroup0({ hp: Number(v) }),
-    fallback: ({ patchGroup0 }) => {
-      patchGroup0({ hp: undefined });
+    apply: (v, { patchGroup }) => patchGroup({ hp: Number(v) }),
+    fallback: ({ patchGroup }) => {
+      patchGroup({ hp: undefined });
       return { note: null }; // 馬力未入力はアプリが台数で按分するため概算フラグ不要
     },
+  },
+  {
+    id: "moreEquip",
+    ask: () =>
+      "他にも、別の時期や別系統で導入したエアコンはありますか？冷媒・設置年・台数が違うものは分けて登録すると、補助金・回収年数の診断精度が上がります。",
+    chips: [
+      { label: "いいえ、これで全部", value: "__no_more__" },
+      { label: "はい、別系統を追加", value: "__more__" },
+    ],
+    allowUnknown: false,
+    apply: () => {}, // 実処理は answer() 側で分岐
   },
   {
     id: "kwh",
@@ -283,7 +323,7 @@ const STEPS: Step[] = [
     },
     apply: (v, { setInput }) => setInput((p) => ({ ...p, kwhMode: "auto", kwh: Number(v) })),
     rephrase: {
-      ask: () => "では、1ヶ月の電気代（円）だいたいいくらですか？そこから概算します。",
+      ask: () => "では、1ヶ月の電気代（円）はだいたいいくらですか？12ヶ月分に掛けて年間を概算します。",
       freeInput: "number",
       placeholder: "例: 120000（円/月）",
     },
@@ -329,23 +369,27 @@ export function HearingChat({
   const [open, setOpen] = useState(false);
   const [tone, setTone] = useState<Tone | null>(null);
   const [idx, setIdx] = useState(0);
+  const [gi, setGi] = useState(0); // 現在編集中の設備群インデックス
   const [phase, setPhase] = useState<"ask" | "rephrase">("ask");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [assumed, setAssumed] = useState<string[]>([]);
+  const [history, setHistory] = useState<Snap[]>([]);
   const [draft, setDraft] = useState("");
   const [done, setDone] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef(input);
   inputRef.current = input;
+  const giRef = useRef(gi);
+  giRef.current = gi;
 
-  const patchGroup0 = (patch: Partial<MatchInput["equipGroups"][number]>) =>
+  const patchGroup = (patch: Partial<MatchInput["equipGroups"][number]>) =>
     setInput((p) => ({
       ...p,
       equipGroups: p.equipGroups.length
-        ? p.equipGroups.map((g, i) => (i === 0 ? { ...g, ...patch } : g))
+        ? p.equipGroups.map((g, i) => (i === giRef.current ? { ...g, ...patch } : g))
         : p.equipGroups,
     }));
-  const ctx = (): Ctx => ({ input: inputRef.current, setInput, patchGroup0 });
+  const ctx = (): Ctx => ({ input: inputRef.current, setInput, patchGroup });
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -354,19 +398,26 @@ export function HearingChat({
   const pushBot = (text: string) => setMessages((m) => [...m, { role: "bot", text }]);
   const pushUser = (text: string) => setMessages((m) => [...m, { role: "user", text }]);
 
+  // 設備群ステップだけ「N系統目」を頭に付ける
+  const askText = (i: number, t: Tone) =>
+    (giRef.current > 0 && i >= GROUP_START && i <= GROUP_END ? `【${giRef.current + 1}系統目】` : "") + STEPS[i].ask(t);
+
   const start = (t: Tone) => {
     setTone(t);
     setIdx(0);
+    setGi(0);
+    giRef.current = 0;
     setPhase("ask");
     setAssumed([]);
+    setHistory([]);
     setDone(false);
     setMessages([
       {
         role: "bot",
         text:
           t === "sales"
-            ? "承知しました。営業担当モードで進めます。お客様に聞きながら、順番に答えてください。「わからない」を押せば、こちらで概算して補完します。"
-            : "ありがとうございます。かんたんな質問に答えるだけで、お見積り・補助金診断ができます。わからない項目は「わからない」を押せば、こちらで概算します。",
+            ? "承知しました。営業担当モードで進めます。お客様に聞きながら、順番に答えてください。「わからない」を押せば、こちらで概算して補完します。入力ミスは「1つ戻る」でいつでも直せます。"
+            : "ありがとうございます。かんたんな質問に答えるだけで、お見積り・補助金診断ができます。わからない項目は「わからない」を押せば、こちらで概算します。入力ミスは「1つ戻る」でいつでも直せます。",
       },
       { role: "bot", text: STEPS[0].ask(t) },
     ]);
@@ -389,12 +440,36 @@ export function HearingChat({
     }
     setIdx(next);
     setPhase("ask");
-    pushBot(STEPS[next].ask(t));
+    pushBot(askText(next, t));
+  };
+
+  // 回答直前に状態をスナップショット（「1つ戻る」用）
+  const snapshot = () =>
+    setHistory((h) => [
+      ...h,
+      { idx, phase, messages, assumed, input: inputRef.current, gi: giRef.current },
+    ]);
+
+  const goBack = () => {
+    if (!history.length) return;
+    const last = history[history.length - 1];
+    setIdx(last.idx);
+    setPhase(last.phase);
+    setMessages(last.messages);
+    setAssumed(last.assumed);
+    setInput(last.input);
+    inputRef.current = last.input;
+    setGi(last.gi);
+    giRef.current = last.gi;
+    setDone(false);
+    setDraft("");
+    setHistory((h) => h.slice(0, -1));
   };
 
   const answer = (value: string, display: string, isUnknown: boolean) => {
     if (!tone || done) return;
     const step = currentStep;
+    snapshot();
     pushUser(display);
 
     if (isUnknown) {
@@ -411,6 +486,23 @@ export function HearingChat({
       return;
     }
 
+    // 設備群の追加ループ（別の時期・別系統）
+    if (step.id === "moreEquip") {
+      if (value === "__more__") {
+        setInput((p) => ({ ...p, equipGroups: [...p.equipGroups, newGroup()] }));
+        const nextGi = giRef.current + 1;
+        giRef.current = nextGi;
+        setGi(nextGi);
+        setIdx(GROUP_START);
+        setPhase("ask");
+        pushBot(`了解です。${nextGi + 1}系統目のエアコンを伺います。`);
+        pushBot(askText(GROUP_START, tone));
+        return;
+      }
+      advance(tone); // __no_more__
+      return;
+    }
+
     // invest の「自動で見積る」
     if (value === "__auto__") {
       const est = Math.max(50, estimateInvestManYenFromGroups(inputRef.current.equipGroups));
@@ -421,7 +513,7 @@ export function HearingChat({
       return;
     }
 
-    // kwh 言い換え（月額円→年間kWh概算）
+    // kwh 言い換え（月額円→年間kWh概算：12倍して単価17円/kWhで割る）
     if (step.id === "kwh" && phase === "rephrase") {
       const monthly = toNum(value);
       if (monthly == null || monthly <= 0) {
@@ -431,7 +523,7 @@ export function HearingChat({
       const estKwh = Math.max(10000, Math.round((monthly * 12) / 17 / 1000) * 1000); // 概算単価17円/kWh
       setInput((p) => ({ ...p, kwhMode: "auto", kwh: estKwh }));
       setAssumed((a) => [...a, `年間電力：約${estKwh.toLocaleString("ja-JP")}kWh（電気代から概算）`]);
-      pushBot(`月${monthly.toLocaleString("ja-JP")}円なら、年間 約${estKwh.toLocaleString("ja-JP")}kWh と概算しました。`);
+      pushBot(`月${monthly.toLocaleString("ja-JP")}円 × 12ヶ月で、年間 約${estKwh.toLocaleString("ja-JP")}kWh と概算しました。`);
       advance(tone);
       return;
     }
@@ -442,7 +534,7 @@ export function HearingChat({
       if (step.parse) {
         const parsed = step.parse(value);
         if (parsed == null) {
-          pushBot("うまく読み取れませんでした。もう一度、例のように入力してください。");
+          pushBot("うまく読み取れませんでした。もう一度、例のように入力してください。（わからなければ「わからない」でOKです）");
           return;
         }
         applied = parsed;
@@ -462,6 +554,12 @@ export function HearingChat({
     const v = draft.trim();
     if (!v) return;
     setDraft("");
+    // 「わからない」等を打ち込んだ場合は、わからないボタンと同じ扱いにする
+    const canUnk = !done && (currentStep?.allowUnknown ?? true);
+    if (canUnk && UNKNOWN_WORDS.test(v.replace(/[\s　]/g, ""))) {
+      answer(UNKNOWN, "わからない", true);
+      return;
+    }
     answer(v, v, false);
   };
 
@@ -469,13 +567,17 @@ export function HearingChat({
     setTone(null);
     setMessages([]);
     setIdx(0);
+    setGi(0);
+    giRef.current = 0;
     setPhase("ask");
     setAssumed([]);
+    setHistory([]);
     setDone(false);
     setDraft("");
   };
 
   const canUnknown = tone && !done && (currentStep?.allowUnknown ?? true);
+  const canGoBack = tone && history.length > 0;
 
   return (
     <div className="no-print rounded-2xl border border-ehc-500/30 bg-gradient-to-br from-night-900 to-night-800 overflow-hidden">
@@ -590,6 +692,14 @@ export function HearingChat({
                       </button>
                       <button
                         type="button"
+                        onClick={goBack}
+                        disabled={history.length === 0}
+                        className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-white/15 text-slate-300 hover:bg-white/5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <CornerUpLeft className="w-3.5 h-3.5" /> 1つ戻る
+                      </button>
+                      <button
+                        type="button"
                         onClick={restart}
                         className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-white/15 text-slate-400 hover:bg-white/5 text-sm"
                       >
@@ -645,19 +755,29 @@ export function HearingChat({
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between">
-                    {canUnknown ? (
-                      <button
-                        type="button"
-                        onClick={() => answer(UNKNOWN, "わからない", true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] border border-amber-400/40 text-amber-300 bg-amber-400/5 hover:bg-amber-400/15"
-                      >
-                        <Wand2 className="w-3.5 h-3.5" /> わからない / おまかせ
-                      </button>
-                    ) : (
-                      <span />
-                    )}
-                    <span className="text-[10px] text-slate-500">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {canUnknown && (
+                        <button
+                          type="button"
+                          onClick={() => answer(UNKNOWN, "わからない", true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] border border-amber-400/40 text-amber-300 bg-amber-400/5 hover:bg-amber-400/15"
+                        >
+                          <Wand2 className="w-3.5 h-3.5" /> わからない / おまかせ
+                        </button>
+                      )}
+                      {canGoBack && (
+                        <button
+                          type="button"
+                          onClick={goBack}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] border border-white/15 text-slate-300 hover:bg-white/10"
+                        >
+                          <CornerUpLeft className="w-3.5 h-3.5" /> 1つ戻る
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-500 flex-shrink-0">
+                      {giRef.current > 0 && <span className="mr-1.5 text-cobalt-300">設備{giRef.current + 1}系統目</span>}
                       {idx + 1} / {STEPS.length}
                     </span>
                   </div>
