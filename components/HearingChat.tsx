@@ -587,7 +587,7 @@ export function HearingChat({
           type="button"
           onClick={() => setOpen(true)}
           aria-label="AIヒアリングを開く"
-          className="no-print fixed bottom-5 right-5 z-50 flex items-center gap-2.5 pl-3 pr-4 py-3 rounded-full bg-gradient-to-br from-ehc-500 to-ehc-700 text-white shadow-[0_10px_35px_-8px_rgba(0,166,81,0.7)] hover:from-ehc-400 hover:to-ehc-600 transition-all active:scale-95"
+          className="no-print fixed bottom-28 right-4 sm:bottom-5 sm:right-5 z-50 flex items-center gap-2.5 pl-3 pr-4 py-3 rounded-full bg-gradient-to-br from-ehc-500 to-ehc-700 text-white shadow-[0_10px_35px_-8px_rgba(0,166,81,0.7)] hover:from-ehc-400 hover:to-ehc-600 transition-all active:scale-95"
         >
           <span className="relative flex items-center justify-center w-8 h-8 rounded-full bg-white/15 flex-shrink-0">
             <MessageCircle className="w-5 h-5" />
@@ -605,7 +605,7 @@ export function HearingChat({
 
       {/* パネル（開いている時／右下固定） */}
       {open && (
-        <div className="no-print fixed bottom-5 right-5 z-50 w-[min(380px,calc(100vw-2rem))] max-h-[76vh] flex flex-col rounded-2xl border-2 border-ehc-400/50 bg-gradient-to-br from-ehc-900/40 via-night-900 to-night-800 shadow-[0_24px_70px_-15px_rgba(0,0,0,0.85)] ring-1 ring-ehc-400/20 overflow-hidden animate-fade-in">
+        <div className="no-print fixed bottom-28 right-4 sm:bottom-5 sm:right-5 z-50 w-[min(380px,calc(100vw-2rem))] max-h-[70vh] sm:max-h-[76vh] flex flex-col rounded-2xl border-2 border-ehc-400/50 bg-gradient-to-br from-ehc-900/40 via-night-900 to-night-800 shadow-[0_24px_70px_-15px_rgba(0,0,0,0.85)] ring-1 ring-ehc-400/20 overflow-hidden animate-fade-in">
           {/* ヘッダー */}
           <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-white/10 flex-shrink-0 bg-white/[0.02]">
             <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-ehc-400 to-ehc-700 flex-shrink-0 shadow-lg shadow-ehc-600/30">
