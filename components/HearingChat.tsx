@@ -364,7 +364,7 @@ export function HearingChat({
 }: {
   input: MatchInput;
   setInput: React.Dispatch<React.SetStateAction<MatchInput>>;
-  onComplete: () => void;
+  onComplete: (checkEligibility?: boolean) => void;
 }) {
   const [open, setOpen] = useState(true);
   const [tone, setTone] = useState<Tone | null>(null);
@@ -618,6 +618,16 @@ export function HearingChat({
               </span>
               <span className="block text-[10.5px] text-slate-300">会話で答えるだけ・AIが概算補完</span>
             </span>
+            {tone && (
+              <button
+                type="button"
+                onClick={restart}
+                aria-label="担当モードの選択に戻る"
+                className="flex items-center gap-1 px-2 h-8 rounded-lg text-[11px] text-slate-300 hover:text-white border border-white/15 hover:bg-white/10 flex-shrink-0"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> モード選択
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -696,16 +706,30 @@ export function HearingChat({
                         <CheckCircle2 className="w-4 h-4 text-ehc-400" /> すべて入力いただけました。
                       </p>
                     )}
+                    <div className="mb-3 rounded-lg border border-cobalt-500/30 bg-cobalt-600/10 px-3 py-2.5">
+                      <p className="text-[12px] text-slate-200 font-semibold mb-0.5">続けて、補助金の該当もチェックしますか？</p>
+                      <p className="text-[11px] text-slate-400">「はい」を選ぶと、提案書作成後に最有力の補助金について要件を1問ずつ確認し、結果を要件チェック（実質負担額・回収年数）に自動反映します。</p>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => {
-                          onComplete();
+                          onComplete(true);
                           setOpen(false);
                         }}
                         className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-ehc-500 to-ehc-600 hover:from-ehc-400 hover:to-ehc-500 text-white text-sm font-bold"
                       >
-                        <Sparkles className="w-4 h-4" /> この内容で提案書を作成
+                        <Sparkles className="w-4 h-4" /> 提案書＋補助金の該当チェック
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onComplete(false);
+                          setOpen(false);
+                        }}
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-ehc-500/40 text-ehc-200 hover:bg-ehc-500/10 text-sm font-bold"
+                      >
+                        提案書のみ作成
                       </button>
                       <button
                         type="button"

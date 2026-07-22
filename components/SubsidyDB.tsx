@@ -2,11 +2,14 @@ import { Card, CardTitle } from "./ui/Card";
 import { SUBSIDIES, SUBSIDY_DATA_ASOF } from "@/lib/subsidies";
 import { Database, ExternalLink } from "lucide-react";
 import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
+import { JGrantsLive } from "./JGrantsLive";
+import { SubsidyDBChatButton } from "./SubsidyDBChat";
 
 export function SubsidyDB() {
   return (
     <div className="space-y-4">
       <SubsidyDisclaimer />
+      <JGrantsLive />
     <Card>
       <CardTitle icon={<Database className="w-5 h-5" />}>
         2026年度 業務用空調向け 補助金データベース
@@ -56,14 +59,17 @@ export function SubsidyDB() {
                 <p><strong className="text-white">難易度の目安:</strong> {s.difficultyNote}</p>
               )}
               <p><strong className="text-white">必要書類:</strong> {s.docs}</p>
-              <a
-                href={s.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-ehc-400 hover:text-ehc-300 inline-flex items-center gap-1 text-[11px] underline-offset-2 hover:underline"
-              >
-                {s.url} <ExternalLink className="w-3 h-3" />
-              </a>
+              <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                <SubsidyDBChatButton subsidy={s} />
+                <a
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-ehc-400 hover:text-ehc-300 inline-flex items-center gap-1 text-[11px] underline-offset-2 hover:underline"
+                >
+                  {s.url} <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
             </div>
           </div>
         ))}

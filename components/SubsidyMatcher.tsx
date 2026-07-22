@@ -9,8 +9,9 @@ import { ReportTeaser } from "./ReportTeaser";
 import { CustomerReport } from "./CustomerReport";
 import { SampleCases } from "./SampleCases";
 import { HearingChat } from "./HearingChat";
+import { SubsidyEligibilityChat } from "./SubsidyEligibilityChat";
 import { SampleCase } from "@/lib/samples";
-import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge, Link2, QrCode, Printer, Wallet, ClipboardCheck } from "lucide-react";
+import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge, Link2, QrCode, Printer, Wallet, ClipboardCheck, Bot } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { RoiChart } from "./RoiChart";
 import { GroupSavingsChart } from "./GroupSavingsChart";
@@ -106,6 +107,7 @@ export function SubsidyMatcher() {
   const [result, setResult] = useState<MatchResult | null>(null);
   // 一度でも「即答」を押したら、以降は入力変更に結果を自動連動させる
   const [hasRun, setHasRun] = useState(false);
+  const [eligTrigger, setEligTrigger] = useState(0);
   const { setProject } = useProject();
   const [agreed, setAgreed] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -215,13 +217,14 @@ export function SubsidyMatcher() {
     if (result) setProject(input, result);
   }, [result, input, setProject]);
 
-  const run = () => {
+  const run = (checkEligibility?: boolean) => {
     if (input.bizType === "personal") {
       alert("EHCは業務用専門です。法人・事業者としてご検討ください。");
       return;
     }
     setHasRun(true);
     setResult(matchSubsidies(input));
+    if (checkEligibility) setEligTrigger((n) => n + 1);
     setTimeout(() => {
       document.getElementById("result-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 100);
@@ -466,7 +469,7 @@ export function SubsidyMatcher() {
             </div>
           </div>
         )}
-        <Button onClick={run} className="mt-5">
+        <Button onClick={() => run()} className="mt-5">
           <Sparkles className="w-5 h-5" />
           {hasRun ? "再計算（最新の入力で更新）" : "即答（マッチング & 提案書生成）"}
         </Button>
@@ -515,7 +518,7 @@ export function SubsidyMatcher() {
 
       {result && (
         <div id="result-section" className="space-y-5">
-          <ResultView result={result} input={input} />
+          <ResultView result={result} input={input} eligTrigger={eligTrigger} />
           <div className="no-print">
             <RoadmapView input={input} result={result} compact />
           </div>
@@ -625,7 +628,7 @@ function splitRequirements(req: string): string[] {
   return req.split("。").map((t) => t.trim()).filter((t) => t.length > 0);
 }
 
-function ResultView({ result, input }: { result: MatchResult; input: MatchInput }) {
+function ResultView({ result, input, eligTrigger = 0 }: { result: MatchResult; input: MatchInput; eligTrigger?: number }) {
   const [view, setView] = useState<"overall" | "groups">("overall");
 
   // ===== 補助金プランナー（希望有無 / 希望する補助金 / 要件クリア可否 で ROI に連動） =====
@@ -649,6 +652,7 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
   const [wantSubsidy, setWantSubsidy] = useState(true);
   const [selectedId, setSelectedId] = useState<string>("");
   const [reqChecks, setReqChecks] = useState<Record<string, boolean[]>>({});
+  const [eligChatOpen, setEligChatOpen] = useState(false);
 
   // マッチ結果が変わったら、選択を最適補助金へ同期＆要件チェックを初期化（全クリア＝true）
   useEffect(() => {
@@ -662,6 +666,16 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
       return next;
     });
   }, [fundable, bestId]);
+
+  // ヒアリングAIから「補助金の該当もチェック」を選んだら、最有力補助金で自動的に該当チェックを開く
+  useEffect(() => {
+    if (eligTrigger > 0 && bestId) {
+      setWantSubsidy(true);
+      setSelectedId(bestId);
+      setEligChatOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eligTrigger]);
 
   const selected = fundable.find((s) => s.id === selectedId) || null;
   const selectedReqs = selected ? splitRequirements(selected.requirement) : [];
@@ -836,9 +850,19 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
               {/* ③ 要件クリア可否 */}
               {selected && (
                 <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                  <div className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
-                    <ClipboardCheck className="w-4 h-4 text-cobalt-300" />
-                    ③ これらの要件はクリアできますか？（外すと非該当として計算）
+                  <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                    <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                      <ClipboardCheck className="w-4 h-4 text-cobalt-300" />
+                      ③ これらの要件はクリアできますか？（外すと非該当として計算）
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEligChatOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-[11px] font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors shadow-glow"
+                    >
+                      <Bot className="w-3.5 h-3.5" />
+                      チャットで該当を確認
+                    </button>
                   </div>
                   <div className="space-y-1.5">
                     {selectedReqs.map((r, i) => (
@@ -862,6 +886,19 @@ function ResultView({ result, input }: { result: MatchResult; input: MatchInput 
                   </div>
                   <p className="text-[10px] text-slate-500 mt-2">必要書類: {selected.docs}</p>
                 </div>
+              )}
+
+              {selected && eligChatOpen && (
+                <SubsidyEligibilityChat
+                  subsidy={selected}
+                  input={input}
+                  reqs={selectedReqs}
+                  onApply={(checks) => {
+                    setReqChecks((prev) => ({ ...prev, [selected.id]: checks }));
+                    setEligChatOpen(false);
+                  }}
+                  onClose={() => setEligChatOpen(false)}
+                />
               )}
             </>
           ) : (
