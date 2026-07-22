@@ -36,20 +36,50 @@ export function SubsidyDBChatButton({ subsidy }: { subsidy: Subsidy }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="no-print inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-ehc-500/40 text-ehc-200 hover:bg-ehc-500/10 font-semibold"
-      >
-        <MessageCircle className="w-3.5 h-3.5" /> チャットで該当を確認
-      </button>
-      {open && <DBChat subsidy={subsidy} onClose={() => setOpen(false)} />}
+      <ChatTriggerButton onClick={() => setOpen(true)} />
+      {open && (
+        <EligibilityChatModal
+          title={subsidy.name}
+          questions={buildQuestions(subsidy)}
+          topNote={
+            subsidy.closed
+              ? "※ この補助金は今年度は受付終了しています。次期公募を前提とした事前確認としてご利用ください。"
+              : undefined
+          }
+          onClose={() => setOpen(false)}
+        />
+      )}
     </>
   );
 }
 
-function DBChat({ subsidy, onClose }: { subsidy: Subsidy; onClose: () => void }) {
-  const questions = useMemo(() => buildQuestions(subsidy), [subsidy]);
+// 各カードで共通利用するトリガーボタン（同じUI/UX）
+export function ChatTriggerButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="no-print inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border border-ehc-500/40 text-ehc-200 hover:bg-ehc-500/10 font-semibold"
+    >
+      <MessageCircle className="w-3.5 h-3.5" /> チャットで該当を確認
+    </button>
+  );
+}
+
+// 汎用の該当チェックチャット（質問リストを渡すだけでDB／Jグランツ両対応）
+export function EligibilityChatModal({
+  title,
+  questions,
+  topNote,
+  footerNote,
+  onClose,
+}: {
+  title: string;
+  questions: { key: string; text: string }[];
+  topNote?: string;
+  footerNote?: string;
+  onClose: () => void;
+}) {
   const [answers, setAnswers] = useState<(Answer | null)[]>(() => questions.map(() => null));
   const [step, setStep] = useState(0);
 
@@ -93,7 +123,7 @@ function DBChat({ subsidy, onClose }: { subsidy: Subsidy; onClose: () => void })
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-bold text-white truncate">該当チェック AI</div>
-            <div className="text-[11px] text-slate-400 truncate">{subsidy.name}</div>
+            <div className="text-[11px] text-slate-400 truncate">{title}</div>
           </div>
           <button onClick={onClose} aria-label="閉じる" className="text-slate-400 hover:text-white p-1">
             <X className="w-5 h-5" />
@@ -103,10 +133,8 @@ function DBChat({ subsidy, onClose }: { subsidy: Subsidy; onClose: () => void })
         {/* 会話エリア */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           <Bubble>
-            「{subsidy.name}」に該当するか、条件と要件を1問ずつ確認します（全{questions.length}問）。
-            {subsidy.closed && (
-              <span className="block mt-1 text-amber-300">※ この補助金は今年度は受付終了しています。次期公募を前提とした事前確認としてご利用ください。</span>
-            )}
+            「{title}」に該当するか、条件と要件を1問ずつ確認します（全{questions.length}問）。
+            {topNote && <span className="block mt-1 text-amber-300">{topNote}</span>}
           </Bubble>
 
           {/* 回答済み */}
@@ -147,6 +175,7 @@ function DBChat({ subsidy, onClose }: { subsidy: Subsidy; onClose: () => void })
                 {verdictView.title}
               </div>
               <p className="text-xs mt-1.5 leading-relaxed text-slate-200/90">{verdictView.note}</p>
+              {footerNote && <p className="text-[10px] text-slate-300/80 mt-2">{footerNote}</p>}
               <p className="text-[10px] text-slate-400 mt-2">
                 ※ 最終的な採択可否は各補助金事務局の審査によります。本判定は目安です。
               </p>

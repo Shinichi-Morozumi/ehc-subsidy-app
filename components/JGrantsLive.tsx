@@ -4,6 +4,38 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { Radio, ExternalLink, RefreshCw, AlertCircle } from "lucide-react";
 import { JGrantsSubsidy, assessPrep, PrepVerdict } from "@/lib/jgrants";
+import { ChatTriggerButton, EligibilityChatModal } from "./SubsidyDBChat";
+
+// Jグランツ項目は要件が構造化されていないため、取得できる項目＋一般要件を質問化する
+function buildJGrantsQuestions(it: JGrantsSubsidy): { key: string; text: string }[] {
+  const qs: { key: string; text: string }[] = [];
+  if (it.area && it.area !== "全国") {
+    qs.push({ key: "area", text: `貴社の事業所（設置場所）は「${it.area}」にありますか？` });
+  }
+  if (it.employees && !/なし|制限なし|不問/.test(it.employees)) {
+    qs.push({ key: "emp", text: `従業員規模の条件「${it.employees}」に当てはまりますか？` });
+  }
+  qs.push({ key: "equip", text: "導入予定の設備は、本補助金の対象（高効率空調など）に該当しますか？" });
+  qs.push({ key: "plan", text: "補助対象経費の見積書・事業計画を準備できますか？" });
+  return qs;
+}
+
+function JGrantsChat({ it }: { it: JGrantsSubsidy }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <ChatTriggerButton onClick={() => setOpen(true)} />
+      {open && (
+        <EligibilityChatModal
+          title={it.title}
+          questions={buildJGrantsQuestions(it)}
+          footerNote="※ 詳細な要件・対象経費は公募要領で異なります。「Jグランツで詳細を見る」で最新の要件を必ずご確認ください。"
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
 
 const ALL_PREFS = [
   "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
@@ -153,14 +185,17 @@ export function JGrantsLive() {
                       )}
                     </div>
                     <p className="text-[11px] text-slate-300 mt-2 leading-relaxed">{prep.note}</p>
-                    <a
-                      href={it.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="no-print inline-flex items-center gap-1 text-[11px] text-ehc-300 hover:text-ehc-200 mt-2 font-medium"
-                    >
-                      Jグランツで詳細・申請要件を見る <ExternalLink className="w-3 h-3" />
-                    </a>
+                    <div className="flex items-center gap-2 flex-wrap mt-2">
+                      <JGrantsChat it={it} />
+                      <a
+                        href={it.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="no-print inline-flex items-center gap-1 text-[11px] text-ehc-300 hover:text-ehc-200 font-medium"
+                      >
+                        Jグランツで詳細・申請要件を見る <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
                   </div>
                 );
               })}
