@@ -78,9 +78,16 @@ export function JGrantsLive() {
           <RefreshCw className="w-3 h-3" /> 常に最新
         </span>
       </div>
-      <p className="text-[11px] text-slate-500 mb-3">
+      <p className="text-[11px] text-slate-500 mb-2">
         デジタル庁「Jグランツ」公開APIから、空調設備が対象になり得る受付中補助金を自動取得しています。
         締切までの残日数から、EHCの標準準備期間（約5週間）で申請が間に合うかを判定します。
+      </p>
+      <p className="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-400/20 rounded-lg px-3 py-2 mb-3 flex items-start gap-2">
+        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+        <span>
+          ※ SII省エネ補助金・先進的省エネ投資促進支援などの主要補助金はJグランツ非掲載（SII独自ポータルで公募）のため、ここには表示されません。
+          これらは下の<strong className="text-amber-200">「業務用空調向け 補助金データベース（EHC精査済み）」</strong>でご確認ください。
+        </span>
       </p>
 
       <div className="flex items-center gap-2 mb-4 no-print">
