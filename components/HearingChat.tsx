@@ -625,7 +625,7 @@ export function HearingChat({
                 aria-label="担当モードの選択に戻る"
                 className="flex items-center gap-1 px-2 h-8 rounded-lg text-[11px] text-slate-300 hover:text-white border border-white/15 hover:bg-white/10 flex-shrink-0"
               >
-                <RotateCcw className="w-3.5 h-3.5" /> モード選択
+                <RotateCcw className="w-3.5 h-3.5" /> 戻る
               </button>
             )}
             <button
