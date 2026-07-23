@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Card, CardTitle } from "./ui/Card";
-import { MatchInput } from "@/lib/types";
+import { MatchInput, Subsidy } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
 import { RoiChart } from "./RoiChart";
 import { NextSteps } from "./NextSteps";
@@ -26,7 +26,19 @@ const REFRI_LABELS: Record<string, string> = {
   r22: "R22（HCFC・製造禁止）", r410a: "R410A（HFC・廃止進行中）", r32: "R32（GWP675）", unknown: "不明",
 };
 
-export function CustomerReport({ input, result }: { input: MatchInput; result: MatchResult }) {
+export function CustomerReport({
+  input,
+  result,
+  appliedSubsidyManYen,
+  appliedSubsidy,
+}: {
+  input: MatchInput;
+  result: MatchResult;
+  // プランナー②で選択し、③該当チェックで確定した補助金額（万円）。渡された場合はこちらを優先表示。
+  appliedSubsidyManYen?: number;
+  // 上記に対応する「ご希望の補助金」。提案書の補助金一覧で強調表示する。
+  appliedSubsidy?: Subsidy | null;
+}) {
   const now = new Date();
   const today = now.toLocaleDateString("ja-JP", {
     year: "numeric",
@@ -35,7 +47,10 @@ export function CustomerReport({ input, result }: { input: MatchInput; result: M
   });
   const proposalNo = `EHC-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
 
-  const rewardYen = Math.round(result.bestSubsidyManYen * 10000 * 0.1);
+  // 表示する補助金額: プランナーで確定した額があればそれを、なければ自動計算の最有力額を使う
+  const displaySubsidyManYen = appliedSubsidyManYen ?? result.bestSubsidyManYen;
+  const displaySubsidyYen = Math.round(displaySubsidyManYen * 10000);
+  const rewardYen = Math.round(displaySubsidyManYen * 10000 * 0.1);
   const industryLabel = (INDUSTRY_PROFILES[input.building] ?? INDUSTRY_PROFILES.other).label;
 
   // 会社名・メール・電話・住所を必須にする
@@ -187,7 +202,7 @@ ${groupsText}
 設備投資概算: ${input.invest.toLocaleString("ja-JP")} 万円
 
 【試算サマリー】
-想定補助金額: ¥${(result.bestSubsidyManYen * 10000).toLocaleString("ja-JP")}
+想定補助金額: ¥${displaySubsidyYen.toLocaleString("ja-JP")}
 損益分岐(回収): ${result.yearsToRecover !== null ? `${result.yearsToRecover}年` : "—"}
 年間電気代削減: ¥${result.saveYenPerYear.toLocaleString("ja-JP")}
 15年累計削減: ¥${result.total15YearsYen.toLocaleString("ja-JP")}
@@ -369,7 +384,7 @@ CO₂削減/年: ${result.co2ReductionTon} t
             （出典: 資源エネルギー庁／業界資料／EHC施工実績）で試算しています。
           </p>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <SummaryCell label="想定補助金額" value={`¥${(result.bestSubsidyManYen * 10000).toLocaleString("ja-JP")}`} color="green" />
+            <SummaryCell label="想定補助金額" value={`¥${displaySubsidyYen.toLocaleString("ja-JP")}`} color="green" />
             <SummaryCell label="損益分岐(回収)" value={result.yearsToRecover !== null ? `${result.yearsToRecover} 年` : "—"} color="amber" />
             <SummaryCell label="年間電気代削減" value={`¥${result.saveYenPerYear.toLocaleString("ja-JP")}`} color="blue" />
             <SummaryCell label="15年累計削減" value={`¥${result.total15YearsYen.toLocaleString("ja-JP")}`} color="purple" />
@@ -385,7 +400,7 @@ CO₂削減/年: ${result.co2ReductionTon} t
           <div className="bg-slate-50 rounded-xl p-3 mb-2">
             <RoiChart
               invest={input.invest}
-              bestSubsidyManYen={result.bestSubsidyManYen}
+              bestSubsidyManYen={displaySubsidyManYen}
               saveYenPerYear={result.saveYenPerYear}
               kwhPerYear={result.totalKwh || input.kwh}
               reductionRate={result.effectiveReductionRate}
@@ -410,9 +425,16 @@ CO₂削減/年: ${result.co2ReductionTon} t
           </h2>
           {result.matched.length ? (
             <ul className="space-y-2">
-              {result.matched.map((s) => (
-                <li key={s.id} className="text-xs border border-slate-200 rounded-lg p-3 bg-ehc-50/40">
-                  <div className="font-semibold text-ehc-900 mb-1">◆ {s.name}</div>
+              {result.matched.map((s) => {
+                const isChosen = !!appliedSubsidy && s.id === appliedSubsidy.id;
+                return (
+                <li key={s.id} className={`text-xs border rounded-lg p-3 ${isChosen ? "border-ehc-400 bg-ehc-100/70 ring-1 ring-ehc-300" : "border-slate-200 bg-ehc-50/40"}`}>
+                  <div className="font-semibold text-ehc-900 mb-1 flex items-center gap-2">
+                    <span>◆ {s.name}</span>
+                    {isChosen && (
+                      <span className="text-[10px] font-bold text-white bg-ehc-600 rounded-full px-2 py-0.5">ご希望</span>
+                    )}
+                  </div>
                   <div className="text-slate-700 grid grid-cols-1 md:grid-cols-3 gap-1">
                     <span>主催: {s.org}</span>
                     <span>補助率: {s.rate}</span>
@@ -420,7 +442,8 @@ CO₂削減/年: ${result.co2ReductionTon} t
                   </div>
                   <div className="text-slate-600 mt-1">公募期間: {s.period}</div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           ) : (
             <p className="text-xs text-slate-500">条件に該当する補助金が現在見当たりません。個別ヒアリングにてご相談ください。</p>
@@ -467,9 +490,9 @@ CO₂削減/年: ${result.co2ReductionTon} t
               <div className="text-slate-800">
                 獲得補助金額の <span className="text-2xl font-bold text-amber-700">10%</span>
               </div>
-              {result.bestSubsidyManYen > 0 && (
+              {displaySubsidyManYen > 0 && (
                 <div className="mt-2 pt-2 border-t border-amber-200 text-slate-700">
-                  本ケース想定: 補助金 ¥{(result.bestSubsidyManYen * 10000).toLocaleString("ja-JP")} → サポート報酬{" "}
+                  本ケース想定: 補助金 ¥{displaySubsidyYen.toLocaleString("ja-JP")} → サポート報酬{" "}
                   <strong className="text-amber-800">¥{rewardYen.toLocaleString("ja-JP")}</strong>
                 </div>
               )}

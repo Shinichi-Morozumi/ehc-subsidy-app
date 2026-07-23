@@ -110,6 +110,9 @@ export function SubsidyMatcher() {
   const [eligTrigger, setEligTrigger] = useState(0);
   const { setProject } = useProject();
   const [agreed, setAgreed] = useState(false);
+  // プランナー②③で確定した補助金額・ご希望の補助金（提案書PDFへ反映）
+  const [appliedSubsidyManYen, setAppliedSubsidyManYen] = useState<number>(0);
+  const [appliedSubsidy, setAppliedSubsidy] = useState<Subsidy | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [selectedSampleId, setSelectedSampleId] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
@@ -518,7 +521,15 @@ export function SubsidyMatcher() {
 
       {result && (
         <div id="result-section" className="space-y-5">
-          <ResultView result={result} input={input} eligTrigger={eligTrigger} />
+          <ResultView
+            result={result}
+            input={input}
+            eligTrigger={eligTrigger}
+            onApplied={(manYen, subsidy) => {
+              setAppliedSubsidyManYen(manYen);
+              setAppliedSubsidy(subsidy);
+            }}
+          />
           <div className="no-print">
             <RoadmapView input={input} result={result} compact />
           </div>
@@ -533,7 +544,14 @@ export function SubsidyMatcher() {
             </label>
           </Card>
           </div>
-          {agreed && <CustomerReport input={input} result={result} />}
+          {agreed && (
+            <CustomerReport
+              input={input}
+              result={result}
+              appliedSubsidyManYen={appliedSubsidyManYen}
+              appliedSubsidy={appliedSubsidy}
+            />
+          )}
 
           {/* 同意するまで画面下に固定するバー（見落とし防止）。押すと同意→提案書表示へ */}
           {!agreed && (
@@ -628,7 +646,7 @@ function splitRequirements(req: string): string[] {
   return req.split("。").map((t) => t.trim()).filter((t) => t.length > 0);
 }
 
-function ResultView({ result, input, eligTrigger = 0 }: { result: MatchResult; input: MatchInput; eligTrigger?: number }) {
+function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: MatchResult; input: MatchInput; eligTrigger?: number; onApplied?: (manYen: number, subsidy: Subsidy | null) => void }) {
   const [view, setView] = useState<"overall" | "groups">("overall");
 
   // ===== 補助金プランナー（希望有無 / 希望する補助金 / 要件クリア可否 で ROI に連動） =====
@@ -689,6 +707,12 @@ function ResultView({ result, input, eligTrigger = 0 }: { result: MatchResult; i
   const selectedAmountManYen = selected ? subsidyAmountManYen(selected, input.invest) : 0;
   // 実際にROI・グラフへ反映する補助金額
   const appliedSubsidyManYen = wantSubsidy && selected && allReqMet ? selectedAmountManYen : 0;
+  // 確定した補助金額・ご希望の補助金を親（提案書PDF）へ反映
+  const appliedSubsidyForReport = wantSubsidy && selected && allReqMet ? selected : null;
+  useEffect(() => {
+    onApplied?.(appliedSubsidyManYen, appliedSubsidyForReport);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedSubsidyManYen, appliedSubsidyForReport]);
 
   const toggleReq = (i: number) => {
     if (!selected) return;
