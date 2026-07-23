@@ -180,10 +180,23 @@ export function CustomerReport({
   const groupsText = result.groups
     .map(
       (g) =>
-        `・${g.refri.toUpperCase()} ${g.equip === "multi" ? "マルチ" : "パッケージ"} / 設置${g.installYear}年 / ${g.units}台`
+        `・${g.refri.toUpperCase()} ${g.equip === "multi" ? "マルチ" : "パッケージ"} / 設置${g.installYear}年 / 築${g.age}年 / ${g.units}台 / 年間${g.kwh.toLocaleString("ja-JP")}kWh`
     )
     .join("\n");
-  const inquiryBody = `EHC 補助金・空調更新のお問い合わせです。以下の内容でご確認をお願いします。
+  // 印刷物（提案書）と同じ内容をメール本文にも入れ、電話口でそのまま案内できるようにする
+  const chosenSubsidyName = appliedSubsidy ? appliedSubsidy.name : null;
+  const subsidyListText = result.matched.length
+    ? result.matched
+        .map(
+          (s) =>
+            `・${s.name}（主催: ${s.org} / 補助率: ${s.rate} / 上限: ${s.max} / 公募: ${s.period}）${
+              appliedSubsidy && s.id === appliedSubsidy.id ? "  ★ご希望" : ""
+            }`
+        )
+        .join("\n")
+    : "・条件に該当する補助金は現時点で見当たりません（個別ヒアリングにてご相談）。";
+  const reasonsText = result.reasons.map((r, i) => `${i + 1}. ${r}`).join("\n");
+  const inquiryBody = `EHC 補助金・空調更新のご提案（印刷物と同一内容）です。お電話でのご案内にそのままご利用ください。
 
 ■ 提案書番号: ${proposalNo}
 ■ 発行日: ${today}
@@ -195,23 +208,38 @@ export function CustomerReport({
 電話: ${input.customerPhone || "（未入力）"}
 住所: ${input.customerAddress || "（未入力）"}
 
-【ヒアリング内容】
+【1. ご確認条件（ヒアリング内容）】
 業種・用途: ${BUILDING_LABELS[input.building] ?? "—"}（${industryLabel}）
 対象設備: 合計 ${totalUnits}台
 ${groupsText}
 年間電力使用量: ${result.totalKwh.toLocaleString("ja-JP")} kWh（${input.kwhMode === "measured" ? "実測" : "自動按分"}）
 設備投資概算: ${input.invest.toLocaleString("ja-JP")} 万円
 
-【試算サマリー】
+【2. ご提案サマリー】（全体の実効削減率 約${(result.effectiveReductionRate * 100).toFixed(0)}%）
 想定補助金額: ¥${displaySubsidyYen.toLocaleString("ja-JP")}
 損益分岐(回収): ${result.yearsToRecover !== null ? `${result.yearsToRecover}年` : "—"}
 年間電気代削減: ¥${result.saveYenPerYear.toLocaleString("ja-JP")}
 15年累計削減: ¥${result.total15YearsYen.toLocaleString("ja-JP")}
 CO₂削減/年: ${result.co2ReductionTon} t
 
+【3. ご希望の補助金】${chosenSubsidyName ?? "（未確定 / 最有力で試算中）"}
+
+【4. 適用可能な補助金制度】
+${subsidyListText}
+
+【5. 今、更新をご検討いただきたい理由】
+${reasonsText}
+
+【6. EHC 推奨プラン】
+${result.ehcPlan}
+
+【7. 補助金サポート・成功報酬】
+獲得補助金額の10%（本ケース想定: 補助金 ¥${displaySubsidyYen.toLocaleString("ja-JP")} → サポート報酬 ¥${rewardYen.toLocaleString("ja-JP")}）
+※不採択の場合、サポート報酬は発生しません（完全成功報酬制）。設備費・工事費は別途お見積り。
+
 【EHC担当】${input.ehcStaff || "—"}
 
-※このメールは提案書PDFの内容を要約したものです。PDFを保存済みの場合は添付してください。`;
+※本メールは提案書（印刷物）と同一内容です。詳細レイアウト版は添付PDFをご覧ください。`;
 
   // 保存(PDF)後もお問い合わせが届くよう、宛先(EHC)＋cc(PN)・件名・本文（会社情報/台数/試算）を仕込んだmailtoリンク
   const inquiryMailto = `mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent(
