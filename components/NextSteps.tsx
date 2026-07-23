@@ -33,6 +33,23 @@ const STEPS = [
   },
 ];
 
+// mailto は件名・本文を必ずURLエンコードする（【】や空白を生のまま入れると一部ブラウザ/メールクライアントで
+// リンクが解釈できず「押しても何も起きない」状態になるため）。宛先EHC＋cc PN。
+const SURVEY_SUBJECT = "【補助金マッチング】現地調査のご依頼";
+const SURVEY_BODY = `EHC ご担当者様
+
+補助金シミュレーションを拝見し、無料の現地調査を希望します。
+下記の連絡先までご連絡ください。
+
+会社名：
+ご担当者名：
+電話番号：
+ご住所（設置場所）：
+ご希望日程：`;
+const SURVEY_MAILTO = `mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent(
+  SURVEY_SUBJECT
+)}&body=${encodeURIComponent(SURVEY_BODY)}`;
+
 export function NextSteps() {
   return (
     <div className="border-2 border-ehc-500/30 rounded-2xl p-5 md:p-6 bg-gradient-to-br from-white to-ehc-500/10">
@@ -73,7 +90,7 @@ export function NextSteps() {
           <div className="text-xs text-emerald-100">EHC担当者がご訪問し、最適プランをご提案します（費用・キャンセル料はかかりません）</div>
         </div>
         <a
-          href="mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=【補助金マッチング】現地調査のご依頼"
+          href={SURVEY_MAILTO}
           className="no-print group flex items-center gap-2 px-6 py-3.5 rounded-xl bg-amber-400 text-night-900 text-base font-black shadow-lg shadow-amber-500/30 hover:bg-amber-300 hover:shadow-amber-400/50 hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap w-full sm:w-auto justify-center"
         >
           <CalendarCheck className="w-5 h-5" />
