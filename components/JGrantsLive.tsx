@@ -4,19 +4,55 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { Radio, ExternalLink, RefreshCw, AlertCircle } from "lucide-react";
 import { JGrantsSubsidy, assessPrep, PrepVerdict } from "@/lib/jgrants";
-import { ChatTriggerButton, EligibilityChatModal } from "./SubsidyDBChat";
+import { ChatTriggerButton, EligibilityChatModal, EligQuestion } from "./SubsidyDBChat";
 
 // Jグランツ項目は要件が構造化されていないため、取得できる項目＋一般要件を質問化する
-function buildJGrantsQuestions(it: JGrantsSubsidy): { key: string; text: string }[] {
-  const qs: { key: string; text: string }[] = [];
+function buildJGrantsQuestions(it: JGrantsSubsidy): EligQuestion[] {
+  const qs: EligQuestion[] = [];
   if (it.area && it.area !== "全国") {
-    qs.push({ key: "area", text: `貴社の事業所（設置場所）は「${it.area}」にありますか？` });
+    qs.push({
+      key: "area",
+      text: `貴社の事業所（設置場所）は「${it.area}」にありますか？`,
+      help: "エアコンを設置する建物の住所で判断します（本社の場所ではありません）。対象エリア外だと、この補助金は使えません。",
+      choices: [
+        { label: "対象エリア内に設置する", answer: "yes" },
+        { label: "対象エリア外に設置する", answer: "no" },
+        { label: "住所を確認していない", answer: "unknown" },
+      ],
+    });
   }
   if (it.employees && !/なし|制限なし|不問/.test(it.employees)) {
-    qs.push({ key: "emp", text: `従業員規模の条件「${it.employees}」に当てはまりますか？` });
+    qs.push({
+      key: "emp",
+      text: `従業員規模の条件「${it.employees}」に当てはまりますか？`,
+      help: "会社の従業員数の条件です。パート・アルバイトを除いた常時使用する従業員の人数が目安になります。判断に迷う場合は「わからない」で大丈夫です。",
+      choices: [
+        { label: "条件の人数に収まっている", answer: "yes" },
+        { label: "条件を超えている", answer: "no" },
+        { label: "わからない（EHCが確認）", answer: "unknown" },
+      ],
+    });
   }
-  qs.push({ key: "equip", text: "導入予定の設備は、本補助金の対象（高効率空調など）に該当しますか？" });
-  qs.push({ key: "plan", text: "補助対象経費の見積書・事業計画を準備できますか？" });
+  qs.push({
+    key: "equip",
+    text: "導入予定の設備は、本補助金の対象（高効率空調など）に該当しますか？",
+    help: "省エネ性能の高い業務用エアコンなどが対象です。カタログの省エネ基準達成率やAPFで判断しますが、EHCが対象機種を選定できます。",
+    choices: [
+      { label: "高効率の業務用空調を入れる", answer: "yes" },
+      { label: "対象外の設備かもしれない", answer: "no" },
+      { label: "わからない（EHCが選定）", answer: "unknown" },
+    ],
+  });
+  qs.push({
+    key: "plan",
+    text: "補助対象経費の見積書・事業計画を準備できますか？",
+    help: "申請には設備の見積書と、簡単な省エネ計画書が必要です。作成はEHCが代行できますので、今なくても問題ありません。",
+    choices: [
+      { label: "用意できる／EHCに任せる", answer: "yes" },
+      { label: "用意が難しい", answer: "no" },
+      { label: "わからない", answer: "unknown" },
+    ],
+  });
   return qs;
 }
 

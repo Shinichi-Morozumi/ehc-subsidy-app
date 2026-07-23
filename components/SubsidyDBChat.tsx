@@ -4,7 +4,16 @@ import { useMemo, useRef, useState, useEffect } from "react";
 import { Subsidy } from "@/lib/types";
 import { Bot, X, Check, HelpCircle, MessageCircle, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 
-type Answer = "yes" | "no" | "unknown";
+export type Answer = "yes" | "no" | "unknown";
+export type EligChoice = { label: string; answer: Answer };
+export type EligQuestion = { key: string; text: string; help?: string; choices?: EligChoice[] };
+
+// 「わからない」を押したときに出す汎用の選択肢（質問側で個別指定がなければこれを使う）
+const GENERIC_UNKNOWN_CHOICES: EligChoice[] = [
+  { label: "たぶん当てはまる", answer: "yes" },
+  { label: "たぶん当てはまらない", answer: "no" },
+  { label: "判断できない（EHCに確認してほしい）", answer: "unknown" },
+];
 
 const BIZ_LABEL: Record<string, string> = { business: "事業者（法人）", personal: "個人" };
 const SIZE_LABEL: Record<string, string> = { sme: "中小企業", middle: "中堅企業", large: "大企業" };
@@ -19,15 +28,53 @@ function splitRequirements(req: string): string[] {
 }
 
 // お客様情報を持たないDBページ用に、補助金の条件を全て「質問」として組み立てる
-function buildQuestions(s: Subsidy): { key: string; text: string }[] {
-  const qs: { key: string; text: string }[] = [];
+function buildQuestions(s: Subsidy): EligQuestion[] {
+  const qs: EligQuestion[] = [];
   if (s.pref !== "all") {
-    qs.push({ key: "pref", text: `貴社の事業所（設置場所）は「${s.pref.join("・")}」にありますか？` });
+    qs.push({
+      key: "pref",
+      text: `貴社の事業所（設置場所）は「${s.pref.join("・")}」にありますか？`,
+      help: "エアコンを設置する建物の住所で判断します（本社の場所ではありません）。対象エリア外だと、この補助金は使えません。",
+      choices: [
+        { label: "対象エリア内に設置する", answer: "yes" },
+        { label: "対象エリア外に設置する", answer: "no" },
+        { label: "住所を確認していない", answer: "unknown" },
+      ],
+    });
   }
-  qs.push({ key: "biz", text: `申請主体は「${s.biz.map((b) => BIZ_LABEL[b] || b).join("・")}」に当てはまりますか？` });
-  qs.push({ key: "size", text: `企業規模は「${s.size.map((x) => SIZE_LABEL[x] || x).join("・")}」に当てはまりますか？` });
-  qs.push({ key: "equip", text: `導入予定の設備は「${s.target.map((t) => EQUIP_LABEL[t] || t).join("・")}」ですか？` });
-  splitRequirements(s.requirement).forEach((r, i) => qs.push({ key: `req${i}`, text: r }));
+  qs.push({
+    key: "biz",
+    text: `申請主体は「${s.biz.map((b) => BIZ_LABEL[b] || b).join("・")}」に当てはまりますか？`,
+    help: "だれが申請するかの確認です。会社として申請するなら「事業者（法人）」、個人事業主なら「個人」です。ほとんどの企業は法人に当てはまります。",
+  });
+  qs.push({
+    key: "size",
+    text: `企業規模は「${s.size.map((x) => SIZE_LABEL[x] || x).join("・")}」に当てはまりますか？`,
+    help: "会社の規模で補助率などが変わります。目安は『資本金3億円以下 または 従業員300人以下』（業種で異なります）。多くの会社が中小企業に当てはまります。",
+    choices: [
+      { label: "従業員300人以下くらい", answer: "yes" },
+      { label: "大企業・上場企業クラス", answer: "no" },
+      { label: "わからない（EHCが確認）", answer: "unknown" },
+    ],
+  });
+  qs.push({
+    key: "equip",
+    text: `導入予定の設備は「${s.target.map((t) => EQUIP_LABEL[t] || t).join("・")}」ですか？`,
+    help: "入れ替える／新設する空調の種類の確認です。店舗・オフィスの天井カセットや壁掛けの業務用エアコンが「パッケージ空調」、ビル全体を大型室外機でまかなうのが「ビル用マルチ」です。",
+    choices: [
+      { label: "業務用エアコン（パッケージ）", answer: "yes" },
+      { label: "ビル用マルチ", answer: "yes" },
+      { label: "家庭用など上記以外", answer: "no" },
+      { label: "わからない", answer: "unknown" },
+    ],
+  });
+  splitRequirements(s.requirement).forEach((r, i) =>
+    qs.push({
+      key: `req${i}`,
+      text: r,
+      help: "公募要領に書かれた条件です。専門的で分かりにくい場合は、無理に判断せず「わからない」を選んでください。EHCが実態を確認して判定します。",
+    })
+  );
   return qs;
 }
 
@@ -75,13 +122,14 @@ export function EligibilityChatModal({
   onClose,
 }: {
   title: string;
-  questions: { key: string; text: string }[];
+  questions: EligQuestion[];
   topNote?: string;
   footerNote?: string;
   onClose: () => void;
 }) {
   const [answers, setAnswers] = useState<(Answer | null)[]>(() => questions.map(() => null));
   const [step, setStep] = useState(0);
+  const [helpOpen, setHelpOpen] = useState(false); // 「わからない」を押したときの補助選択肢の表示
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -95,8 +143,10 @@ export function EligibilityChatModal({
       next[step] = a;
       return next;
     });
+    setHelpOpen(false);
     setStep((s) => s + 1);
   };
+  const unknownChoices = questions[step]?.choices ?? GENERIC_UNKNOWN_CHOICES;
 
   const verdict = useMemo(() => {
     if (answers.some((a) => a === "no")) return "no" as const;
@@ -164,6 +214,11 @@ export function EligibilityChatModal({
               <span className="text-[11px] text-ehc-300 font-semibold">確認 {step + 1}/{questions.length}</span>
               <br />
               {questions[step].text}
+              {questions[step].help && (
+                <span className="block mt-1.5 text-[11px] text-slate-400 leading-relaxed border-l-2 border-ehc-500/30 pl-2">
+                  ヒント：{questions[step].help}
+                </span>
+              )}
             </Bubble>
           )}
 
@@ -186,17 +241,48 @@ export function EligibilityChatModal({
         {/* 操作エリア */}
         <div className="border-t border-white/10 px-4 py-3 bg-night-900/80">
           {!done ? (
-            <div className="grid grid-cols-3 gap-2">
-              <ActionBtn onClick={() => answer("yes")} tone="ok" icon={<Check className="w-4 h-4" />}>
-                はい
-              </ActionBtn>
-              <ActionBtn onClick={() => answer("no")} tone="ng" icon={<XCircle className="w-4 h-4" />}>
-                いいえ
-              </ActionBtn>
-              <ActionBtn onClick={() => answer("unknown")} tone="neutral" icon={<HelpCircle className="w-4 h-4" />}>
-                わからない
-              </ActionBtn>
-            </div>
+            helpOpen ? (
+              <div className="space-y-2">
+                <p className="text-[11px] text-slate-400">
+                  近いものを選んでください。迷ったら一番下でOKです（EHCが確認します）。
+                </p>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {unknownChoices.map((c) => (
+                    <button
+                      key={c.label}
+                      onClick={() => answer(c.answer)}
+                      className={`w-full text-left px-3 py-2 rounded-xl border text-xs font-semibold transition-colors ${
+                        c.answer === "yes"
+                          ? "border-ehc-500/40 text-ehc-200 hover:bg-ehc-500/15"
+                          : c.answer === "no"
+                          ? "border-red-500/30 text-red-300 hover:bg-red-500/10"
+                          : "border-white/15 text-slate-300 hover:bg-white/5"
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setHelpOpen(false)}
+                  className="w-full text-center text-[11px] text-slate-500 hover:text-slate-300 mt-1"
+                >
+                  ← はい／いいえに戻る
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                <ActionBtn onClick={() => answer("yes")} tone="ok" icon={<Check className="w-4 h-4" />}>
+                  はい
+                </ActionBtn>
+                <ActionBtn onClick={() => answer("no")} tone="ng" icon={<XCircle className="w-4 h-4" />}>
+                  いいえ
+                </ActionBtn>
+                <ActionBtn onClick={() => setHelpOpen(true)} tone="neutral" icon={<HelpCircle className="w-4 h-4" />}>
+                  わからない
+                </ActionBtn>
+              </div>
+            )
           ) : (
             <button
               onClick={onClose}

@@ -678,6 +678,11 @@ function ResultView({ result, input, eligTrigger = 0 }: { result: MatchResult; i
   }, [eligTrigger]);
 
   const selected = fundable.find((s) => s.id === selectedId) || null;
+  // 要件チェックが全て満たされていれば「該当」。未初期化(undefined)や要件0件は該当扱い
+  const isEligible = (s: Subsidy) => (reqChecks[s.id] ?? []).every(Boolean);
+  // ②のリストは「該当するもの」だけ表示。ただし操作中(選択中)のものは消さない
+  const visibleFundable = fundable.filter((s) => isEligible(s) || s.id === selectedId);
+  const hiddenCount = fundable.length - visibleFundable.length;
   const selectedReqs = selected ? splitRequirements(selected.requirement) : [];
   const selectedChecks = (selected && reqChecks[selected.id]) || [];
   const allReqMet = selectedChecks.length > 0 && selectedChecks.every(Boolean);
@@ -825,7 +830,7 @@ function ResultView({ result, input, eligTrigger = 0 }: { result: MatchResult; i
               <div className="mb-4">
                 <div className="text-xs font-semibold text-slate-300 mb-1.5">② どの補助金を希望しますか？</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {fundable.map((s) => {
+                  {visibleFundable.map((s) => {
                     const amt = subsidyAmountManYen(s, input.invest);
                     const active = s.id === selectedId;
                     return (
@@ -845,6 +850,11 @@ function ResultView({ result, input, eligTrigger = 0 }: { result: MatchResult; i
                     );
                   })}
                 </div>
+                {hiddenCount > 0 && (
+                  <p className="text-[10px] text-slate-500 mt-1.5">
+                    ※ 要件を満たさない補助金 {hiddenCount} 件は非表示にしています（③のチェックを戻すと再表示されます）。
+                  </p>
+                )}
               </div>
 
               {/* ③ 要件クリア可否 */}

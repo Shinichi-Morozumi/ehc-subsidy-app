@@ -10,6 +10,34 @@ const BIZ_LABEL: Record<string, string> = { business: "事業者（法人）", p
 const SIZE_LABEL: Record<string, string> = { sme: "中小企業", middle: "中堅企業", large: "大企業" };
 const EQUIP_LABEL: Record<string, string> = { ac: "パッケージ空調", multi: "ビル用マルチ" };
 
+type Choice = { label: string; answer: Answer };
+
+// 要件文（専門的で分かりにくい）を、素人にも伝わる平易なヒントに変換する
+function reqHint(r: string): string {
+  if (/診断|計画/.test(r))
+    return "省エネ診断の受診や、簡単な省エネ計画書の作成が条件です。作成はEHCが代行できるので、今なくても「はい」で問題ありません。";
+  if (/高効率|省エネ設備|指定|APF|基準/.test(r))
+    return "省エネ性能の高い指定機種を入れることが条件です。対象機種はEHCが選ぶので、通常は満たせます。";
+  if (/事業所|所在|都内|区内|市内|地域|県内/.test(r))
+    return "対象エリア内に設備を設置する事業所であることが条件です。設置先の建物の住所で判断します。";
+  if (/CO2|削減|t-|トン/.test(r))
+    return "一定量以上のCO2削減が条件です。試算はEHCが行います。判断が難しければ「わからない」で大丈夫です。";
+  if (/中小|規模|従業員|資本/.test(r))
+    return "会社の規模に関する条件です。多くの中小企業が当てはまります。迷う場合は「わからない」を選んでください。";
+  return "専門的で分かりにくい場合は、無理に判断せず「わからない」を選んでください。EHCが実態を確認して判定します。";
+}
+
+// 「わからない」を押したときに出す、平易な選択肢
+function reqChoices(r: string): Choice[] {
+  const yesLabel =
+    /診断|計画|高効率|省エネ設備|指定/.test(r) ? "はい（EHCに任せれば満たせる）" : "はい（満たせる）";
+  return [
+    { label: yesLabel, answer: "yes" },
+    { label: "いいえ（満たせない）", answer: "no" },
+    { label: "判断できない（EHCに確認してほしい）", answer: "unknown" },
+  ];
+}
+
 // 構造条件（地域・規模・業種区分・対象設備）は、この補助金が「マッチ結果」に
 // 出ている時点で match.ts のフィルタを通過済み。ここでは確認済みとして提示する。
 function structuralChecks(subsidy: Subsidy, input: MatchInput): { label: string; ok: boolean }[] {
@@ -54,6 +82,7 @@ export function SubsidyEligibilityChat({
   // 各要件への回答。毎回まっさらな状態から1問ずつ確認する。
   const [answers, setAnswers] = useState<(Answer | null)[]>(() => reqs.map(() => null));
   const [step, setStep] = useState<number>(0);
+  const [helpOpen, setHelpOpen] = useState(false); // 「わからない」を押したときの補助選択肢
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -67,6 +96,7 @@ export function SubsidyEligibilityChat({
       next[step] = a;
       return next;
     });
+    setHelpOpen(false);
     setStep((s) => s + 1);
   };
 
@@ -157,6 +187,9 @@ export function SubsidyEligibilityChat({
               <span className="text-[11px] text-ehc-300 font-semibold">要件 {step + 1}/{reqs.length}</span>
               <br />
               {reqs[step]}
+              <span className="block mt-1.5 text-[11px] text-slate-400 leading-relaxed border-l-2 border-ehc-500/30 pl-2">
+                ヒント：{reqHint(reqs[step])}
+              </span>
             </Bubble>
           )}
 
@@ -178,17 +211,48 @@ export function SubsidyEligibilityChat({
         {/* 操作エリア */}
         <div className="border-t border-white/10 px-4 py-3 bg-night-900/80">
           {!done ? (
-            <div className="grid grid-cols-3 gap-2">
-              <ActionBtn onClick={() => answer("yes")} tone="ok" icon={<Check className="w-4 h-4" />}>
-                はい
-              </ActionBtn>
-              <ActionBtn onClick={() => answer("no")} tone="ng" icon={<XCircle className="w-4 h-4" />}>
-                いいえ
-              </ActionBtn>
-              <ActionBtn onClick={() => answer("unknown")} tone="neutral" icon={<HelpCircle className="w-4 h-4" />}>
-                わからない
-              </ActionBtn>
-            </div>
+            helpOpen && reqs[step] ? (
+              <div className="space-y-2">
+                <p className="text-[11px] text-slate-400">
+                  近いものを選んでください。迷ったら一番下でOKです（EHCが確認します）。
+                </p>
+                <div className="grid grid-cols-1 gap-1.5">
+                  {reqChoices(reqs[step]).map((c) => (
+                    <button
+                      key={c.label}
+                      onClick={() => answer(c.answer)}
+                      className={`w-full text-left px-3 py-2 rounded-xl border text-xs font-semibold transition-colors ${
+                        c.answer === "yes"
+                          ? "border-ehc-500/40 text-ehc-200 hover:bg-ehc-500/15"
+                          : c.answer === "no"
+                          ? "border-red-500/30 text-red-300 hover:bg-red-500/10"
+                          : "border-white/15 text-slate-300 hover:bg-white/5"
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setHelpOpen(false)}
+                  className="w-full text-center text-[11px] text-slate-500 hover:text-slate-300 mt-1"
+                >
+                  ← はい／いいえに戻る
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                <ActionBtn onClick={() => answer("yes")} tone="ok" icon={<Check className="w-4 h-4" />}>
+                  はい
+                </ActionBtn>
+                <ActionBtn onClick={() => answer("no")} tone="ng" icon={<XCircle className="w-4 h-4" />}>
+                  いいえ
+                </ActionBtn>
+                <ActionBtn onClick={() => setHelpOpen(true)} tone="neutral" icon={<HelpCircle className="w-4 h-4" />}>
+                  わからない
+                </ActionBtn>
+              </div>
+            )
           ) : (
             <div className="flex gap-2">
               <button
