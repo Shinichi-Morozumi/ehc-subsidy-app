@@ -145,6 +145,14 @@ export async function POST(req: Request) {
         },
       ],
     });
+    // メール送信成功後、Notionへ1行追記（best-effort：失敗しても送信成功は返す）
+    if (lead) {
+      try {
+        await appendLeadToNotion(lead);
+      } catch {
+        // Notion追記の失敗はメール送信の成否に影響させない
+      }
+    }
     return NextResponse.json({ ok: true, id: info.messageId ?? null });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
