@@ -154,6 +154,21 @@ export function CustomerReport({
           subject: `【提案書 ${proposalNo}】現地調査・お見積りのご依頼（${input.customerCompany || "御社名"}）`,
           text: inquiryBody,
           replyTo: input.customerEmail || undefined,
+          // Notionアタックリスト自動追記用の構造化リード（送信APIが best-effort で追記）
+          lead: {
+            company: input.customerCompany || "",
+            contact: input.customerContact || "",
+            email: input.customerEmail || "",
+            phone: input.customerPhone || "",
+            address: input.customerAddress || "",
+            subsidyYen: displaySubsidyYen,
+            yearsToRecover:
+              typeof result.yearsToRecover === "number" ? result.yearsToRecover : null,
+            wishSubsidy: appliedSubsidy ? appliedSubsidy.name : null,
+            proposalNo,
+            sentDate: new Date().toISOString().slice(0, 10),
+            memo: `${industryLabel} / 投資${input.invest}万円 / EHC担当:${input.ehcStaff || "-"}`,
+          },
         }),
       });
       const data = await res.json().catch(() => ({ ok: false, error: "応答の解析に失敗しました。" }));
