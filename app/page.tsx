@@ -1,5 +1,6 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent, TabHint } from "@/components/ui/Tabs";
 import { SubsidyMatcher } from "@/components/SubsidyMatcher";
+import { UpdateEstimator } from "@/components/UpdateEstimator";
 import { SubsidyDB } from "@/components/SubsidyDB";
 import { VendorTable } from "@/components/VendorTable";
 import { WeaponList } from "@/components/WeaponList";
@@ -79,7 +80,11 @@ export default function Page() {
           <TabsTrigger value="diff" icon={<Award className="w-4 h-4" />} hint={TAB_HINTS.diff}>EHCの強み</TabsTrigger>
         </TabsList>
         <TabHint hints={TAB_HINTS} />
-        <TabsContent value="match"><SubsidyMatcher /></TabsContent>
+        <TabsContent value="match">
+          <SubsidyMatcher />
+          {/* 更新工事の明細つき概算（高所作業車・設置階=足場判定・価格帯補正はここで入力） */}
+          <div className="mt-5 no-print"><UpdateEstimator /></div>
+        </TabsContent>
         <TabsContent value="roadmap"><RoadmapTab /></TabsContent>
         <TabsContent value="dropin"><DropinDept /></TabsContent>
         <TabsContent value="breaker"><BreakerDept /></TabsContent>

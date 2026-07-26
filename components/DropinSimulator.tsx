@@ -5,7 +5,7 @@ import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input } from "./ui/Field";
 import { Gauge, Calculator, Printer, Mail, ArrowRight, Plus, Trash2 } from "lucide-react";
 import { useTabSwitch } from "./ui/Tabs";
-import { estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, DROPIN, PRICING_SOURCE, yenJP } from "@/lib/pricing";
+import { estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, DROPIN, PRICING_SOURCE, SITE_ACCESS, aerialLiftCost, needsScaffold, yenJP } from "@/lib/pricing";
 
 const DEFAULT_PRICE = 27; // 円/kWh（既定・契約単価で上書き可）
 const CO2 = 0.000438; // t-CO2/kWh（省エネ効果レポートと同一係数）
@@ -44,6 +44,9 @@ export function DropinSimulator() {
   const [groups, setGroups] = useState<DropGroup[]>([newGroup()]);
   const [manualCost, setManualCost] = useState<number | null>(null); // 手動上書き(万円)
   const [price, setPrice] = useState(DEFAULT_PRICE); // 電力単価(円/kWh)
+  // 現地条件（更新工事の見積シミュレーターと同じ考え方で、ドロップインにも高所作業車・足場判定を持たせる）
+  const [aerialDays, setAerialDays] = useState(0); // 高所作業車(日)
+  const [floor, setFloor] = useState(1);           // 設置階（足場要否の暫定判定用）
   const switchTab = useTabSwitch();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -97,7 +100,11 @@ export function DropinSimulator() {
   const sysTotal = est.systems;
   const multi = groups.length > 1;
 
-  const costYen = manualCost != null ? manualCost * 10000 : est.total; // 施工費(税抜)
+  // 高所作業車は日額×日数の実費として独立計上（諸経費・現場経費の算定対象外）
+  const aerial = aerialLiftCost(aerialDays);
+  const scaffoldRequired = needsScaffold(floor);
+  const autoCost = est.total + aerial;
+  const costYen = manualCost != null ? manualCost * 10000 : autoCost; // 施工費(税抜)
   const costTaxIn = Math.round(costYen * 1.1);
   const saveKwh = Math.round(kwh * rate);
   const saveYen = saveKwh * price;
@@ -125,6 +132,7 @@ export function DropinSimulator() {
     `想定削減率: ${Math.round(rate * 100)}%`,
     `対象設備（計${sysTotal}系統）:`,
     ...groups.map((g, i) => `  ${i + 1}) ${RATE[g.refri].label} / ${g.systems}台 / ${KG_PRESETS[g.machineType].label}${g.extraKg > 0 ? ` / 追加充填 ${g.extraKg}kg per系統` : ""}`),
+    `現地条件: 設置階 ${floor}階（足場 ${scaffoldRequired ? "要・別途" : "不要想定"}） / 高所作業車 ${aerialDays}日 = ${yenJP(aerial)}`,
     `概算投資額: ${yenJP(costYen)}（税込 ${yenJP(costTaxIn)}）`,
     `年間電気代削減: ${yenJP(saveYen)} ／ 投資回収: ${payback != null ? `約${payback}年` : "—"}`,
   ].join("\n");
@@ -145,8 +153,8 @@ export function DropinSimulator() {
         既存機はそのまま、冷媒置換による概算効果。冷媒・機器・系統数が異なる場合は<strong className="text-ehc-300">設備グループを複数追加</strong>できます。投資額は<strong className="text-ehc-300">HCガス代金＋工事費用</strong>（PN見積の系統単価ベース）でグループ別に概算し合算（手動上書き可）。削減率は冷媒×業種(稼働)の加重平均から自動提案——想定は<strong className="text-ehc-300">消費電力の25〜30%</strong>（都内物流倉庫の厨房系統で実測−33%・30日計測/2026年）。※電気「料金」の削減率は契約条件により変動し保証されません。
       </p>
 
-      {/* 共通条件（業種・電力） */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      {/* 共通条件（業種・電力・現地条件） */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-2">
         <Field label="業種（稼働）">
           <Select value={industry} onChange={(e) => onIndustry(e.target.value)}>
             {Object.entries(INDUSTRY).map(([k, v]) => (
@@ -165,7 +173,21 @@ export function DropinSimulator() {
           <input type="range" min={10} max={35} value={Math.round(rate * 100)} onChange={(e) => setRate(Number(e.target.value) / 100)} className="w-full accent-ehc-400" />
           <p className="text-[9px] text-slate-500 mt-1 leading-tight">※冷媒×業種の加重平均から自動提案（手動調整可）</p>
         </Field>
+        <Field label="高所作業車(日)" help={`¥${SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日で実費計上します`}>
+          <Input type="number" value={aerialDays} onChange={(e) => setAerialDays(Number(e.target.value))} placeholder="0" />
+        </Field>
+        <Field label="設置階" help={`${SITE_ACCESS.scaffoldFloorThreshold}階以上は足場が必要という暫定ルールで判定します`}>
+          <Input type="number" value={floor} onChange={(e) => setFloor(Number(e.target.value))} placeholder="1" />
+        </Field>
       </div>
+      <p className="text-[10px] text-slate-400 mb-4 leading-relaxed">
+        高所作業車は<strong className="text-slate-200">¥{SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日</strong>で独立計上（諸経費・現場経費の算定対象外）。
+        {scaffoldRequired ? (
+          <span className="text-amber-300 font-semibold"> ／ {floor}階＝足場が必要な想定です（足場費用は現地条件で変動するため本概算に含みません。現地調査で確定）。</span>
+        ) : (
+          <span> ／ {floor}階＝足場は不要想定（{SITE_ACCESS.scaffoldFloorThreshold}階以上で要・暫定ルール）。</span>
+        )}
+      </p>
 
       {/* 設備グループ（冷媒・機器・系統数をグループ別に入力） */}
       <div className="space-y-2 mb-4">
@@ -226,14 +248,15 @@ export function DropinSimulator() {
             {hasMultiGroup ? `・マルチは×${DROPIN.multiChargeFactor}` : ""}{multi ? `・${groups.length}グループ合算` : ""}
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 text-[10px] mb-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 text-[10px] mb-2">
           <div><div className="text-slate-500">HCガス代金({est.hcKg}kg)</div><div className="text-ehc-300 font-semibold">{yenJP(est.hcGas)}</div></div>
           <div><div className="text-slate-500">作業費{multi ? "（系統別単価）" : ""}</div><div className="text-slate-200">{yenJP(est.work)}</div></div>
           <div><div className="text-slate-500">フロン破壊(¥3,000/kg)</div><div className="text-slate-200">{yenJP(est.gas)}</div></div>
           <div><div className="text-slate-500">消耗・ボンベ等</div><div className="text-slate-200">{yenJP(est.consumable)}</div></div>
           <div><div className="text-slate-500">諸経費({Math.round(DROPIN.overheadRate * 100)}%)</div><div className="text-slate-200">{yenJP(est.overhead)}</div></div>
           <div><div className="text-slate-500">現場経費({Math.round(DROPIN.siteExpenseRate * 100)}%)</div><div className="text-slate-200">{yenJP(est.siteExpense)}</div></div>
-          <div><div className="text-slate-500">概算合計(税抜)</div><div className="text-ehc-300 font-bold">{yenJP(est.total)}</div></div>
+          <div><div className="text-slate-500">高所作業車({aerialDays}日)</div><div className={aerial > 0 ? "text-slate-200" : "text-slate-500"}>{yenJP(aerial)}</div></div>
+          <div><div className="text-slate-500">概算合計(税抜)</div><div className="text-ehc-300 font-bold">{yenJP(autoCost)}</div></div>
         </div>
         <p className="text-[9px] text-slate-500 mb-2 leading-tight">
           ※現場経費＝旅費交通費・安全対策費・法定福利費・保険費用（桝口さん内訳）。諸経費{Math.round(DROPIN.overheadRate * 100)}%＋現場経費{Math.round(DROPIN.siteExpenseRate * 100)}%＝工事小計の{Math.round((DROPIN.overheadRate + DROPIN.siteExpenseRate) * 100)}%。
@@ -242,7 +265,7 @@ export function DropinSimulator() {
           <span className="text-[10px] text-slate-400">手動上書き(万円):</span>
           <input
             type="number"
-            placeholder={String(Math.round(est.total / 10000))}
+            placeholder={String(Math.round(autoCost / 10000))}
             value={manualCost ?? ""}
             onChange={(e) => setManualCost(e.target.value === "" ? null : Number(e.target.value))}
             className="w-24 bg-night-900 border border-white/15 rounded px-2 py-1 text-xs text-slate-100"
@@ -325,6 +348,12 @@ export function DropinSimulator() {
                 <td className="p-1.5 bg-slate-100 font-semibold">年間電力使用量</td><td className="p-1.5">{kwh.toLocaleString("ja-JP")} kWh（単価 ¥{price}/kWh）</td>
                 <td className="p-1.5 bg-slate-100 font-semibold">系統数 合計</td><td className="p-1.5">{sysTotal} 台（回収冷媒 計{est.kg}kg）</td>
               </tr>
+              <tr className="border-t border-slate-200">
+                <td className="p-1.5 bg-slate-100 font-semibold">設置階 / 足場</td>
+                <td className="p-1.5">{floor}階 ／ {scaffoldRequired ? "足場 要（別途・現地調査で確定）" : "足場 不要想定"}</td>
+                <td className="p-1.5 bg-slate-100 font-semibold">高所作業車</td>
+                <td className="p-1.5">{aerialDays > 0 ? `${aerialDays}日（¥${SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日）` : "不要"}</td>
+              </tr>
             </tbody>
           </table>
 
@@ -361,6 +390,9 @@ export function DropinSimulator() {
               <tr className="border-b border-slate-200"><td className="p-1.5 bg-slate-100 font-semibold">消耗・ボンベ・証明書等</td><td className="p-1.5 text-right">{yenJP(est.consumable)}</td></tr>
               <tr className="border-b border-slate-200"><td className="p-1.5 bg-slate-100 font-semibold">諸経費（工事小計の{Math.round(DROPIN.overheadRate * 100)}%）</td><td className="p-1.5 text-right">{yenJP(est.overhead)}</td></tr>
               <tr className="border-b border-slate-200"><td className="p-1.5 bg-slate-100 font-semibold">現場経費（旅費交通費・安全対策費・法定福利費・保険）</td><td className="p-1.5 text-right">{yenJP(est.siteExpense)}</td></tr>
+              {aerial > 0 && (
+                <tr className="border-b border-slate-200"><td className="p-1.5 bg-slate-100 font-semibold">高所作業車（¥{SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日 × {aerialDays}日）</td><td className="p-1.5 text-right">{yenJP(aerial)}</td></tr>
+              )}
               <tr className="border-b border-slate-300 font-bold"><td className="p-1.5 bg-emerald-50">概算合計（税抜）{manualCost != null ? "※手動調整あり" : ""}</td><td className="p-1.5 text-right text-emerald-800">{yenJP(costYen)}</td></tr>
               <tr className="font-bold"><td className="p-1.5 bg-emerald-50">概算合計（税込）</td><td className="p-1.5 text-right text-emerald-800">{yenJP(costTaxIn)}</td></tr>
             </tbody>
@@ -385,6 +417,7 @@ export function DropinSimulator() {
             ※ドロップイン対象は業務用パッケージ（4馬力以上）のみ。ルームエアコン/小型パッケージ/冷凍冷蔵機器は対象外です。<br />
             ※ドロップイン工事は省エネ補助金の対象外です（補助金で更新した機器にはドロップインを施工できません）。<br />
             ※削減率は消費電力ベースの想定（25〜30%）。電気「料金」の削減率は契約条件により変動し保証されません。<br />
+            ※{scaffoldRequired ? `設置${floor}階のため足場が必要な想定ですが、` : "足場が必要な現場では、"}足場費用は現地条件で大きく変動するため本概算に含みません（現地調査で確定）。<br />
             ※単価出典: {PRICING_SOURCE}。都内物流倉庫の厨房系統で消費電力 実測−33%（30日計測・2026年）を確認済み。
           </div>
           <div className="mt-3 pt-2 border-t border-slate-300 text-[10px] text-slate-600 flex justify-between">

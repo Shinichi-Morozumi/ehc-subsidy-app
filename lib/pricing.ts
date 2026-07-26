@@ -149,6 +149,10 @@ export const SITE_ACCESS = {
 export function needsScaffold(floor?: number) {
   return (floor ?? 1) >= SITE_ACCESS.scaffoldFloorThreshold;
 }
+// 高所作業車の費用（日額×日数）。更新工事・ドロップインの双方で使う。
+export function aerialLiftCost(days?: number) {
+  return Math.max(0, Math.round(days ?? 0)) * SITE_ACCESS.aerialLiftPerDay;
+}
 
 // 更新工事の総額概算（税抜・円）。台数・馬力・グレードから機器費+工事費を積算。ancillary=付帯工事(円)
 export function estimateUpdateCost(opts: {
