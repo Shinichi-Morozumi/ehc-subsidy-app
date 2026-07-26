@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input } from "./ui/Field";
 import { Receipt } from "lucide-react";
-import { estimateUpdateBreakdown, MachineGrade, PRICING_SOURCE, yenJP } from "@/lib/pricing";
+import { estimateUpdateBreakdown, MachineGrade, CostClass, COST_CLASS, SITE_ACCESS, PRICING_SOURCE, yenJP } from "@/lib/pricing";
 
 // 補助率プリセット（代表例）
 const RATES: { key: string; label: string; rate: number }[] = [
@@ -18,12 +18,15 @@ export function UpdateEstimator() {
   const [units, setUnits] = useState(3);
   const [systems, setSystems] = useState(2);
   const [grade, setGrade] = useState<MachineGrade>("standard");
+  const [costClass, setCostClass] = useState<CostClass>("standard");
   const [rateKey, setRateKey] = useState("two_thirds");
   const [capManYen, setCapManYen] = useState(0); // 補助上限(万円, 0=なし)
   const [ancillaryManYen, setAncillaryManYen] = useState(0); // 付帯工事(万円)
+  const [aerialDays, setAerialDays] = useState(0); // 高所作業車(日)
+  const [floor, setFloor] = useState(1); // 設置階（足場要否の暫定判定用）
 
   const kg = units * 3;
-  const est = estimateUpdateBreakdown({ units, hp, grade, systems, kg, ancillary: ancillaryManYen * 10000 });
+  const est = estimateUpdateBreakdown({ units, hp, grade, costClass, systems, kg, aerialDays, floor, ancillary: ancillaryManYen * 10000 });
   const rate = RATES.find((r) => r.key === rateKey)?.rate ?? 0;
   let subsidy = Math.round(est.subtotal * rate); // 税抜ベースで補助
   if (capManYen > 0) subsidy = Math.min(subsidy, capManYen * 10000);
@@ -53,15 +56,37 @@ export function UpdateEstimator() {
             <option value="subsidy">高効率(補助金グレード)</option>
           </Select>
         </Field>
+        <Field label="価格帯（メーカー補正）">
+          <Select value={costClass} onChange={(e) => setCostClass(e.target.value as CostClass)}>
+            {(Object.keys(COST_CLASS) as CostClass[]).map((k) => (
+              <option key={k} value={k}>{COST_CLASS[k].label}（×{COST_CLASS[k].factor}）</option>
+            ))}
+          </Select>
+        </Field>
         <Field label="補助率">
           <Select value={rateKey} onChange={(e) => setRateKey(e.target.value)}>
             {RATES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
           </Select>
         </Field>
+        <Field label="高所作業車(日)">
+          <Input type="number" value={aerialDays} onChange={(e) => setAerialDays(Number(e.target.value))} placeholder="0" />
+        </Field>
+        <Field label="設置階">
+          <Input type="number" value={floor} onChange={(e) => setFloor(Number(e.target.value))} placeholder="1" />
+        </Field>
         <Field label="付帯工事(万円・任意)">
           <Input type="number" value={ancillaryManYen} onChange={(e) => setAncillaryManYen(Number(e.target.value))} placeholder="0" />
         </Field>
       </div>
+
+      <p className="text-[11px] text-slate-400 mb-3">
+        高所作業車は<strong className="text-slate-200">¥{SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日</strong>で明細に独立計上。
+        {est.scaffoldRequired ? (
+          <span className="text-amber-300 font-semibold"> ／ {floor}階＝足場が必要な想定です（足場費用は現地条件で変動するため本概算に含みません。現地調査で確定）。</span>
+        ) : (
+          <span> ／ {floor}階＝足場は不要想定（{SITE_ACCESS.scaffoldFloorThreshold}階以上で要・暫定ルール）。</span>
+        )}
+      </p>
 
       {/* 明細 */}
       <div className="border border-white/10 rounded-xl overflow-hidden mb-4">

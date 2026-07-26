@@ -22,8 +22,16 @@ export const DROPIN = {
   gasDestroyPerKg: 3000,
   // 消耗・ボンベ・証明書・窒素等（系統あたり）。桝口さん 2026-07 実績値 ¥4,285/系統
   consumablePerSystem: 4285,
-  // 諸経費率: 工事小計（作業＋破壊＋消耗）に対する比率。桝口さん目安「全体の25〜30%」→中央27%
-  overheadRate: 0.27,
+  /* 諸経費率: 工事小計（作業＋破壊＋消耗）に対する比率。
+     桝口さん回答(2026-07): 従来一括27%としていた枠は「旅費交通費・安全対策費・法定福利費・保険費用・諸経費」の合算であり、
+     このうち“純粋な諸経費”は全体の10%が妥当。→ 合計27%は据え置いたまま 10%(諸経費) + 17%(現場経費) に分解して明示する。 */
+  overheadRate: 0.10,
+  // 現場経費率: 旅費交通費・安全対策費・法定福利費・保険費用（27% − 諸経費10%）
+  siteExpenseRate: 0.17,
+  // ビル用マルチは初期充填量が大きいため係数を掛ける（桝口さん: マルチは初期充填×1.5倍）
+  multiChargeFactor: 1.5,
+  // パッケージは配管長がこの距離以内なら追加充填不要（桝口さん: 30m以内）
+  packageNoExtraChargePipeM: 30,
   // 系統あたり想定回収冷媒量(kg)の既定値（4馬力パッケージ基準）
   defaultKgPerSystem: 3.5,
   // 系統あたり作業費の既定値（プリセット未指定時のフォールバック）
@@ -39,32 +47,45 @@ export const DROPIN = {
 
 /* 機器タイプ別プリセット（業務用パッケージ 4馬力以上のみ）。
    kg=系統あたり回収冷媒量、work=系統あたり作業費（PN Sheet1 客先提出費: 真空引き/新規チャージ＋フロン回収＋窒素ブロー）。 */
-export const KG_PRESETS: Record<string, { label: string; kg: number; work: number }> = {
-  hp4_6: { label: "4〜6馬力 パッケージ", kg: 3.5, work: 60000 },
-  hp8_10: { label: "8〜10馬力 パッケージ", kg: 5, work: 76000 },
-  hp12: { label: "12馬力〜 / ビル用マルチ", kg: 7, work: 106000 },
+export type EquipType = "package" | "multi"; // multi=ビル用マルチ（初期充填×1.5倍）
+export const KG_PRESETS: Record<string, { label: string; kg: number; work: number; equip: EquipType }> = {
+  hp4_6: { label: "4〜6馬力 パッケージ", kg: 3.5, work: 60000, equip: "package" },
+  hp8_10: { label: "8〜10馬力 パッケージ", kg: 5, work: 76000, equip: "package" },
+  hp12: { label: "12馬力〜 パッケージ", kg: 7, work: 106000, equip: "package" },
+  multi: { label: "ビル用マルチ（初期充填×1.5）", kg: 7, work: 106000, equip: "multi" },
 };
 export const DEFAULT_KG_PRESET = "hp4_6";
 
-// ドロップイン概算（税抜・円）= HCガス代金 + 工事費用。systems=系統数, kgPerSystem=系統あたり回収冷媒量, workPerSystem=系統あたり作業費
+/* ドロップイン概算（税抜・円）= HCガス代金 + 工事費用。
+   systems=系統数, kgPerSystem=系統あたり回収冷媒量, workPerSystem=系統あたり作業費
+   opts.equipType: "multi" のとき初期充填を×1.5（桝口さん）
+   opts.extraKgPerSystem: 点検表に記載の追加充填量(kg/系統)。実冷媒量が銘板より多い場合に加算する。 */
 export function estimateDropinCost(
   systems: number,
   kgPerSystem = DROPIN.defaultKgPerSystem,
-  workPerSystem = DROPIN.defaultWorkPerSystem
+  workPerSystem = DROPIN.defaultWorkPerSystem,
+  opts?: { equipType?: EquipType; extraKgPerSystem?: number }
 ) {
   const s = Math.max(0, Math.round(systems));
-  const kg = Math.max(0, s * kgPerSystem);
+  const extraKgPerSystem = Math.max(0, opts?.extraKgPerSystem ?? 0);
+  const kgPerSys = Math.max(0, kgPerSystem) + extraKgPerSystem;
+  const kg = Math.round(s * kgPerSys * 10) / 10; // 回収・破壊対象フロン量
+  const extraKg = Math.round(s * extraKgPerSystem * 10) / 10;
   const work = s * workPerSystem;
   const gas = Math.round(kg * DROPIN.gasDestroyPerKg);
   const consumable = s * DROPIN.consumablePerSystem;
-  // 諸経費 = 工事小計（作業＋破壊＋消耗）× 諸経費率
-  const overhead = s > 0 ? Math.round((work + gas + consumable) * DROPIN.overheadRate) : 0;
-  // 新冷媒（HCガス）代金: 回収フロン量×充填比×単価
-  const hcKg = Math.round(kg * DROPIN.hcChargeRatio * 10) / 10;
+  const preOverhead = work + gas + consumable; // 工事小計（作業＋破壊＋消耗）
+  // 諸経費(10%) と 現場経費(17%=旅費交通費・安全対策費・法定福利費・保険) に分解。合計は従来どおり27%。
+  const overhead = s > 0 ? Math.round(preOverhead * DROPIN.overheadRate) : 0;
+  const siteExpense = s > 0 ? Math.round(preOverhead * DROPIN.siteExpenseRate) : 0;
+  // 新冷媒（HCガス）代金: 回収フロン量×充填比×機器タイプ係数×単価
+  const equipType: EquipType = opts?.equipType ?? "package";
+  const chargeFactor = equipType === "multi" ? DROPIN.multiChargeFactor : 1;
+  const hcKg = Math.round(kg * DROPIN.hcChargeRatio * chargeFactor * 10) / 10;
   const hcGas = Math.round(hcKg * DROPIN.hcGasPerKg);
-  const workTotal = work + gas + consumable + overhead; // 工事費用 計
-  const total = hcGas + workTotal;                      // ガス代金 + 工事費用
-  return { systems: s, kg, work, gas, consumable, overhead, hcKg, hcGas, workTotal, total };
+  const workTotal = preOverhead + overhead + siteExpense; // 工事費用 計
+  const total = hcGas + workTotal;                        // ガス代金 + 工事費用
+  return { systems: s, kg, extraKg, work, gas, consumable, overhead, siteExpense, hcKg, hcGas, workTotal, total, equipType, chargeFactor };
 }
 
 /* ───────── 更新工事（機器入替） ─────────
@@ -82,12 +103,24 @@ export const MACHINE = {
   min: 250000,
 };
 
-// 機器費(セット・円)目安。hp=馬力
-export function estimateMachineCost(hp: number, grade: MachineGrade = "standard") {
+/* メーカー/機種による価格差の補正（碓井さん: 補正した方が正確性が増す）。
+   実績で同一4馬力でも ¥325,500（日立）〜¥479,150（ダイキン上位）と約1.47倍の開きがある。
+   ただし裏取り済みのサンプルが2点のみのため、メーカー名を断定せず「コストクラス3段」の係数として実装する。 */
+export type CostClass = "value" | "standard" | "premium";
+export const COST_CLASS: Record<CostClass, { label: string; factor: number; note: string }> = {
+  value:    { label: "コスト重視", factor: 0.85, note: "普及帯メーカー/型落ち想定（実績下限に近い水準）" },
+  standard: { label: "標準",       factor: 1.0,  note: "PN見積の中央値水準" },
+  premium:  { label: "上位グレード", factor: 1.25, note: "主要メーカー上位機/高効率仕様（実績上限に近い水準）" },
+};
+
+// 機器費(セット・円)目安。hp=馬力, costClass=メーカー/機種の価格帯補正
+export function estimateMachineCost(hp: number, grade: MachineGrade = "standard", costClass: CostClass = "standard") {
   const h = Math.max(0, hp || 0);
+  const f = COST_CLASS[costClass]?.factor ?? 1;
   let v = MACHINE.base[grade] + h * MACHINE.perHp[grade];
   if (h > MACHINE.highHpThreshold) v += (h - MACHINE.highHpThreshold) * MACHINE.highHpPerHp[grade];
-  return Math.max(MACHINE.min, Math.round(v / 1000) * 1000);
+  v *= f;
+  return Math.max(Math.round((MACHINE.min * f) / 1000) * 1000, Math.round(v / 1000) * 1000);
 }
 
 /* 更新工事費(撤去+新設据付ほか)の単価目安。全500件・工事明細7,339行の中央値＋碓井さん校正(2026-07)。 */
@@ -103,44 +136,63 @@ export const WORK = {
   wastePerCubicMeter: 20000,    // 産業廃棄物処理 ¥20,000/㎥ ※碓井さん確認
   wasteVolPerUnit: 1.0,         // 撤去機1台あたり想定産廃体積(㎥)
   overheadRate: 0.05,           // 諸経費=工事小計×5%（案件規模連動）※碓井さん確認
-  overheadMin: 30000,           // 諸経費 下限
+  overheadMin: 50000,           // 諸経費 下限 ※碓井さん回答(2026-07)「¥50,000程度でも良い」→ ¥30,000から引上げ
 };
+
+/* 高所作業・仮設の単価（碓井さん 2026-07）。
+   高所作業車は日額で独立計上する。足場は現地条件で大きく変わるため金額は入れず「要/不要」の暫定ルールのみ返す。 */
+export const SITE_ACCESS = {
+  aerialLiftPerDay: 20000,   // 高所作業車 ¥20,000/日
+  scaffoldFloorThreshold: 3, // 3階以上=足場要 / 2階以下=不要（暫定ルール・金額は現地調査見積）
+};
+// 設置階から足場の要否を判定（暫定ルール）
+export function needsScaffold(floor?: number) {
+  return (floor ?? 1) >= SITE_ACCESS.scaffoldFloorThreshold;
+}
 
 // 更新工事の総額概算（税抜・円）。台数・馬力・グレードから機器費+工事費を積算。ancillary=付帯工事(円)
 export function estimateUpdateCost(opts: {
-  units: number; hp: number; grade?: MachineGrade; systems?: number; kg?: number; ancillary?: number;
+  units: number; hp: number; grade?: MachineGrade; costClass?: CostClass;
+  systems?: number; kg?: number; ancillary?: number; aerialDays?: number; floor?: number;
 }) {
   const units = Math.max(0, Math.round(opts.units));
   const grade = opts.grade ?? "standard";
+  const costClass = opts.costClass ?? "standard";
   const systems = Math.max(1, opts.systems ?? Math.ceil(units / 2));
   const kg = Math.max(0, opts.kg ?? units * 3);
   const ancillary = Math.max(0, opts.ancillary ?? 0);
-  const machine = units * estimateMachineCost(opts.hp, grade);
+  const aerialDays = Math.max(0, opts.aerialDays ?? 0);
+  const aerial = Math.round(aerialDays * SITE_ACCESS.aerialLiftPerDay);
+  const machine = units * estimateMachineCost(opts.hp, grade, costClass);
   const preOverhead =
     units * (WORK.removeIndoorPerUnit + WORK.removeOutdoorPerUnit + WORK.installIndoorPerUnit + WORK.installOutdoorPerUnit + WORK.pipingPerUnit + WORK.electricPerUnit) +
     systems * WORK.gasRecoverPerSystem +
     Math.round(kg * WORK.gasDestroyPerKg) +
-    Math.round(units * WORK.wasteVolPerUnit * WORK.wastePerCubicMeter);
+    Math.round(units * WORK.wasteVolPerUnit * WORK.wastePerCubicMeter) +
+    aerial;
   const overhead = Math.max(WORK.overheadMin, Math.round(preOverhead * WORK.overheadRate));
   const work = preOverhead + overhead + ancillary;
-  return { machine, work, total: machine + work, units, grade };
+  return { machine, work, total: machine + work, units, grade, costClass, aerial, scaffoldRequired: needsScaffold(opts.floor) };
 }
 
 // 更新工事の明細内訳（PN見積を再現）。見積シミュレーター表示用。
 export interface EstimateLine { label: string; detail: string; amount: number; }
 export function estimateUpdateBreakdown(opts: {
-  units: number; hp: number; grade?: MachineGrade; systems?: number; kg?: number; taxRate?: number; ancillary?: number;
+  units: number; hp: number; grade?: MachineGrade; costClass?: CostClass;
+  systems?: number; kg?: number; taxRate?: number; ancillary?: number; aerialDays?: number; floor?: number;
 }) {
   const units = Math.max(0, Math.round(opts.units));
   const grade = opts.grade ?? "standard";
+  const costClass = opts.costClass ?? "standard";
   const systems = Math.max(1, opts.systems ?? Math.ceil(units / 2));
   const kg = Math.max(0, opts.kg ?? units * 3);
   const ancillary = Math.max(0, opts.ancillary ?? 0);
+  const aerialDays = Math.max(0, opts.aerialDays ?? 0);
   const taxRate = opts.taxRate ?? 0.1;
-  const mc = estimateMachineCost(opts.hp, grade);
+  const mc = estimateMachineCost(opts.hp, grade, costClass);
   const wasteVol = Math.round(units * WORK.wasteVolPerUnit * 10) / 10;
   const baseLines: EstimateLine[] = [
-    { label: "機器費（室内外セット）", detail: `${opts.hp || "-"}馬力 × ${units}台（${grade === "subsidy" ? "高効率/補助金グレード" : "標準グレード"}）`, amount: units * mc },
+    { label: "機器費（室内外セット）", detail: `${opts.hp || "-"}馬力 × ${units}台（${grade === "subsidy" ? "高効率/補助金グレード" : "標準グレード"}・${COST_CLASS[costClass].label}×${COST_CLASS[costClass].factor}）`, amount: units * mc },
     { label: "既設室内機 撤去", detail: `¥${WORK.removeIndoorPerUnit.toLocaleString()}/台 × ${units}`, amount: units * WORK.removeIndoorPerUnit },
     { label: "既設室外機 撤去", detail: `¥${WORK.removeOutdoorPerUnit.toLocaleString()}/台 × ${units}`, amount: units * WORK.removeOutdoorPerUnit },
     { label: "新設室内機 据付", detail: `¥${WORK.installIndoorPerUnit.toLocaleString()}/台 × ${units}`, amount: units * WORK.installIndoorPerUnit },
@@ -151,21 +203,29 @@ export function estimateUpdateBreakdown(opts: {
     { label: "フロンガス破壊", detail: `¥${WORK.gasDestroyPerKg.toLocaleString()}/kg × ${kg}kg`, amount: Math.round(kg * WORK.gasDestroyPerKg) },
     { label: "産業廃棄物処理", detail: `¥${WORK.wastePerCubicMeter.toLocaleString()}/㎥ × 約${wasteVol}㎥`, amount: Math.round(units * WORK.wasteVolPerUnit * WORK.wastePerCubicMeter) },
   ];
+  if (aerialDays > 0) {
+    baseLines.push({ label: "高所作業車", detail: `¥${SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日 × ${aerialDays}日`, amount: Math.round(aerialDays * SITE_ACCESS.aerialLiftPerDay) });
+  }
   const preOverhead = baseLines.slice(1).reduce((a, l) => a + l.amount, 0); // 機器費を除く工事小計
   const overhead = Math.max(WORK.overheadMin, Math.round(preOverhead * WORK.overheadRate));
   const lines: EstimateLine[] = [...baseLines, { label: "諸経費", detail: `工事小計×${Math.round(WORK.overheadRate * 100)}%（下限¥${WORK.overheadMin.toLocaleString()}）`, amount: overhead }];
-  if (ancillary > 0) lines.push({ label: "付帯工事", detail: "配管更新・リモコン・養生・高所車・夜間割増ほか", amount: ancillary });
+  if (ancillary > 0) lines.push({ label: "付帯工事", detail: "配管更新・リモコン・養生・夜間割増ほか", amount: ancillary });
   const subtotal = lines.reduce((a, l) => a + l.amount, 0);
   const tax = Math.round(subtotal * taxRate);
   const machine = units * mc;
-  return { lines, subtotal, tax, total: subtotal + tax, machine, work: subtotal - machine, units, systems, kg, grade };
+  const aerial = Math.round(aerialDays * SITE_ACCESS.aerialLiftPerDay);
+  return {
+    lines, subtotal, tax, total: subtotal + tax, machine, work: subtotal - machine,
+    units, systems, kg, grade, costClass, aerial, aerialDays,
+    scaffoldRequired: needsScaffold(opts.floor), floor: opts.floor ?? 1,
+  };
 }
 
 // 設備グループ（馬力×台数）から設備投資額(万円)を実勢で自動概算。補助金マッチングのROI連動用。
 export function estimateInvestManYenFromGroups(
-  groups: { units: number; hp?: number }[], grade: MachineGrade = "standard"
+  groups: { units: number; hp?: number }[], grade: MachineGrade = "standard", costClass: CostClass = "standard"
 ): number {
-  const yen = groups.reduce((a, g) => a + estimateUpdateCost({ units: g.units, hp: g.hp ?? 0, grade }).total, 0);
+  const yen = groups.reduce((a, g) => a + estimateUpdateCost({ units: g.units, hp: g.hp ?? 0, grade, costClass }).total, 0);
   return Math.round(yen / 10000);
 }
 

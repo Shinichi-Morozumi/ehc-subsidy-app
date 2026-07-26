@@ -5,7 +5,7 @@ import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input } from "./ui/Field";
 import { Gauge, Calculator, Printer, Mail, ArrowRight, Plus, Trash2 } from "lucide-react";
 import { useTabSwitch } from "./ui/Tabs";
-import { estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, PRICING_SOURCE, yenJP } from "@/lib/pricing";
+import { estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, DROPIN, PRICING_SOURCE, yenJP } from "@/lib/pricing";
 
 const DEFAULT_PRICE = 27; // 円/kWh（既定・契約単価で上書き可）
 const CO2 = 0.000438; // t-CO2/kWh（省エネ効果レポートと同一係数）
@@ -28,12 +28,13 @@ const INDUSTRY: Record<string, { factor: number; label: string }> = {
 const clamp = (v: number, lo = 0.1, hi = 0.35) => Math.min(hi, Math.max(lo, v));
 
 // 設備グループ（冷媒/機器タイプ/系統数がバラバラな機種を1試算で複数扱う）
-interface DropGroup { id: string; refri: string; systems: number; machineType: string; }
+interface DropGroup { id: string; refri: string; systems: number; machineType: string; extraKg: number; }
 const newGroup = (): DropGroup => ({
   id: `g${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
   refri: "r410a",
   systems: 10,
   machineType: DEFAULT_KG_PRESET,
+  extraKg: 0, // 点検表に記載の追加充填量(kg/系統)
 });
 
 export function DropinSimulator() {
@@ -51,7 +52,7 @@ export function DropinSimulator() {
   const suggestRate = (gs: DropGroup[], ind: string) => {
     let wsum = 0, acc = 0;
     gs.forEach((g) => {
-      const w = Math.max(0, g.systems) * KG_PRESETS[g.machineType].kg;
+      const w = Math.max(0, g.systems) * (KG_PRESETS[g.machineType].kg + Math.max(0, g.extraKg || 0));
       wsum += w;
       acc += (RATE[g.refri]?.rate ?? 0.25) * w;
     });
@@ -70,23 +71,29 @@ export function DropinSimulator() {
     ...g,
     kgPerSys: KG_PRESETS[g.machineType].kg,
     workPerSys: KG_PRESETS[g.machineType].work,
-    est: estimateDropinCost(g.systems, KG_PRESETS[g.machineType].kg, KG_PRESETS[g.machineType].work),
+    est: estimateDropinCost(g.systems, KG_PRESETS[g.machineType].kg, KG_PRESETS[g.machineType].work, {
+      equipType: KG_PRESETS[g.machineType].equip,
+      extraKgPerSystem: Math.max(0, g.extraKg || 0),
+    }),
   }));
   const est = groupEsts.reduce(
     (a, x) => ({
       systems: a.systems + x.est.systems,
-      kg: a.kg + x.est.kg,
+      kg: Math.round((a.kg + x.est.kg) * 10) / 10,
+      extraKg: Math.round((a.extraKg + x.est.extraKg) * 10) / 10,
       work: a.work + x.est.work,
       gas: a.gas + x.est.gas,
       consumable: a.consumable + x.est.consumable,
       overhead: a.overhead + x.est.overhead,
+      siteExpense: a.siteExpense + x.est.siteExpense,
       hcKg: Math.round((a.hcKg + x.est.hcKg) * 10) / 10,
       hcGas: a.hcGas + x.est.hcGas,
       workTotal: a.workTotal + x.est.workTotal,
       total: a.total + x.est.total,
     }),
-    { systems: 0, kg: 0, work: 0, gas: 0, consumable: 0, overhead: 0, hcKg: 0, hcGas: 0, workTotal: 0, total: 0 }
+    { systems: 0, kg: 0, extraKg: 0, work: 0, gas: 0, consumable: 0, overhead: 0, siteExpense: 0, hcKg: 0, hcGas: 0, workTotal: 0, total: 0 }
   );
+  const hasMultiGroup = groups.some((g) => KG_PRESETS[g.machineType].equip === "multi");
   const sysTotal = est.systems;
   const multi = groups.length > 1;
 
@@ -117,7 +124,7 @@ export function DropinSimulator() {
     `年間電力使用量: ${kwh.toLocaleString("ja-JP")}kWh（単価 ¥${price}/kWh）`,
     `想定削減率: ${Math.round(rate * 100)}%`,
     `対象設備（計${sysTotal}系統）:`,
-    ...groups.map((g, i) => `  ${i + 1}) ${RATE[g.refri].label} / ${g.systems}台 / ${KG_PRESETS[g.machineType].label}`),
+    ...groups.map((g, i) => `  ${i + 1}) ${RATE[g.refri].label} / ${g.systems}台 / ${KG_PRESETS[g.machineType].label}${g.extraKg > 0 ? ` / 追加充填 ${g.extraKg}kg per系統` : ""}`),
     `概算投資額: ${yenJP(costYen)}（税込 ${yenJP(costTaxIn)}）`,
     `年間電気代削減: ${yenJP(saveYen)} ／ 投資回収: ${payback != null ? `約${payback}年` : "—"}`,
   ].join("\n");
@@ -172,7 +179,7 @@ export function DropinSimulator() {
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Field label="対象冷媒">
                 <Select value={g.refri} onChange={(e) => updateGroup(g.id, { refri: e.target.value })}>
                   {Object.entries(RATE).map(([k, v]) => (
@@ -190,7 +197,16 @@ export function DropinSimulator() {
                   ))}
                 </Select>
               </Field>
+              <Field label="追加充填量(kg/系統)">
+                <Input type="number" step="0.1" value={g.extraKg} onChange={(e) => updateGroup(g.id, { extraKg: Number(e.target.value) })} placeholder="0" />
+                <p className="text-[9px] text-slate-500 mt-1 leading-tight">※点検表の追加充填量。実冷媒量が銘板より多い場合に入力</p>
+              </Field>
             </div>
+            <p className="text-[9px] text-slate-500 mt-1.5 leading-tight">
+              {KG_PRESETS[g.machineType].equip === "multi"
+                ? `ビル用マルチ: 初期充填を×${DROPIN.multiChargeFactor}で計算します（桝口さん基準）`
+                : `パッケージ: 配管長${DROPIN.packageNoExtraChargePipeM}m以内なら追加充填は不要（桝口さん基準）`}
+            </p>
           </div>
         ))}
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -205,16 +221,23 @@ export function DropinSimulator() {
       <div className="bg-night-900/60 border border-white/10 rounded-xl p-3 mb-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5 text-[11px] text-slate-300"><Calculator className="w-3.5 h-3.5 text-ehc-300" />ガス代金＋工事費用 自動概算（{PRICING_SOURCE}）</div>
-          <div className="text-[10px] text-slate-400">回収冷媒 計{est.kg}kg → HC充填 約{est.hcKg}kg{multi ? `・${groups.length}グループ合算` : ""}</div>
+          <div className="text-[10px] text-slate-400">
+            回収冷媒 計{est.kg}kg{est.extraKg > 0 ? `（うち追加充填 ${est.extraKg}kg）` : ""} → HC充填 約{est.hcKg}kg
+            {hasMultiGroup ? `・マルチは×${DROPIN.multiChargeFactor}` : ""}{multi ? `・${groups.length}グループ合算` : ""}
+          </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-[10px] mb-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 text-[10px] mb-2">
           <div><div className="text-slate-500">HCガス代金({est.hcKg}kg)</div><div className="text-ehc-300 font-semibold">{yenJP(est.hcGas)}</div></div>
           <div><div className="text-slate-500">作業費{multi ? "（系統別単価）" : ""}</div><div className="text-slate-200">{yenJP(est.work)}</div></div>
           <div><div className="text-slate-500">フロン破壊(¥3,000/kg)</div><div className="text-slate-200">{yenJP(est.gas)}</div></div>
           <div><div className="text-slate-500">消耗・ボンベ等</div><div className="text-slate-200">{yenJP(est.consumable)}</div></div>
-          <div><div className="text-slate-500">諸経費(約27%)</div><div className="text-slate-200">{yenJP(est.overhead)}</div></div>
+          <div><div className="text-slate-500">諸経費({Math.round(DROPIN.overheadRate * 100)}%)</div><div className="text-slate-200">{yenJP(est.overhead)}</div></div>
+          <div><div className="text-slate-500">現場経費({Math.round(DROPIN.siteExpenseRate * 100)}%)</div><div className="text-slate-200">{yenJP(est.siteExpense)}</div></div>
           <div><div className="text-slate-500">概算合計(税抜)</div><div className="text-ehc-300 font-bold">{yenJP(est.total)}</div></div>
         </div>
+        <p className="text-[9px] text-slate-500 mb-2 leading-tight">
+          ※現場経費＝旅費交通費・安全対策費・法定福利費・保険費用（桝口さん内訳）。諸経費{Math.round(DROPIN.overheadRate * 100)}%＋現場経費{Math.round(DROPIN.siteExpenseRate * 100)}%＝工事小計の{Math.round((DROPIN.overheadRate + DROPIN.siteExpenseRate) * 100)}%。
+        </p>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] text-slate-400">手動上書き(万円):</span>
           <input
@@ -336,7 +359,8 @@ export function DropinSimulator() {
               <tr className="border-b border-slate-200"><td className="p-1.5 bg-slate-100 font-semibold">作業費（回収・真空引き・フラッシュ・充填）</td><td className="p-1.5 text-right">{yenJP(est.work)}</td></tr>
               <tr className="border-b border-slate-200"><td className="p-1.5 bg-slate-100 font-semibold">フロンガス破壊費</td><td className="p-1.5 text-right">{yenJP(est.gas)}</td></tr>
               <tr className="border-b border-slate-200"><td className="p-1.5 bg-slate-100 font-semibold">消耗・ボンベ・証明書等</td><td className="p-1.5 text-right">{yenJP(est.consumable)}</td></tr>
-              <tr className="border-b border-slate-200"><td className="p-1.5 bg-slate-100 font-semibold">諸経費</td><td className="p-1.5 text-right">{yenJP(est.overhead)}</td></tr>
+              <tr className="border-b border-slate-200"><td className="p-1.5 bg-slate-100 font-semibold">諸経費（工事小計の{Math.round(DROPIN.overheadRate * 100)}%）</td><td className="p-1.5 text-right">{yenJP(est.overhead)}</td></tr>
+              <tr className="border-b border-slate-200"><td className="p-1.5 bg-slate-100 font-semibold">現場経費（旅費交通費・安全対策費・法定福利費・保険）</td><td className="p-1.5 text-right">{yenJP(est.siteExpense)}</td></tr>
               <tr className="border-b border-slate-300 font-bold"><td className="p-1.5 bg-emerald-50">概算合計（税抜）{manualCost != null ? "※手動調整あり" : ""}</td><td className="p-1.5 text-right text-emerald-800">{yenJP(costYen)}</td></tr>
               <tr className="font-bold"><td className="p-1.5 bg-emerald-50">概算合計（税込）</td><td className="p-1.5 text-right text-emerald-800">{yenJP(costTaxIn)}</td></tr>
             </tbody>

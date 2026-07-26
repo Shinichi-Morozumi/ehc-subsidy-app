@@ -56,9 +56,23 @@ export function NextSteps() {
       <h3 className="text-base font-bold text-ehc-300 mb-1.5">
         より詳細なシミュレーションのための次のステップ
       </h3>
-      <p className="text-xs text-slate-400 mb-5">
+      <p className="text-xs text-slate-400 mb-4">
         本シミュレーションは概算値です。実際の補助金獲得額・電気代削減効果を確定するため、以下のフローで進めます。
       </p>
+
+      {/* 出口の壁対策: フロー説明の前にも同じCTAを置き、下までスクロールしなくても依頼できるようにする */}
+      <a
+        href={SURVEY_MAILTO}
+        className="no-print group mb-5 flex items-center justify-center gap-2 w-full px-6 py-4 rounded-xl bg-amber-400 text-night-900 text-base font-black shadow-lg shadow-amber-500/30 hover:bg-amber-300 hover:shadow-amber-400/50 hover:-translate-y-0.5 active:translate-y-0 transition-all ring-2 ring-amber-300/60"
+      >
+        <CalendarCheck className="w-5 h-5" />
+        いますぐ無料の現地調査を依頼する
+        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+      </a>
+      <p className="no-print text-[11px] text-slate-400 text-center -mt-3 mb-5">
+        費用・キャンセル料は一切かかりません。メールが立ち上がります（宛先: info@ehcjpn.com）
+      </p>
+
       <div className="space-y-3">
         {STEPS.map((step, i) => {
           const Icon = step.icon;

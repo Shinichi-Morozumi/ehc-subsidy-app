@@ -92,7 +92,7 @@ export function DropinRoiWizard() {
   const costAgg = validGroups.reduce(
     (acc, g) => {
       const p = KG_PRESETS[g.machineType];
-      const e = estimateDropinCost(g.systems as number, p.kg, p.work);
+      const e = estimateDropinCost(g.systems as number, p.kg, p.work, { equipType: p.equip });
       return { hcGas: acc.hcGas + e.hcGas, workTotal: acc.workTotal + e.workTotal, total: acc.total + e.total };
     },
     { hcGas: 0, workTotal: 0, total: 0 }
