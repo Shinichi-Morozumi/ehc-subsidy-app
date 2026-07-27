@@ -273,8 +273,11 @@ export function findMatchedAchievements(building: string, equip: "ac" | "multi")
   return partial.slice(0, 3);
 }
 
+/* 公共施設での実証データ。比較年度は「いつの実測か」という事実なので更新不要だが、
+   表示側（AchievementsSection）に直書きせずここで持つ（データと表示の分離）。 */
 export const AKITA_RICE_WAREHOUSE = {
   facility: "秋田県村営コメ倉庫",
+  comparisonPeriod: "令和2年→令和3年 月別電気代比較",
   monthlyComparison: [
     { month: "5〜6月", before: 78201, after: 42611, reduction: 45.51 },
     { month: "6〜7月", before: 85064, after: 55426, reduction: 34.84 },
@@ -294,5 +297,7 @@ export const EHC_FIELD_TEST_2026 = {
   annualKwh: 1940, // 年間削減電力量(kWh)
   annualYen: 95600, // 年間削減コスト(円)
   annualCo2Kg: 1168, // 年間CO2削減量(kg)
-  pricePerKwh: 27, // 実測電気単価(円/kWh)
+  // 実測時の電気単価(円/kWh)。試算用の共通定数 ELECTRIC_PRICE_YEN_PER_KWH とはたまたま同値だが
+  // これは「測定当時の実績値」なので、共通定数を変更してもここは追随させないこと。
+  pricePerKwh: 27,
 };

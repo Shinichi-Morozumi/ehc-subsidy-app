@@ -12,12 +12,48 @@ export const CONSUMPTION_TAX_RATE = 0.1;           // 消費税率（投資額�
 // 税込換算（投資回収年数は税込ベースに統一する）
 export const taxIncluded = (yen: number) => Math.round(yen * (1 + CONSUMPTION_TAX_RATE));
 
+/* ───────── 経年劣化・維持費の共通定数 ─────────
+   エビデンス: 業務用空調は年約2%ずつ効率が低下する（資源エネルギー庁・業界資料）。
+   AGE_DEGRADATION_PER_YEAR は「更新しなかった場合、今後1年ごとに電気代が何%増えるか」という
+   “将来”の見込みで、ROIチャート／ドロップイン診断ウィザードの「何もしない」ラインに使う。
+   一方 lib/match.ts の getAgeDegradationRate() は「設置からの経過年数で “すでに” どれだけ悪化しているか」
+   という累積値（実測レンジ 10〜15年で20〜40% に合わせた非線形の階段）で、用途が異なる。
+   両者は同じ「年約2%」というエビデンスを出発点にしている。 */
+export const AGE_DEGRADATION_PER_YEAR = 0.02;
+/* 老朽機を使い続けた場合の年間修理・メンテ増分（万円/年）。
+   ※PN見積の実績平均ではなく保守的な仮置き値。実案件では現地調査後の保守契約額で置き換える。 */
+export const OLD_EQUIPMENT_REPAIR_MANYEN_PER_YEAR = 15;
+/* ROI比較チャートの表示年数。法定耐用年数15年に合わせている（regulations.ts の legalUsefulLifeYears と同値）。 */
+export const ROI_CHART_YEARS = 15;
+/* 撤去1台あたりの想定回収冷媒量(kg)。更新工事の破壊費計算の既定値。
+   ※見積シミュレーター側でも同じ値を使うため定数化（以前は units×3 が2箇所に直書きされていた）。 */
+export const DEFAULT_KG_PER_UNIT = 3;
+
 /* ドロップインの想定削減率レンジ（消費電力ベース・桝口さん確認 25〜30%）。
    表示文言と clamp 上限をここで一元管理する。 */
 export const DROPIN_REDUCTION = { min: 0.1, typicalLow: 0.25, typicalHigh: 0.3, max: 0.35 };
 export const DROPIN_REDUCTION_LABEL = `${Math.round(DROPIN_REDUCTION.typicalLow * 100)}〜${Math.round(DROPIN_REDUCTION.typicalHigh * 100)}%`;
 export const clampDropinRate = (v: number) =>
   Math.min(DROPIN_REDUCTION.max, Math.max(DROPIN_REDUCTION.min, v));
+
+/* ── ドロップインの前提テーブル（簡易シミュレーターとROI診断ウィザードの共通定義） ──
+   以前は両コンポーネントが同じ表を別々に持っており、片方だけ更新されてラベル・選択肢がズレていた。
+   ここを直せば両方に反映される。 */
+// 対象冷媒ごとの想定削減率ベース ※ドロップイン対象は業務用空調のみ（冷凍冷蔵機器は対象外）
+export const DROPIN_REFRI_RATE: Record<string, { rate: number; label: string }> = {
+  r410a: { rate: 0.25, label: "R410A 業務用空調（最多）" },
+  r22: { rate: 0.3, label: "R22 旧型空調" },
+  r407c: { rate: 0.22, label: "R407C ビル用マルチ" },
+  unknown: { rate: 0.25, label: "わからない（標準で試算）" },
+};
+// 業種(稼働プロファイル)別の削減係数。稼働時間が長いほど削減効果が大きい想定。
+export const DROPIN_INDUSTRY_FACTOR: Record<string, { factor: number; label: string }> = {
+  food: { factor: 1.15, label: "飲食店（厨房・長時間）" },
+  retail: { factor: 1.1, label: "スーパー/小売" },
+  factory: { factor: 1.0, label: "工場/倉庫" },
+  clinic: { factor: 0.95, label: "クリニック/福祉/ホテル" },
+  office: { factor: 0.9, label: "オフィス/店舗" },
+};
 
 // フロンガス破壊費（円/kg）※碓井さん・桝口さん確認: 高騰により¥3,000/kg。ドロップイン/更新工事で共通。
 export const GAS_DESTROY_PER_KG = 3000;
@@ -180,7 +216,7 @@ export function estimateUpdateCost(opts: {
   const grade = opts.grade ?? "standard";
   const costClass = opts.costClass ?? "standard";
   const systems = Math.max(1, opts.systems ?? Math.ceil(units / 2));
-  const kg = Math.max(0, opts.kg ?? units * 3);
+  const kg = Math.max(0, opts.kg ?? units * DEFAULT_KG_PER_UNIT);
   const ancillary = Math.max(0, opts.ancillary ?? 0);
   const aerialDays = Math.max(0, opts.aerialDays ?? 0);
   const aerial = Math.round(aerialDays * SITE_ACCESS.aerialLiftPerDay);
@@ -206,10 +242,10 @@ export function estimateUpdateBreakdown(opts: {
   const grade = opts.grade ?? "standard";
   const costClass = opts.costClass ?? "standard";
   const systems = Math.max(1, opts.systems ?? Math.ceil(units / 2));
-  const kg = Math.max(0, opts.kg ?? units * 3);
+  const kg = Math.max(0, opts.kg ?? units * DEFAULT_KG_PER_UNIT);
   const ancillary = Math.max(0, opts.ancillary ?? 0);
   const aerialDays = Math.max(0, opts.aerialDays ?? 0);
-  const taxRate = opts.taxRate ?? 0.1;
+  const taxRate = opts.taxRate ?? CONSUMPTION_TAX_RATE; // 既定は共通の消費税率（表示側もこの値を参照する）
   const mc = estimateMachineCost(opts.hp, grade, costClass);
   const wasteVol = Math.round(units * WORK.wasteVolPerUnit * 10) / 10;
   const baseLines: EstimateLine[] = [
@@ -236,7 +272,7 @@ export function estimateUpdateBreakdown(opts: {
   const machine = units * mc;
   const aerial = Math.round(aerialDays * SITE_ACCESS.aerialLiftPerDay);
   return {
-    lines, subtotal, tax, total: subtotal + tax, machine, work: subtotal - machine,
+    lines, subtotal, tax, taxRate, total: subtotal + tax, machine, work: subtotal - machine,
     units, systems, kg, grade, costClass, aerial, aerialDays,
     scaffoldRequired: needsScaffold(opts.floor), floor: opts.floor ?? 1,
   };

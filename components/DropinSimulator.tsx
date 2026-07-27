@@ -5,25 +5,14 @@ import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input } from "./ui/Field";
 import { Gauge, Calculator, Printer, Mail, ArrowRight, Plus, Trash2 } from "lucide-react";
 import { useTabSwitch } from "./ui/Tabs";
-import { estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, DROPIN, PRICING_SOURCE, SITE_ACCESS, aerialLiftCost, needsScaffold, yenJP, ELECTRIC_PRICE_YEN_PER_KWH, CO2_TON_PER_KWH, taxIncluded, clampDropinRate, DROPIN_REDUCTION, DROPIN_REDUCTION_LABEL } from "@/lib/pricing";
+import { estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, DROPIN, PRICING_SOURCE, SITE_ACCESS, aerialLiftCost, needsScaffold, yenJP, ELECTRIC_PRICE_YEN_PER_KWH, CO2_TON_PER_KWH, taxIncluded, clampDropinRate, DROPIN_REDUCTION, DROPIN_REDUCTION_LABEL, DROPIN_REFRI_RATE, DROPIN_INDUSTRY_FACTOR } from "@/lib/pricing";
 
 const DEFAULT_PRICE = ELECTRIC_PRICE_YEN_PER_KWH; // 円/kWh（共通定数・契約単価で上書き可）
 const CO2 = CO2_TON_PER_KWH; // t-CO2/kWh（共通定数）
-// 対象冷媒ごとの想定削減率ベース（ドロップイン・実測校正前の概算）
+// 冷媒別の削減率ベースと業種別係数は lib/pricing.ts で一元管理（ROI診断ウィザードと共通の表）
 // ※ドロップイン対象は業務用空調のみ（冷凍冷蔵機器は対象外）
-const RATE: Record<string, { rate: number; label: string }> = {
-  r410a: { rate: 0.25, label: "R410A 空調" },
-  r22: { rate: 0.3, label: "R22 旧型空調" },
-  r407c: { rate: 0.22, label: "R407C マルチ" },
-};
-// 業種(稼働プロファイル)別の削減係数。稼働時間が長いほど削減効果が大きい想定。
-const INDUSTRY: Record<string, { factor: number; label: string }> = {
-  food: { factor: 1.15, label: "飲食店（厨房・長時間）" },
-  retail: { factor: 1.1, label: "スーパー/小売" },
-  factory: { factor: 1.0, label: "工場/倉庫" },
-  clinic: { factor: 0.95, label: "クリニック/福祉" },
-  office: { factor: 0.9, label: "オフィス/店舗" },
-};
+const RATE = DROPIN_REFRI_RATE;
+const INDUSTRY = DROPIN_INDUSTRY_FACTOR;
 // 桝口さん確認: 電気「使用量」削減の想定は25〜30%が現実的。電気「料金」の削減率は保証しない。
 // レンジは lib/pricing.ts の DROPIN_REDUCTION で一元管理（ROI診断ウィザードと共通）。
 const clamp = clampDropinRate;

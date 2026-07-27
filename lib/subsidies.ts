@@ -212,3 +212,15 @@ export const SUBSIDIES: Subsidy[] = [
     difficultyNote: "商工会・商工会議所の支援を受け経営計画を作成。GビズID・電子申請。空調単純更新は対象外の点に注意",
   },
 ];
+
+/* 見積シミュレーター用の代表補助率プリセット。
+   ラベルは上の SUBSIDIES に実在する制度（rateNum）に対応させること。
+   ※以前は「1/2＝SII先進等」「1/3＝自治体等」と実態と食い違うラベルで、
+     顧客前の説明で誤解を招く状態だった（SIIの設備単位型は1/3、GX設備単位型が1/2）。 */
+export const SUBSIDY_RATE_PRESETS: { key: string; label: string; rate: number }[] = [
+  { key: "none", label: "補助金なし", rate: 0 },
+  { key: "two_thirds", label: "2/3（東京ゼロエミ・持続化）", rate: 0.667 },
+  { key: "half", label: "1/2（GX設備単位型・大阪/千葉ほか）", rate: 0.5 },
+  { key: "third", label: "1/3（SII 設備単位型・神奈川）", rate: 0.33 },
+];
+export const DEFAULT_SUBSIDY_RATE_KEY = "third"; // 最も件数の多い設備単位型(1/3)を既定にする

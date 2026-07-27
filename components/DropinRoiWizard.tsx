@@ -14,29 +14,17 @@ import {
   estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, yenJP,
   ELECTRIC_PRICE_YEN_PER_KWH, CO2_TON_PER_KWH, taxIncluded, clampDropinRate, DROPIN_REDUCTION_LABEL,
   SITE_ACCESS, aerialLiftCost, needsScaffold,
+  AGE_DEGRADATION_PER_YEAR, ROI_CHART_YEARS, DROPIN_REFRI_RATE, DROPIN_INDUSTRY_FACTOR,
 } from "@/lib/pricing";
 
 const DEFAULT_PRICE = ELECTRIC_PRICE_YEN_PER_KWH; // 円/kWh（共通定数・契約単価で上書き可）
 const CO2 = CO2_TON_PER_KWH;                      // t-CO2/kWh（共通定数）
-const YEARS = 15;
-const DEGRADE = 0.02;      // 旧機の年あたり電力増（経年劣化）
+const YEARS = ROI_CHART_YEARS;                    // 比較年数（更新側のROIチャートと同じ15年）
+const DEGRADE = AGE_DEGRADATION_PER_YEAR;         // 旧機の年あたり電力増（経年劣化・共通定数）
 
-// 対象冷媒ごとのドロップイン想定削減率ベース
-// ※ドロップイン対象は業務用空調のみ（冷凍冷蔵機器は対象外）
-const RATE: Record<string, { rate: number; label: string }> = {
-  r410a: { rate: 0.25, label: "R410A 業務用空調（最多）" },
-  r22: { rate: 0.3, label: "R22 旧型空調" },
-  r407c: { rate: 0.22, label: "R407C ビル用マルチ" },
-  unknown: { rate: 0.25, label: "わからない（標準で試算）" },
-};
-// 業種(稼働プロファイル)別の削減係数
-const INDUSTRY: Record<string, { factor: number; label: string }> = {
-  food: { factor: 1.15, label: "飲食店（厨房・長時間）" },
-  retail: { factor: 1.1, label: "スーパー/小売" },
-  factory: { factor: 1.0, label: "工場/倉庫" },
-  clinic: { factor: 0.95, label: "クリニック/福祉/ホテル" },
-  office: { factor: 0.9, label: "オフィス/店舗" },
-};
+// 冷媒別の削減率ベースと業種別係数は lib/pricing.ts で一元管理（簡易シミュレーターと共通の表）
+const RATE = DROPIN_REFRI_RATE;
+const INDUSTRY = DROPIN_INDUSTRY_FACTOR;
 // 桝口さん確認: 消費電力の削減想定は25〜30%が現実的。電気「料金」削減率は保証しない。
 // レンジは lib/pricing.ts の DROPIN_REDUCTION で一元管理（簡易シミュレーターと共通）。
 const clamp = clampDropinRate;

@@ -56,7 +56,7 @@ export function AchievementsSection({ building, equip }: { building: string; equ
             </div>
           ))}
         </div>
-        <div className="text-[10px] text-slate-400 mt-2">公共施設での実証データ（令和2年→令和3年 月別電気代比較）</div>
+        <div className="text-[10px] text-slate-400 mt-2">公共施設での実証データ（{AKITA_RICE_WAREHOUSE.comparisonPeriod}）</div>
       </div>
 
       <div className="bg-ehc-500/10 border border-ehc-500/30 rounded-xl p-4">

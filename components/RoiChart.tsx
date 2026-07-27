@@ -11,7 +11,10 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { ELECTRIC_PRICE_YEN_PER_KWH } from "@/lib/pricing";
+import {
+  ELECTRIC_PRICE_YEN_PER_KWH, AGE_DEGRADATION_PER_YEAR,
+  OLD_EQUIPMENT_REPAIR_MANYEN_PER_YEAR, ROI_CHART_YEARS,
+} from "@/lib/pricing";
 
 interface RoiChartProps {
   invest: number;
@@ -25,12 +28,14 @@ interface RoiChartProps {
 
 export function RoiChart({ invest, bestSubsidyManYen, saveYenPerYear, kwhPerYear, reductionRate = 0.3, electricPrice }: RoiChartProps) {
   const ELECTRIC_PRICE = electricPrice && electricPrice > 0 ? electricPrice : ELECTRIC_PRICE_YEN_PER_KWH;
-  const OLD_EQUIPMENT_DEGRADATION_PER_YEAR = 0.02;
-  const REPAIR_COST_PER_YEAR = 15;
+  // 経年劣化率・修理費は lib/pricing.ts の共通定数を参照
+  // （ドロップイン診断ウィザードと別々に0.02を持っていたため、片方だけ直すとタブ間で数字がズレていた）
+  const OLD_EQUIPMENT_DEGRADATION_PER_YEAR = AGE_DEGRADATION_PER_YEAR;
+  const REPAIR_COST_PER_YEAR = OLD_EQUIPMENT_REPAIR_MANYEN_PER_YEAR;
   // 業種別の想定削減率を反映（更新後の電力＝旧×(1−削減率)）。未指定時は従来通り30%。
   const newPowerFactor = Math.max(0, Math.min(1, 1 - reductionRate));
 
-  const years = 15;
+  const years = ROI_CHART_YEARS;
   const data = [];
 
   for (let y = 0; y <= years; y++) {

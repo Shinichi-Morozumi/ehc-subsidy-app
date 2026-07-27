@@ -3,15 +3,11 @@ import { useState } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input } from "./ui/Field";
 import { Receipt } from "lucide-react";
-import { estimateUpdateBreakdown, MachineGrade, CostClass, COST_CLASS, SITE_ACCESS, PRICING_SOURCE, yenJP } from "@/lib/pricing";
+import { estimateUpdateBreakdown, MachineGrade, CostClass, COST_CLASS, SITE_ACCESS, PRICING_SOURCE, yenJP, DEFAULT_KG_PER_UNIT } from "@/lib/pricing";
+import { SUBSIDY_RATE_PRESETS, DEFAULT_SUBSIDY_RATE_KEY } from "@/lib/subsidies";
 
-// 補助率プリセット（代表例）
-const RATES: { key: string; label: string; rate: number }[] = [
-  { key: "none", label: "補助金なし", rate: 0 },
-  { key: "two_thirds", label: "2/3（持続化・一般）", rate: 0.667 },
-  { key: "half", label: "1/2（SII先進等）", rate: 0.5 },
-  { key: "third", label: "1/3（自治体等）", rate: 0.333 },
-];
+// 補助率プリセットは lib/subsidies.ts の実データに対応（制度名と補助率の食い違いを防ぐ）
+const RATES = SUBSIDY_RATE_PRESETS;
 
 export function UpdateEstimator() {
   const [hp, setHp] = useState(4);
@@ -19,13 +15,13 @@ export function UpdateEstimator() {
   const [systems, setSystems] = useState(2);
   const [grade, setGrade] = useState<MachineGrade>("standard");
   const [costClass, setCostClass] = useState<CostClass>("standard");
-  const [rateKey, setRateKey] = useState("two_thirds");
+  const [rateKey, setRateKey] = useState(DEFAULT_SUBSIDY_RATE_KEY);
   const [capManYen, setCapManYen] = useState(0); // 補助上限(万円, 0=なし)
   const [ancillaryManYen, setAncillaryManYen] = useState(0); // 付帯工事(万円)
   const [aerialDays, setAerialDays] = useState(0); // 高所作業車(日)
   const [floor, setFloor] = useState(1); // 設置階（足場要否の暫定判定用）
 
-  const kg = units * 3;
+  const kg = units * DEFAULT_KG_PER_UNIT; // 撤去1台あたりの想定回収冷媒量（共通定数）
   const est = estimateUpdateBreakdown({ units, hp, grade, costClass, systems, kg, aerialDays, floor, ancillary: ancillaryManYen * 10000 });
   const rate = RATES.find((r) => r.key === rateKey)?.rate ?? 0;
   let subsidy = Math.round(est.subtotal * rate); // 税抜ベースで補助
@@ -111,7 +107,7 @@ export function UpdateEstimator() {
               <td className="px-3 py-1.5 text-right text-slate-100 font-semibold tabular-nums">{yenJP(est.subtotal)}</td>
             </tr>
             <tr className="border-t border-white/5">
-              <td className="px-3 py-1.5 text-slate-400" colSpan={2}>消費税（10%）</td>
+              <td className="px-3 py-1.5 text-slate-400" colSpan={2}>消費税（{Math.round(est.taxRate * 100)}%）</td>
               <td className="px-3 py-1.5 text-right text-slate-300 tabular-nums">{yenJP(est.tax)}</td>
             </tr>
             <tr className="border-t border-white/15 bg-white/5">

@@ -13,6 +13,7 @@ import { RoadmapTab } from "@/components/RoadmapTab";
 import { DeadlineBanner } from "@/components/DeadlineBanner";
 import { DataFreshnessAlert } from "@/components/DataFreshnessAlert";
 import { DROPIN_REDUCTION_LABEL } from "@/lib/pricing";
+import { REGULATION, freonLawOutlook } from "@/lib/regulations";
 
 const TAB_HINTS: Record<string, string> = {
   match: "設備の情報から使える補助金を自動診断し、実質負担額とROIを試算します。",
@@ -64,8 +65,9 @@ export default function Page() {
         <AlertCircle className="w-4 h-4 text-cobalt-300 flex-shrink-0 mt-0.5" />
         <div className="text-slate-300">
           <strong className="text-white">⏰ 規制カウントダウン：</strong>
-          フロン排出抑制法 改正案 国会提出予定 <strong className="text-white">2027年</strong>（罰則強化検討中）／
-          R410A 製造規制：既に2025年完了 / 業務用エアコン 法定耐用年数：<strong className="text-white">15年</strong>
+          フロン排出抑制法 改正案 <strong className="text-white">{freonLawOutlook().label}</strong>（罰則強化検討中）／
+          R410A 製造規制：既に{REGULATION.r410aPhaseOutYear}年完了 / 業務用エアコン 法定耐用年数：
+          <strong className="text-white">{REGULATION.legalUsefulLifeYears}年</strong>
         </div>
       </div>
 
