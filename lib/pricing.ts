@@ -3,6 +3,25 @@
 // あくまで「目安」。実見積は機種グレード・高所/搬入条件・配管長・電気容量で変動する。
 export const PRICING_SOURCE = "PN見積 全500件分析（第9-10期 / 2024-2025年・参考値）";
 
+/* ───────── エネルギー換算の共通定数 ─────────
+   ここが唯一の情報源。補助金マッチング／ROIチャート／ドロップイン各試算は必ずこれを参照する
+   （以前は27円・0.000438が各コンポーネントに独立ハードコードされ、片方だけ直すと数字がズレていた）。 */
+export const ELECTRIC_PRICE_YEN_PER_KWH = 27;      // 円/kWh（既定・契約単価で上書き可）
+export const CO2_TON_PER_KWH = 0.000438;           // t-CO2/kWh（省エネ効果レポートと同一係数）
+export const CONSUMPTION_TAX_RATE = 0.1;           // 消費税率（投資額の税込換算に使用）
+// 税込換算（投資回収年数は税込ベースに統一する）
+export const taxIncluded = (yen: number) => Math.round(yen * (1 + CONSUMPTION_TAX_RATE));
+
+/* ドロップインの想定削減率レンジ（消費電力ベース・桝口さん確認 25〜30%）。
+   表示文言と clamp 上限をここで一元管理する。 */
+export const DROPIN_REDUCTION = { min: 0.1, typicalLow: 0.25, typicalHigh: 0.3, max: 0.35 };
+export const DROPIN_REDUCTION_LABEL = `${Math.round(DROPIN_REDUCTION.typicalLow * 100)}〜${Math.round(DROPIN_REDUCTION.typicalHigh * 100)}%`;
+export const clampDropinRate = (v: number) =>
+  Math.min(DROPIN_REDUCTION.max, Math.max(DROPIN_REDUCTION.min, v));
+
+// フロンガス破壊費（円/kg）※碓井さん・桝口さん確認: 高騰により¥3,000/kg。ドロップイン/更新工事で共通。
+export const GAS_DESTROY_PER_KG = 3000;
+
 /* ── HCガス材料単価（円/kg・税抜）の並記 ──
    sale: 大塚倉庫 実見積（HyChill 8.14kg＝¥472,120 → ¥58,000/kg・お客様向け販売単価）
    purchase: 仕入単価 ¥23,000/kg（桝口さん確認・2026-07）。MODE を "purchase" にすると原価ベースで試算。 */
@@ -11,15 +30,13 @@ export const HC_GAS_PRICE: Record<"sale" | "purchase", number> = {
   purchase: 23000, // 桝口さん確認（2026-07）
 };
 export const HC_GAS_PRICE_MODE: "sale" | "purchase" = "sale";
-// 粗利計算用: 販売−仕入（円/kg）
-export const HC_GAS_MARGIN_PER_KG = HC_GAS_PRICE.sale - HC_GAS_PRICE.purchase;
 
 /* ───────── ドロップイン（冷媒置換・既存機流用） ─────────
    基準: J&M奏 PN0000000282 ＋ PN自然冷媒ガス工事見積単価設定表（Sheet1・桝口さん校正 2026-07）。
    ドロップイン対象は業務用パッケージ 4馬力以上（ルームエアコン・小型パッケージ・冷凍冷蔵は対象外）。 */
 export const DROPIN = {
-  // フロンガス破壊費（円/kg）※桝口さん確認 3,000/kg
-  gasDestroyPerKg: 3000,
+  // フロンガス破壊費（円/kg）※共通定数を参照（更新工事側 WORK.gasDestroyPerKg と同値）
+  gasDestroyPerKg: GAS_DESTROY_PER_KG,
   // 消耗・ボンベ・証明書・窒素等（系統あたり）。桝口さん 2026-07 実績値 ¥4,285/系統
   consumablePerSystem: 4285,
   /* 諸経費率: 工事小計（作業＋破壊＋消耗）に対する比率。
@@ -132,7 +149,7 @@ export const WORK = {
   pipingPerUnit: 25000,         // 配管工事（新設・更新）/台 ※碓井さん: 電気と分離
   electricPerUnit: 20000,       // 電気工事（脱着・結線・高所ほか）/台
   gasRecoverPerSystem: 25000,   // フロンガス回収（中央値 ¥25,000/系統・n=224）
-  gasDestroyPerKg: 3000,        // フロンガス破壊 ※碓井さん確認: 高騰により¥3,000/kg
+  gasDestroyPerKg: GAS_DESTROY_PER_KG, // フロンガス破壊 ※共通定数（ドロップイン側 DROPIN.gasDestroyPerKg と同値）
   wastePerCubicMeter: 20000,    // 産業廃棄物処理 ¥20,000/㎥ ※碓井さん確認
   wasteVolPerUnit: 1.0,         // 撤去機1台あたり想定産廃体積(㎥)
   overheadRate: 0.05,           // 諸経費=工事小計×5%（案件規模連動）※碓井さん確認

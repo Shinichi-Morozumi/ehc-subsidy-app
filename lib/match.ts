@@ -1,6 +1,7 @@
 import { Subsidy, MatchInput, RefriType, EquipType, EquipGroup } from "./types";
 import { SUBSIDIES } from "./subsidies";
 import { getIndustryReductionRate } from "./industries";
+import { ELECTRIC_PRICE_YEN_PER_KWH, CO2_TON_PER_KWH } from "./pricing";
 
 export interface GroupResult {
   id: string;
@@ -38,9 +39,8 @@ export interface MatchResult {
   groups: GroupResult[];
 }
 
-const ELECTRIC_PRICE_YEN_PER_KWH = 27;
-// CO2排出係数（t-CO2/kWh）＝0.438 kg-CO2/kWh（省エネ効果レポート・ROI一枚ものと同一係数に統一）
-const CO2_FACTOR_TON_PER_KWH = 0.000438;
+// 電気単価・CO2係数は lib/pricing.ts の共通定数を参照（各所ハードコードによる不整合を防ぐ）
+const CO2_FACTOR_TON_PER_KWH = CO2_TON_PER_KWH;
 const CURRENT_YEAR = new Date().getFullYear();
 const REFRI_LABEL: Record<RefriType, string> = {
   r22: "R22", r410a: "R410A", r32: "R32", unknown: "冷媒不明",
@@ -182,7 +182,7 @@ export function matchSubsidies(input: MatchInput): MatchResult {
 
   let ehcPlan = "";
   if (representativeEquip === "ac") {
-    ehcPlan = "推奨機種: ダイキン FIVE STAR ZEAS（2026/4新発売）または 三菱スリムZR（SiC搭載・電力35%減）。冷媒R32。 / 適用補助金: SII 設備単位型 or 都道府県補助金。 / EHC施工: 既存配管流用ドロップイン or フル更新を診断後ご提案。R410A→R32なら冷媒入替+配管洗浄で工事日数1/2・コスト30%減も可能。";
+    ehcPlan = "推奨機種: ダイキン FIVE STAR ZEAS または 三菱電機 スリムZR 等の高効率R32機（型番・発売時期・性能値は各メーカーの最新カタログでご確認ください）。 / 適用補助金: SII 設備単位型 or 都道府県補助金。 / EHC施工: 既存配管を流用したリプレース or フル更新を現地診断のうえご提案します（配管流用の可否は既設配管の状態・洗浄結果によります。流用できる場合は工期・費用を圧縮できます）。※炭化水素冷媒への「ドロップイン」は既存機を残す別メニューで、省エネ補助金の対象外です。";
   } else {
     ehcPlan = "推奨機種: ダイキンVRV、三菱シティマルチ、日立セットフリー等。冷媒R32。 / 適用補助金: SII GX設備単位型 (メーカー強化枠 最大3億円)。 / EHC施工: ビル一棟まるごと更新計画、段階更新プラン両対応。複数世代の混在は古い群から優先更新を提案。";
   }
@@ -194,7 +194,7 @@ export function matchSubsidies(input: MatchInput): MatchResult {
     totalKwh,
     yearsToRecover,
     total15YearsYen,
-    reasons: reasons.slice(0, 5),
+    reasons, // 訴求文はすべて返す（以前は slice(0,5) で電気代削減の根拠まで切り捨てられていた）
     ehcPlan,
     industryReductionRate,
     ageDegradationRate,

@@ -5,10 +5,10 @@ import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input } from "./ui/Field";
 import { Gauge, Calculator, Printer, Mail, ArrowRight, Plus, Trash2 } from "lucide-react";
 import { useTabSwitch } from "./ui/Tabs";
-import { estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, DROPIN, PRICING_SOURCE, SITE_ACCESS, aerialLiftCost, needsScaffold, yenJP } from "@/lib/pricing";
+import { estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, DROPIN, PRICING_SOURCE, SITE_ACCESS, aerialLiftCost, needsScaffold, yenJP, ELECTRIC_PRICE_YEN_PER_KWH, CO2_TON_PER_KWH, taxIncluded, clampDropinRate, DROPIN_REDUCTION, DROPIN_REDUCTION_LABEL } from "@/lib/pricing";
 
-const DEFAULT_PRICE = 27; // 円/kWh（既定・契約単価で上書き可）
-const CO2 = 0.000438; // t-CO2/kWh（省エネ効果レポートと同一係数）
+const DEFAULT_PRICE = ELECTRIC_PRICE_YEN_PER_KWH; // 円/kWh（共通定数・契約単価で上書き可）
+const CO2 = CO2_TON_PER_KWH; // t-CO2/kWh（共通定数）
 // 対象冷媒ごとの想定削減率ベース（ドロップイン・実測校正前の概算）
 // ※ドロップイン対象は業務用空調のみ（冷凍冷蔵機器は対象外）
 const RATE: Record<string, { rate: number; label: string }> = {
@@ -25,7 +25,8 @@ const INDUSTRY: Record<string, { factor: number; label: string }> = {
   office: { factor: 0.9, label: "オフィス/店舗" },
 };
 // 桝口さん確認: 電気「使用量」削減の想定は25〜30%が現実的。電気「料金」の削減率は保証しない。
-const clamp = (v: number, lo = 0.1, hi = 0.35) => Math.min(hi, Math.max(lo, v));
+// レンジは lib/pricing.ts の DROPIN_REDUCTION で一元管理（ROI診断ウィザードと共通）。
+const clamp = clampDropinRate;
 
 // 設備グループ（冷媒/機器タイプ/系統数がバラバラな機種を1試算で複数扱う）
 interface DropGroup { id: string; refri: string; systems: number; machineType: string; extraKg: number; }
@@ -105,11 +106,13 @@ export function DropinSimulator() {
   const scaffoldRequired = needsScaffold(floor);
   const autoCost = est.total + aerial;
   const costYen = manualCost != null ? manualCost * 10000 : autoCost; // 施工費(税抜)
-  const costTaxIn = Math.round(costYen * 1.1);
+  const costTaxIn = taxIncluded(costYen);
   const saveKwh = Math.round(kwh * rate);
   const saveYen = saveKwh * price;
   const co2 = Number((saveKwh * CO2).toFixed(1));
-  const payback = saveYen > 0 ? Number((costYen / saveYen).toFixed(1)) : null;
+  // 投資回収は「税込の実支払額 ÷ 年間削減額」で算出。ROI診断ウィザードと基準を統一している
+  // （以前はこちらだけ税抜だったため、同じ条件でも回収年数が食い違っていた）。
+  const payback = saveYen > 0 ? Number((costTaxIn / saveYen).toFixed(1)) : null;
   const verdict = dropinRoiVerdict(payback);
   const VERDICT_C: Record<string, string> = {
     good: "text-ehc-300 border-ehc-500/40 bg-ehc-500/10",
@@ -134,7 +137,7 @@ export function DropinSimulator() {
     ...groups.map((g, i) => `  ${i + 1}) ${RATE[g.refri].label} / ${g.systems}台 / ${KG_PRESETS[g.machineType].label}${g.extraKg > 0 ? ` / 追加充填 ${g.extraKg}kg per系統` : ""}`),
     `現地条件: 設置階 ${floor}階（足場 ${scaffoldRequired ? "要・別途" : "不要想定"}） / 高所作業車 ${aerialDays}日 = ${yenJP(aerial)}`,
     `概算投資額: ${yenJP(costYen)}（税込 ${yenJP(costTaxIn)}）`,
-    `年間電気代削減: ${yenJP(saveYen)} ／ 投資回収: ${payback != null ? `約${payback}年` : "—"}`,
+    `年間電気代削減: ${yenJP(saveYen)} ／ 投資回収: ${payback != null ? `約${payback}年（税込ベース）` : "—"}`,
   ].join("\n");
   const mailHref = `mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent("【ドロップイン】簡易見積の相談")}&body=${encodeURIComponent(mailBody)}`;
 
@@ -150,7 +153,7 @@ export function DropinSimulator() {
     <Card>
       <CardTitle icon={<Gauge className="w-5 h-5" />}>ドロップイン 簡易シミュレーター</CardTitle>
       <p className="text-xs text-slate-400 mb-3">
-        既存機はそのまま、冷媒置換による概算効果。冷媒・機器・系統数が異なる場合は<strong className="text-ehc-300">設備グループを複数追加</strong>できます。投資額は<strong className="text-ehc-300">HCガス代金＋工事費用</strong>（PN見積の系統単価ベース）でグループ別に概算し合算（手動上書き可）。削減率は冷媒×業種(稼働)の加重平均から自動提案——想定は<strong className="text-ehc-300">消費電力の25〜30%</strong>（都内物流倉庫の厨房系統で実測−33%・30日計測/2026年）。※電気「料金」の削減率は契約条件により変動し保証されません。
+        既存機はそのまま、冷媒置換による概算効果。冷媒・機器・系統数が異なる場合は<strong className="text-ehc-300">設備グループを複数追加</strong>できます。投資額は<strong className="text-ehc-300">HCガス代金＋工事費用</strong>（PN見積の系統単価ベース）でグループ別に概算し合算（手動上書き可）。削減率は冷媒×業種(稼働)の加重平均から自動提案——想定は<strong className="text-ehc-300">消費電力の{DROPIN_REDUCTION_LABEL}</strong>（都内物流倉庫の厨房系統で実測−33%・30日計測/2026年）。※電気「料金」の削減率は契約条件により変動し保証されません。投資回収は<strong className="text-ehc-300">税込</strong>ベース（上のROI診断と同一基準）。
       </p>
 
       {/* 共通条件（業種・電力・現地条件） */}
@@ -170,7 +173,7 @@ export function DropinSimulator() {
           <p className="text-[9px] text-slate-500 mt-1 leading-tight">※基本料金＋従量で変動。大手電力(東電/関電/中電/九電/東北電/北電)HPの従量単価が目安</p>
         </Field>
         <Field label={`想定削減率: ${Math.round(rate * 100)}%`}>
-          <input type="range" min={10} max={35} value={Math.round(rate * 100)} onChange={(e) => setRate(Number(e.target.value) / 100)} className="w-full accent-ehc-400" />
+          <input type="range" min={Math.round(DROPIN_REDUCTION.min * 100)} max={Math.round(DROPIN_REDUCTION.max * 100)} value={Math.round(rate * 100)} onChange={(e) => setRate(Number(e.target.value) / 100)} className="w-full accent-ehc-400" />
           <p className="text-[9px] text-slate-500 mt-1 leading-tight">※冷媒×業種の加重平均から自動提案（手動調整可）</p>
         </Field>
         <Field label="高所作業車(日)" help={`¥${SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日で実費計上します`}>
@@ -292,7 +295,7 @@ export function DropinSimulator() {
           <div className="text-xl font-bold text-sky-300">{co2}<span className="text-xs ml-1">t/年</span></div>
         </div>
         <div className="bg-gradient-to-br from-violet-500/10 to-night-900 border border-violet-500/30 rounded-xl p-3">
-          <div className="text-[11px] text-violet-300 mb-1">投資回収（税抜）</div>
+          <div className="text-[11px] text-violet-300 mb-1">投資回収（税込）</div>
           <div className="text-xl font-bold text-violet-300">{payback ? `${payback}年` : "—"}</div>
         </div>
       </div>
@@ -407,7 +410,7 @@ export function DropinSimulator() {
               </tr>
               <tr className="border-t border-slate-200">
                 <td className="p-1.5 bg-slate-100 font-semibold">CO₂削減</td><td className="p-1.5">{co2} t/年</td>
-                <td className="p-1.5 bg-slate-100 font-semibold">投資回収（税抜）</td><td className="p-1.5 font-bold text-emerald-800">{payback ? `約${payback}年` : "—"}{verdict ? `（${verdict.label}）` : ""}</td>
+                <td className="p-1.5 bg-slate-100 font-semibold">投資回収（税込）</td><td className="p-1.5 font-bold text-emerald-800">{payback ? `約${payback}年` : "—"}{verdict ? `（${verdict.label}）` : ""}</td>
               </tr>
             </tbody>
           </table>
@@ -416,7 +419,8 @@ export function DropinSimulator() {
             ※本書は概算（目安）です。実際の効果・費用は機種・稼働・現地条件により±20%程度変動します。正式なお見積りは現地確認のうえご提示します。<br />
             ※ドロップイン対象は業務用パッケージ（4馬力以上）のみ。ルームエアコン/小型パッケージ/冷凍冷蔵機器は対象外です。<br />
             ※ドロップイン工事は省エネ補助金の対象外です（補助金で更新した機器にはドロップインを施工できません）。<br />
-            ※削減率は消費電力ベースの想定（25〜30%）。電気「料金」の削減率は契約条件により変動し保証されません。<br />
+            ※削減率は消費電力ベースの想定（{DROPIN_REDUCTION_LABEL}）。電気「料金」の削減率は契約条件により変動し保証されません。<br />
+            ※投資回収年数は税込の概算合計を年間削減額で除した値です。<br />
             ※{scaffoldRequired ? `設置${floor}階のため足場が必要な想定ですが、` : "足場が必要な現場では、"}足場費用は現地条件で大きく変動するため本概算に含みません（現地調査で確定）。<br />
             ※単価出典: {PRICING_SOURCE}。都内物流倉庫の厨房系統で消費電力 実測−33%（30日計測・2026年）を確認済み。
           </div>

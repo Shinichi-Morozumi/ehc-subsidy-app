@@ -10,10 +10,14 @@ import {
   Sparkles, ArrowRight, ArrowLeft, RotateCcw, TrendingDown, Wallet, Leaf, CalendarClock, Mail, Plus, Trash2,
 } from "lucide-react";
 import { useTabSwitch } from "./ui/Tabs";
-import { estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, yenJP } from "@/lib/pricing";
+import {
+  estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, yenJP,
+  ELECTRIC_PRICE_YEN_PER_KWH, CO2_TON_PER_KWH, taxIncluded, clampDropinRate, DROPIN_REDUCTION_LABEL,
+  SITE_ACCESS, aerialLiftCost, needsScaffold,
+} from "@/lib/pricing";
 
-const DEFAULT_PRICE = 27; // 円/kWh（既定・契約単価で上書き可）
-const CO2 = 0.000438;      // t-CO2/kWh（省エネ効果レポートと同一係数）
+const DEFAULT_PRICE = ELECTRIC_PRICE_YEN_PER_KWH; // 円/kWh（共通定数・契約単価で上書き可）
+const CO2 = CO2_TON_PER_KWH;                      // t-CO2/kWh（共通定数）
 const YEARS = 15;
 const DEGRADE = 0.02;      // 旧機の年あたり電力増（経年劣化）
 
@@ -34,7 +38,8 @@ const INDUSTRY: Record<string, { factor: number; label: string }> = {
   office: { factor: 0.9, label: "オフィス/店舗" },
 };
 // 桝口さん確認: 消費電力の削減想定は25〜30%が現実的。電気「料金」削減率は保証しない。
-const clamp = (v: number, lo = 0.1, hi = 0.35) => Math.min(hi, Math.max(lo, v));
+// レンジは lib/pricing.ts の DROPIN_REDUCTION で一元管理（簡易シミュレーターと共通）。
+const clamp = clampDropinRate;
 
 // 設備グループ（冷媒・系統数・機器タイプがバラバラな機種を1診断内で複数扱う）
 interface DropGroup { id: string; refri: string; systems: number | ""; machineType: string; }
@@ -49,6 +54,9 @@ export function DropinRoiWizard() {
   const [groups, setGroups] = useState<DropGroup[]>([newGroup()]);
   const [monthlyBill, setMonthlyBill] = useState<number | "">("");  // 対象設備 全体の月の電気代(円)
   const [price, setPrice] = useState(DEFAULT_PRICE);                 // 電力単価(円/kWh)
+  // 現地条件（簡易シミュレーターと同じ項目。未入力なら0日・1階＝影響なし）
+  const [aerialDays, setAerialDays] = useState(0); // 高所作業車(日)
+  const [floor, setFloor] = useState(1);           // 設置階（足場要否の暫定判定用）
   const switchTab = useTabSwitch();
 
   const addGroup = () => setGroups((gs) => [...gs, newGroup()]);
@@ -62,7 +70,7 @@ export function DropinRoiWizard() {
     (step === 1 && groupsReady) ||
     (step === 2 && typeof monthlyBill === "number" && monthlyBill > 0);
 
-  const reset = () => { setStep(0); setIndustry(""); setGroups([newGroup()]); setMonthlyBill(""); setPrice(DEFAULT_PRICE); };
+  const reset = () => { setStep(0); setIndustry(""); setGroups([newGroup()]); setMonthlyBill(""); setPrice(DEFAULT_PRICE); setAerialDays(0); setFloor(1); };
 
   // ───────── 試算 ─────────
   const bill = typeof monthlyBill === "number" ? monthlyBill : 0;
@@ -97,8 +105,11 @@ export function DropinRoiWizard() {
     },
     { hcGas: 0, workTotal: 0, total: 0 }
   );
-  const investNoTax = costAgg.total;
-  const invest = Math.round(investNoTax * 1.1); // 税込（お客様の実支払い目安）
+  // 高所作業車は日額×日数の実費として独立計上（簡易シミュレーターと同じ扱い）
+  const aerial = aerialLiftCost(aerialDays);
+  const scaffoldRequired = needsScaffold(floor);
+  const investNoTax = costAgg.total + aerial;
+  const invest = taxIncluded(investNoTax); // 税込（お客様の実支払い目安）
   const paybackYears = saveYen > 0 ? Number((invest / saveYen).toFixed(1)) : null;
   const verdict = dropinRoiVerdict(paybackYears);
   const VERDICT_C: Record<string, string> = {
@@ -203,6 +214,29 @@ export function DropinRoiWizard() {
             {sysTotal > 0 && (
               <p className="text-[11px] text-slate-400">→ 合計 {groups.length}グループ・{sysTotal}系統</p>
             )}
+
+            {/* 現地条件（任意）: 簡易シミュレーターと同じ項目。ここを合わせると両者の金額が一致する */}
+            <div className="border border-white/10 rounded-xl p-3 bg-night-900/40">
+              <div className="text-xs font-bold text-ehc-300 mb-1">現地条件（任意・わかれば）</div>
+              <div className="text-[11px] text-slate-400 mb-3">
+                屋上や高所の室外機は高所作業車が必要になることがあります。わからなければ空欄のままでOKです。
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="高所作業車（日）" help={`¥${SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日で実費計上します`}>
+                  <Input type="number" inputMode="numeric" placeholder="0"
+                    value={aerialDays} onChange={(e) => setAerialDays(Number(e.target.value))} />
+                </Field>
+                <Field label="設置階" help={`${SITE_ACCESS.scaffoldFloorThreshold}階以上は足場が必要という暫定ルールで判定します`}>
+                  <Input type="number" inputMode="numeric" placeholder="1"
+                    value={floor} onChange={(e) => setFloor(Number(e.target.value))} />
+                </Field>
+              </div>
+              {scaffoldRequired && (
+                <p className="text-[11px] text-amber-300 mt-2 leading-relaxed">
+                  {floor}階＝足場が必要な想定です。足場費用は現地条件で大きく変動するため本概算には含みません（現地調査で確定）。
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -258,7 +292,7 @@ export function DropinRoiWizard() {
 
           {/* 4指標 */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Metric color="ehc" icon={<Wallet className="w-4 h-4" />} label="概算投資（税込）" value={`${yenJP(invest)}`} sub={`税抜 ${yenJP(investNoTax)}＝ガス${yenJP(costAgg.hcGas)}＋工事${yenJP(costAgg.workTotal)}`} />
+            <Metric color="ehc" icon={<Wallet className="w-4 h-4" />} label="概算投資（税込）" value={`${yenJP(invest)}`} sub={`税抜 ${yenJP(investNoTax)}＝ガス${yenJP(costAgg.hcGas)}＋工事${yenJP(costAgg.workTotal)}${aerial > 0 ? `＋高所作業車${yenJP(aerial)}` : ""}`} />
             <Metric color="amber" icon={<TrendingDown className="w-4 h-4" />} label="年間 電気代削減" value={`${yenJP(saveYen)}`} sub={`約${saveKwh.toLocaleString("ja-JP")}kWh/年`} />
             <Metric color="violet" icon={<CalendarClock className="w-4 h-4" />} label="投資回収（税込）" value={paybackYears != null ? `${paybackYears}年` : "—"} sub={`10年で約${tenYearGain.toLocaleString("ja-JP")}万円お得`} />
             <Metric color="sky" icon={<Leaf className="w-4 h-4" />} label="CO₂削減" value={`${co2} t/年`} sub="脱炭素経営に貢献" />
@@ -304,7 +338,7 @@ export function DropinRoiWizard() {
           </div>
 
           <p className="text-[10px] text-slate-500 leading-relaxed">
-            ※ 概算（目安）です。投資額＝HCガス代金＋工事費用（電力単価¥{price}/kWh・想定削減率・PN見積の系統単価をもとに設備グループごとに自動試算し合算）。実際の効果・費用は機種・稼働・現地条件で±20%程度変動します。正式なお見積りは現地確認のうえご提示します。
+            ※ 概算（目安）です。投資額＝HCガス代金＋工事費用（＋高所作業車の実費）。電力単価¥{price}/kWh・想定削減率（消費電力ベース {DROPIN_REDUCTION_LABEL}）・PN見積の系統単価をもとに設備グループごとに自動試算し合算しています。投資回収は税込ベース（下の簡易シミュレーターと同一基準）。実際の効果・費用は機種・稼働・現地条件で±20%程度変動します。{scaffoldRequired ? "足場費用は本概算に含みません。" : ""}正式なお見積りは現地確認のうえご提示します。
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -316,6 +350,7 @@ export function DropinRoiWizard() {
                 ...validGroups.map((g, i) => `  ${i + 1}. ${RATE[g.refri]?.label ?? "—"} × ${g.systems}系統（${KG_PRESETS[g.machineType].label}）`),
                 `合計系統数: ${sysTotal}系統`,
                 `月の電気代: ${yenJP(bill)}（単価 ¥${price}/kWh）`,
+                `現地条件: 設置階 ${floor}階（足場 ${scaffoldRequired ? "要・別途" : "不要想定"}） / 高所作業車 ${aerialDays}日 = ${yenJP(aerial)}`,
                 `概算投資: ${yenJP(invest)}（税込）`,
                 `年間削減: ${yenJP(saveYen)} ／ 投資回収: ${paybackYears != null ? `約${paybackYears}年` : "—"}`,
               ].join("\n"))}`}

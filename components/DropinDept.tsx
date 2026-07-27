@@ -1,14 +1,18 @@
 import { Card, CardTitle } from "./ui/Card";
 import { HYCHILL_PRODUCTS, GWP_COMPARISON, JAPAN_MARKET_SIZE } from "@/lib/hychill";
+import { DROPIN_REDUCTION_LABEL } from "@/lib/pricing";
 import { Droplet, Zap, ShieldCheck, Wrench, Leaf, CheckCircle2, ArrowRight, Mail } from "lucide-react";
 import { DropinRoiWizard } from "./DropinRoiWizard";
 import { DropinSimulator } from "./DropinSimulator";
 
+const HC_GWP = GWP_COMPARISON.find((g) => g.gas === "Hychill GAS")?.gwp ?? 3;
+
 const MERITS = [
-  { icon: Zap, title: "電気代 15〜40%削減", body: "分子が少ない量で高エネルギー → 消費電力大幅削減", color: "amber" },
+  // 削減率は lib/pricing.ts の DROPIN_REDUCTION（消費電力ベース25〜30%）と必ず一致させる
+  { icon: Zap, title: `消費電力 ${DROPIN_REDUCTION_LABEL} 削減`, body: "少ない充填量で高い冷却能力 → 圧縮機の負荷が下がり消費電力を削減（電気「料金」の削減率は契約条件により変動します）", color: "amber" },
   { icon: Wrench, title: "機器の長寿命化", body: "コンプレッサー圧力が低く、機器負担軽減で利用継続が長期化", color: "blue" },
-  { icon: ShieldCheck, title: "改正フロン法 対象外", body: "点検報告義務が免除。法的負担ゼロ", color: "purple" },
-  { icon: Leaf, title: "温室効果ガス削減", body: "GWP 0.072〜3 のほぼゼロ。脱炭素経営に直接貢献", color: "green" },
+  { icon: ShieldCheck, title: "改正フロン法 対象外", body: "フロン類に該当しないため、算定漏えい量の報告・定期点検の対象外", color: "purple" },
+  { icon: Leaf, title: "温室効果ガス削減", body: `GWP ${HC_GWP}（CO2=1基準）とほぼゼロ。脱炭素経営に直接貢献`, color: "green" },
 ];
 
 const COLOR_BG: Record<string, string> = {
@@ -45,6 +49,9 @@ export function DropinDept() {
       </div>
 
       <DropinRoiWizard />
+      <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[11px] text-slate-400">
+        下の「簡易シミュレーター」は<strong className="text-slate-200">社内向け</strong>の詳細版です。上のROI診断と<strong className="text-slate-200">同じ単価・同じ税込基準</strong>で計算しているため、同条件を入れれば金額・回収年数は一致します（簡易シミュレーターは追加充填量の入力・金額の手動上書き・見積の印刷が可能）。
+      </div>
       <DropinSimulator />
 
       <Card>
@@ -133,18 +140,25 @@ export function DropinDept() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="bg-gradient-to-br from-ehc-500/10 to-ehc-500/10 border border-ehc-500/30 rounded-xl p-4">
             <div className="text-xs text-ehc-300 mb-1">業務用空調 国内稼動台数</div>
-            <div className="text-3xl font-bold text-ehc-300">1,050<span className="text-base ml-1">万台</span></div>
-            <div className="text-[10px] text-ehc-300 mt-1">経産省推計</div>
+            <div className="text-3xl font-bold text-ehc-300">
+              {JAPAN_MARKET_SIZE.totalBusinessAcUnits.toLocaleString("ja-JP")}
+              <span className="text-base ml-1">{JAPAN_MARKET_SIZE.unit}</span>
+            </div>
+            <div className="text-[10px] text-ehc-300 mt-1">{JAPAN_MARKET_SIZE.source}</div>
           </div>
           <div className="bg-gradient-to-br from-amber-500/10 to-amber-500/10 border border-amber-500/30 rounded-xl p-4">
-            <div className="text-xs text-amber-300 mb-1">業務用空調 約950万台</div>
-            <div className="text-3xl font-bold text-amber-300">R410A/R32</div>
+            <div className="text-xs text-amber-300 mb-1">
+              {JAPAN_MARKET_SIZE.breakdown[0].category} 約{JAPAN_MARKET_SIZE.breakdown[0].units}{JAPAN_MARKET_SIZE.unit}
+            </div>
+            <div className="text-3xl font-bold text-amber-300">{JAPAN_MARKET_SIZE.breakdown[0].refri}</div>
             <div className="text-[10px] text-amber-300 mt-1">→ Minus 60 / HC32 で対応</div>
           </div>
           <div className="bg-gradient-to-br from-sky-500/10 to-sky-500/10 border border-sky-500/30 rounded-xl p-4">
-            <div className="text-xs text-sky-700 mb-1">ビル用マルチ 約100万台</div>
-            <div className="text-3xl font-bold text-sky-300">R410A/R407C</div>
-            <div className="text-[10px] text-sky-700 mt-1">→ Minus 50 / 60 で対応</div>
+            <div className="text-xs text-sky-300 mb-1">
+              {JAPAN_MARKET_SIZE.breakdown[1].category} 約{JAPAN_MARKET_SIZE.breakdown[1].units}{JAPAN_MARKET_SIZE.unit}
+            </div>
+            <div className="text-3xl font-bold text-sky-300">{JAPAN_MARKET_SIZE.breakdown[1].refri}</div>
+            <div className="text-[10px] text-sky-300 mt-1">→ Minus 50 / 60 で対応</div>
           </div>
         </div>
       </Card>
@@ -156,7 +170,7 @@ export function DropinDept() {
             <div className="text-sm text-emerald-100">既存設備を確認させていただき、最適な提案をいたします</div>
           </div>
           <a
-            href="mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=【ドロップイン部門】導入相談"
+            href={`mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent("【ドロップイン部門】導入相談")}`}
             className="bg-night-900 text-ehc-300 px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-emerald-500/10 transition-colors no-print"
           >
             <Mail className="w-4 h-4" />

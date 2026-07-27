@@ -19,7 +19,7 @@ import { useProject } from "./ProjectContext";
 import { RoadmapView } from "./RoadmapView";
 import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
-import { estimateInvestManYenFromGroups } from "@/lib/pricing";
+import { estimateInvestManYenFromGroups, CO2_TON_PER_KWH } from "@/lib/pricing";
 
 let GID = 0;
 const newGroup = (over: Partial<EquipGroup> = {}): EquipGroup => ({
@@ -84,7 +84,7 @@ const HELP = {
   refri: "R22は既に製造禁止（修理部品入手困難）。R410Aは2025年で製造規制完了（修理コスト2-3倍）。R32が現行最有力。",
   kwh: "直近1年間の電力会社請求書の合計kWh。複数事業所がある場合は、空調を更新する事業所分のみで結構です。",
   invest: "新空調機器の本体価格＋設置工事費の合計見積額。参考：業務用パッケージ50〜150万円/台、ビル用マルチ500〜3,000万円。",
-  co2: "年間電力削減量(kWh) × 0.000438 で概算可能。神奈川県補助金は3t/年以上が必須条件です。",
+  co2: `年間電力削減量(kWh) × ${CO2_TON_PER_KWH} で概算可能。神奈川県補助金は3t/年以上が必須条件です。`,
 };
 
 export function SubsidyMatcher() {
@@ -460,7 +460,7 @@ export function SubsidyMatcher() {
           </Field>
           <div className="flex items-end">
             <div className="text-[11px] text-slate-500 bg-white/5 border border-white/10 rounded-lg p-2.5 w-full">
-              CO2削減量は削減kWhから自動計算されます（排出係数 0.000438 t-CO₂/kWh・省エネ効果レポートと同一係数）。神奈川県補助金の3t/年要件も自動判定。
+              CO2削減量は削減kWhから自動計算されます（排出係数 {CO2_TON_PER_KWH} t-CO₂/kWh・省エネ効果レポートと同一係数）。神奈川県補助金の3t/年要件も自動判定。
             </div>
           </div>
         </div>

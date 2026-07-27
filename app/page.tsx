@@ -12,6 +12,7 @@ import { ProjectProvider } from "@/components/ProjectContext";
 import { RoadmapTab } from "@/components/RoadmapTab";
 import { DeadlineBanner } from "@/components/DeadlineBanner";
 import { DataFreshnessAlert } from "@/components/DataFreshnessAlert";
+import { DROPIN_REDUCTION_LABEL } from "@/lib/pricing";
 
 const TAB_HINTS: Record<string, string> = {
   match: "設備の情報から使える補助金を自動診断し、実質負担額とROIを試算します。",
@@ -49,7 +50,8 @@ export default function Page() {
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-2 text-[11px]">
             <span className="px-3 py-1 rounded-full border border-white/15 text-slate-300">補助金 最大3億円</span>
-            <span className="px-3 py-1 rounded-full border border-white/15 text-slate-300">電力削減 −15〜40%</span>
+            <span className="px-3 py-1 rounded-full border border-white/15 text-slate-300">高効率機更新 −20〜40%</span>
+            <span className="px-3 py-1 rounded-full border border-white/15 text-slate-300">ドロップイン −{DROPIN_REDUCTION_LABEL}</span>
             <span className="px-3 py-1 rounded-full border border-ehc-400/40 text-ehc-200 bg-ehc-600/10">施工実績 22業種</span>
           </div>
         </div>

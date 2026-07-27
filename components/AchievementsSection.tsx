@@ -48,7 +48,7 @@ export function AchievementsSection({ building, equip }: { building: string; equ
           <TrendingDown className="w-3.5 h-3.5" />
           実証事例: {AKITA_RICE_WAREHOUSE.facility}（夏季ピーク時 最大{AKITA_RICE_WAREHOUSE.peakSummerReduction}%削減）
         </div>
-        <div className="grid grid-cols-5 gap-1.5 text-center">
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 text-center">
           {AKITA_RICE_WAREHOUSE.monthlyComparison.map((m, i) => (
             <div key={i} className="bg-night-900 border border-amber-500/20 rounded-md p-1.5">
               <div className="text-[10px] text-slate-500">{m.month}</div>

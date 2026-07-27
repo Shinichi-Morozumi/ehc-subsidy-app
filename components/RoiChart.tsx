@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
+import { ELECTRIC_PRICE_YEN_PER_KWH } from "@/lib/pricing";
 
 interface RoiChartProps {
   invest: number;
@@ -18,10 +19,12 @@ interface RoiChartProps {
   saveYenPerYear: number;
   kwhPerYear: number;
   reductionRate?: number;
+  /** 電力単価(円/kWh)。未指定時は lib/pricing.ts の共通定数（マッチング試算と同一）を使う */
+  electricPrice?: number;
 }
 
-export function RoiChart({ invest, bestSubsidyManYen, saveYenPerYear, kwhPerYear, reductionRate = 0.3 }: RoiChartProps) {
-  const ELECTRIC_PRICE = 27;
+export function RoiChart({ invest, bestSubsidyManYen, saveYenPerYear, kwhPerYear, reductionRate = 0.3, electricPrice }: RoiChartProps) {
+  const ELECTRIC_PRICE = electricPrice && electricPrice > 0 ? electricPrice : ELECTRIC_PRICE_YEN_PER_KWH;
   const OLD_EQUIPMENT_DEGRADATION_PER_YEAR = 0.02;
   const REPAIR_COST_PER_YEAR = 15;
   // 業種別の想定削減率を反映（更新後の電力＝旧×(1−削減率)）。未指定時は従来通り30%。

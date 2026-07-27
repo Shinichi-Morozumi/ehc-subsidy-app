@@ -1,5 +1,5 @@
 import { Card, CardTitle } from "./ui/Card";
-import { VENDORS } from "@/lib/vendors";
+import { VENDORS, VENDORS_DISCLAIMER } from "@/lib/vendors";
 import { Wind } from "lucide-react";
 
 export function VendorTable() {
@@ -37,6 +37,7 @@ export function VendorTable() {
           </tbody>
         </table>
       </div>
+      <p className="text-[10px] text-slate-500 mt-3 leading-relaxed">※ {VENDORS_DISCLAIMER}</p>
     </Card>
   );
 }
