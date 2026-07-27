@@ -19,7 +19,7 @@ import { useProject } from "./ProjectContext";
 import { RoadmapView } from "./RoadmapView";
 import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
-import { estimateInvestManYenFromGroups, estimateAnnualKwhFromGroups, KWH_PER_HP_YEAR, DEFAULT_HP_WHEN_UNKNOWN, CO2_TON_PER_KWH } from "@/lib/pricing";
+import { estimateInvestManYenFromGroups, estimateAnnualKwhFromGroups, kwhPerHpYear, siiBuildingUse, DEFAULT_HP_WHEN_UNKNOWN, CO2_TON_PER_KWH } from "@/lib/pricing";
 
 let GID = 0;
 const newGroup = (over: Partial<EquipGroup> = {}): EquipGroup => ({
@@ -418,10 +418,10 @@ export function SubsidyMatcher() {
                 <Input type="number" value={input.kwh} onChange={(e) => set("kwh", Number(e.target.value))} />
                 <button
                   type="button"
-                  onClick={() => set("kwh", estimateAnnualKwhFromGroups(input.equipGroups))}
+                  onClick={() => set("kwh", estimateAnnualKwhFromGroups(input.equipGroups, input.building))}
                   disabled={!input.equipGroups.some((g) => (g.units ?? 0) > 0)}
                   className="whitespace-nowrap text-[11px] px-2.5 rounded-lg border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="電気代の請求書が手元にないときの目安値を、設備グループの馬力×台数から自動で入れます"
+                  title="電気代の請求書が手元にないときの目安値を、設備グループの馬力×台数から自動で入れます（SII省エネ量計算 指定計算より試算）"
                 >
                   一般値で自動計算
                 </button>
@@ -430,8 +430,15 @@ export function SubsidyMatcher() {
                 <strong className="text-slate-300">この欄の役割＝削減kWh・電気代削減額・CO2削減量を出すための元データ。</strong>
                 入れた値は各設備グループへ「台数×馬力」で自動按分します（馬力未入力は台数で按分）。<br />
                 <strong className="text-cobalt-200">「一般値で自動計算」</strong>＝請求書が手元にないとき用の目安。
-                業務用エアコンの一般値<strong className="text-slate-300">1馬力あたり約{KWH_PER_HP_YEAR.toLocaleString()}kWh/年</strong>で計算します
-                （馬力未入力は{DEFAULT_HP_WHEN_UNKNOWN}馬力と仮定・空調分のみ）。
+                いま選択中の建物用途「{siiBuildingUse(input.building) === "office" ? "事務所" : "店舗"}」で
+                <strong className="text-slate-300">1馬力あたり約{kwhPerHpYear(input.building).toLocaleString()}kWh/年</strong>として計算します
+                （馬力未入力は{DEFAULT_HP_WHEN_UNKNOWN}馬力と仮定・空調分のみ）。<br />
+                <span className="text-slate-400">
+                  根拠：SII（環境共創イニシアチブ）「省エネルギー量計算の手引き【電気式パッケージエアコン】」の
+                  <strong className="text-slate-300">指定計算</strong>に、同手引きの既存設備参考値（天井カセット4方向 112形＝4馬力／1997年度製品平均）と
+                  JIS B 8616 東京の平均負荷率・稼働変換率、SII既定の運転時間（店舗13h×30日／事務所12h×26日）を代入して試算。
+                  平均COP比は1.0（＝削減効果を盛らない安全側）。
+                </span><br />
                 <strong className="text-slate-300">請求書やエニマス実測がある場合は必ずそちらを手入力してください。</strong>
               </div>
             </Field>

@@ -58,20 +58,60 @@ export const DROPIN_INDUSTRY_FACTOR: Record<string, { factor: number; label: str
 // フロンガス破壊費（円/kg）※碓井さん・桝口さん確認: 高騰により¥3,000/kg。ドロップイン/更新工事で共通。
 export const GAS_DESTROY_PER_KG = 3000;
 
-/* ── 年間消費電力量の目安（電気代の請求書が手元にないとき用） ──
-   業務用パッケージエアコンのJIS期間消費電力量は概ね「馬力 × 1,000〜1,200 kWh/年」の範囲
-   （例: 4馬力 ≒ 4,400 kWh/年）。ここでは中間値 1,100 を採用する。
-   ※あくまで空調分のみの目安。請求書の実数値やエニマス等の実測がある場合は必ずそちらを優先する。 */
-export const KWH_PER_HP_YEAR = 1100;
-export const DEFAULT_HP_WHEN_UNKNOWN = 4; // 馬力未入力のグループに仮置きする馬力
+/* ── 年間消費電力量の目安（電気代の請求書が手元にないとき用） ────────────────
+   【出典】一般社団法人 環境共創イニシアチブ（SII）
+     「設備別 省エネルギー量計算の手引き【電気式パッケージエアコン】」指定計算
+     https://sii.or.jp/file/cutback29/2-1_denkipac.pdf
+     （令和3年度 指定設備導入事業版 https://sii.or.jp/cutback03/uploads/k17_shouenekeisan_ehp_ghp.pdf も同一ロジック）
 
-export function estimateAnnualKwhFromGroups(groups: { units: number; hp?: number }[]): number {
+   SII指定計算の式:
+     電力使用量[kWh] = (定格消費電力 ÷ 平均COP比) × 平均負荷率 × 稼働時間 × 台数
+     稼働時間 = 運転時間 × 稼働変換率（JIS B 8616 代表12地域の外気温発生データより）
+
+   採用した前提（すべてSII手引き記載値）:
+     ・機種    : 天井カセット形4方向 112形（＝4馬力）
+                 既存設備参考値（1997年度製品平均）冷房 10.0kW/4.39kW、暖房 10.6kW/4.08kW
+     ・地域    : 東京（JIS代表12地域）
+     ・運転時間: 店舗 13h×30日、事務所 12h×26日（SIIポータル自動設定値）
+     ・平均COP比: 1.0（＝定格性能のまま。実機の一定速COP比は0.70〜1.00なので
+                  この前提は既存消費量を「少なめ」に見積もる＝削減効果を盛らない安全側）
+
+   上記で算出した4馬力機の年間電力使用量:
+     店舗   5,454 kWh/年 → 1,364 kWh/馬力・年 → 1,400 を採用
+     事務所 3,910 kWh/年 →   977 kWh/馬力・年 → 1,000 を採用
+
+   ※あくまで空調分のみの目安。請求書の実数値やエニマス等の実測がある場合は必ずそちらを優先する。 */
+export const KWH_PER_HP_YEAR_SOURCE =
+  "SII「設備別 省エネルギー量計算の手引き【電気式パッケージエアコン】」指定計算（JIS B 8616 東京）より試算";
+
+/** SII指定計算の建物用途は「店舗」「事務所」の2区分のみ。アプリの建物用途をそこへ寄せる。 */
+export const KWH_PER_HP_YEAR_BY_USE: Record<"shop" | "office", number> = {
+  shop: 1400, // 店舗（13h×30日）
+  office: 1000, // 事務所（12h×26日）
+};
+
+/** アプリの building 値 → SII建物用途（店舗／事務所） */
+export function siiBuildingUse(building?: string): "shop" | "office" {
+  return building === "office" || building === "school" ? "office" : "shop";
+}
+
+export function kwhPerHpYear(building?: string): number {
+  return KWH_PER_HP_YEAR_BY_USE[siiBuildingUse(building)];
+}
+
+export const DEFAULT_HP_WHEN_UNKNOWN = 4; // 馬力未入力のグループに仮置きする馬力（SII参考値が112形＝4馬力のため）
+
+export function estimateAnnualKwhFromGroups(
+  groups: { units: number; hp?: number }[],
+  building?: string
+): number {
+  const perHp = kwhPerHpYear(building);
   const total = (groups ?? []).reduce(
     (a, g) =>
       a +
       Math.max(0, Math.round(g.units || 0)) *
         (g.hp && g.hp > 0 ? g.hp : DEFAULT_HP_WHEN_UNKNOWN) *
-        KWH_PER_HP_YEAR,
+        perHp,
     0
   );
   return Math.round(total / 100) * 100; // 100kWh単位に丸め（目安であることを見た目でも示す）
