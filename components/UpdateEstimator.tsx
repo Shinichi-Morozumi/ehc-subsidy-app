@@ -18,6 +18,15 @@ function rateKeyFor(rateNum: number): string {
   , RATES[0]).key;
 }
 
+// 万円の数値を「3億円」「1億2,000万円」のような読みやすい表記にする
+function okuLabel(manYen: number): string {
+  const oku = Math.floor(manYen / 10000);
+  const man = manYen % 10000;
+  if (oku <= 0) return `${man.toLocaleString("ja-JP")}万円`;
+  if (man === 0) return `${oku.toLocaleString("ja-JP")}億円`;
+  return `${oku.toLocaleString("ja-JP")}億${man.toLocaleString("ja-JP")}万円`;
+}
+
 export function UpdateEstimator() {
   const { input, result, setEstimateManYen } = useProject();
 
@@ -281,14 +290,21 @@ export function UpdateEstimator() {
           <div className="text-[11px] text-slate-400 mb-1">補助上限（この制度の上限額）</div>
           <div className="flex items-center gap-1">
             <input
-              type="number"
-              value={capManYen > 0 ? capManYen : ""}
-              onChange={(e) => setCapOverride(e.target.value === "" ? 0 : Number(e.target.value))}
-              className="w-full bg-night-900 border border-white/15 rounded px-2 py-1 text-sm text-slate-100"
+              type="text"
+              inputMode="numeric"
+              value={capManYen > 0 ? capManYen.toLocaleString("ja-JP") : ""}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/[^0-9]/g, "");
+                setCapOverride(digits === "" ? 0 : Number(digits));
+              }}
+              className="w-full bg-night-900 border border-white/15 rounded px-2 py-1 text-sm text-slate-100 text-right tabular-nums"
               placeholder="上限なし"
             />
             <span className="text-[11px] text-slate-400 shrink-0">万円</span>
           </div>
+          {capManYen > 0 && (
+            <div className="text-[11px] text-slate-300 mt-1 tabular-nums">＝ {okuLabel(capManYen)}</div>
+          )}
           <div className="text-[10px] mt-1 leading-tight">
             {capOverride != null ? (
               <button type="button" onClick={() => setCapOverride(null)} className="text-ehc-300 hover:underline">

@@ -10,6 +10,7 @@ import { CustomerReport } from "./CustomerReport";
 import { SampleCases } from "./SampleCases";
 import { HearingChat } from "./HearingChat";
 import { SubsidyEligibilityChat } from "./SubsidyEligibilityChat";
+import { SubsidyScreeningChat, VerdictChip, ScreeningResult } from "./SubsidyScreeningChat";
 import { SampleCase } from "@/lib/samples";
 import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge, Link2, QrCode, Printer, Wallet, ClipboardCheck, Bot } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -724,6 +725,9 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
   const [selectedId, setSelectedId] = useState<string>("");
   const [reqChecks, setReqChecks] = useState<Record<string, boolean[]>>({});
   const [eligChatOpen, setEligChatOpen] = useState(false);
+  // ② 全制度まとめての該当診断（これを終えるまで「適用可能な補助金」は出さない）
+  const [screenOpen, setScreenOpen] = useState(false);
+  const [screening, setScreening] = useState<ScreeningResult | null>(null);
 
   // マッチ結果が変わったら、選択を最適補助金へ同期＆要件チェックを初期化（全クリア＝true）
   useEffect(() => {
@@ -737,6 +741,12 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
       return next;
     });
   }, [fundable, bestId]);
+
+  // マッチする制度の顔ぶれが変わったら診断結果は無効化（前提が変わっているため）
+  const matchedKey = result.matched.map((s) => s.id).join(",");
+  useEffect(() => {
+    setScreening(null);
+  }, [matchedKey]);
 
   // ヒアリングAIから「補助金の該当もチェック」を選んだら、最有力補助金で自動的に該当チェックを開く
   useEffect(() => {
@@ -880,7 +890,8 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
       <Card>
         <CardTitle icon={<Wallet className="w-5 h-5" />}>補助金プランを選ぶ</CardTitle>
         <p className="text-xs text-slate-400 -mt-1 mb-3">
-          希望の有無・使いたい補助金・要件クリア可否を切り替えると、下のグラフ・実質負担額・回収年数が自動で連動します。
+          ①希望の有無 → ②AI診断（該当可否＋公募時期）→ ③どの補助金 → ④要件クリア可否 の順に進みます。
+          切り替えると下のグラフ・実質負担額・回収年数、および「適用可能な補助金」が自動で連動します。
         </p>
 
         {/* ① 希望しますか */}
@@ -903,9 +914,84 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
         {wantSubsidy ? (
           fundable.length ? (
             <>
-              {/* ② どの補助金 */}
+              {/* ② 全制度まとめてAI診断（可否＋公募時期） */}
               <div className="mb-4">
-                <div className="text-xs font-semibold text-slate-300 mb-1.5">② どの補助金を希望しますか？</div>
+                <div className="text-xs font-semibold text-slate-300 mb-1.5">② まず、補助金に該当するかAI診断します</div>
+                {screening ? (
+                  <div className="rounded-xl border border-white/10 bg-night-900 p-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 text-xs font-bold">
+                        {screening.overall === "yes" ? (
+                          <span className="text-ehc-300 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4" /> 診断済み：該当見込み
+                          </span>
+                        ) : screening.overall === "maybe" ? (
+                          <span className="text-amber-300 flex items-center gap-1.5">
+                            <ClipboardCheck className="w-4 h-4" /> 診断済み：要確認
+                          </span>
+                        ) : (
+                          <span className="text-red-300 flex items-center gap-1.5">
+                            <ClipboardCheck className="w-4 h-4" /> 診断済み：対象外の可能性
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setScreenOpen(true)}
+                        className="text-[11px] text-ehc-300 hover:underline"
+                      >
+                        診断をやり直す
+                      </button>
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      {result.matched.map((s) => {
+                        const t = screening.timingById[s.id];
+                        return (
+                          <div key={s.id} className="flex items-start justify-between gap-2 text-[11px]">
+                            <span className="text-slate-300 leading-snug">{s.name}</span>
+                            <span className="text-slate-400 flex-shrink-0">{t ? t.label : "日程未定"}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-2">
+                      導入予定時期のご回答：{screening.planHorizon}。詳細は下の「適用可能な補助金」でご確認ください。
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-ehc-500/30 bg-ehc-500/5 p-3">
+                    <p className="text-xs text-slate-300 leading-relaxed mb-2.5">
+                      所在地・事業規模・対象設備は入力内容から判定済みです。
+                      <strong className="text-ehc-300">共通の前提条件（発注前か・機種・書類・GビズID等）と公募時期</strong>
+                      をAIが5問で確認し、該当可否をまとめて判定します。
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setScreenOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-xs font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors shadow-glow"
+                    >
+                      <Bot className="w-4 h-4" />
+                      補助金に該当するかAI診断する
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {screenOpen && (
+                <SubsidyScreeningChat
+                  input={input}
+                  candidates={result.matched}
+                  onDone={(r) => {
+                    setScreening(r);
+                    setScreenOpen(false);
+                  }}
+                  onClose={() => setScreenOpen(false)}
+                />
+              )}
+
+              {/* ③ どの補助金（②のAI診断を終えてから表示） */}
+              <div className={`mb-4 ${screening ? "" : "hidden"}`}>
+                <div className="text-xs font-semibold text-slate-300 mb-1.5">③ どの補助金を希望しますか？</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {visibleFundable.map((s) => {
                     const amt = subsidyAmountManYen(s, input.invest);
@@ -929,18 +1015,18 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                 </div>
                 {hiddenCount > 0 && (
                   <p className="text-[10px] text-slate-500 mt-1.5">
-                    ※ 要件を満たさない補助金 {hiddenCount} 件は非表示にしています（③のチェックを戻すと再表示されます）。
+                    ※ 要件を満たさない補助金 {hiddenCount} 件は非表示にしています（④のチェックを戻すと再表示されます）。
                   </p>
                 )}
               </div>
 
-              {/* ③ 要件クリア可否 */}
-              {selected && (
+              {/* ④ 要件クリア可否（②のAI診断を終えてから表示） */}
+              {screening && selected && (
                 <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                   <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                     <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                       <ClipboardCheck className="w-4 h-4 text-cobalt-300" />
-                      ③ これらの要件はクリアできますか？（外すと非該当として計算）
+                      ④ これらの要件はクリアできますか？（外すと非該当として計算）
                     </div>
                     <button
                       type="button"
@@ -1114,9 +1200,31 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
 
       <Card>
         <CardTitle icon={<Target className="w-5 h-5" />}>適用可能な補助金</CardTitle>
-        {result.matched.length ? (
+        {wantSubsidy && fundable.length > 0 && !screening ? (
+          /* 診断前は制度の詳細を出さない：まず該当可否と公募時期をAI診断してもらう */
+          <div className="rounded-xl border border-ehc-500/30 bg-ehc-500/5 p-4">
+            <p className="text-xs text-slate-300 leading-relaxed mb-3">
+              先に<strong className="text-ehc-300">「補助金に該当するかAI診断」</strong>（該当可否＋公募時期）を行ってください。
+              診断が終わると、ここに<strong className="text-slate-200">該当する制度の要件・必要書類・申請時期</strong>が表示されます。
+            </p>
+            <button
+              type="button"
+              onClick={() => setScreenOpen(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-xs font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors shadow-glow"
+            >
+              <Bot className="w-4 h-4" />
+              補助金に該当するかAI診断する
+            </button>
+            <p className="text-[10px] text-slate-500 mt-2">
+              所要 約30秒・5問。回答内容はこの画面の試算にのみ使用します。
+            </p>
+          </div>
+        ) : result.matched.length ? (
           <div className="space-y-3">
-            {result.matched.map((s) => (
+            {result.matched.map((s) => {
+              const timing = screening?.timingById[s.id];
+              const verdict = screening?.verdictById[s.id];
+              return (
               <div key={s.id} className="border border-ehc-500/30 bg-gradient-to-br from-ehc-500/10 to-night-900 rounded-xl p-4">
                 <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-ehc-300">
                   <CheckCircle2 className="w-4 h-4 text-ehc-400 flex-shrink-0" />
@@ -1124,6 +1232,22 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                 </h3>
                 <div className="text-xs text-slate-400 mb-2.5 flex flex-wrap gap-1.5">
                   <span className={`px-2 py-0.5 rounded-md font-medium ${s.infoOnly ? "bg-amber-500/15 text-amber-300" : "bg-ehc-500/15 text-ehc-300"}`}>{s.infoOnly ? "情報提供（要確認）" : "適用可能"}</span>
+                  {verdict && (
+                    <span
+                      className={`px-2 py-0.5 rounded-md font-medium ${
+                        verdict === "yes"
+                          ? "bg-ehc-500/15 text-ehc-300"
+                          : verdict === "maybe"
+                          ? "bg-amber-500/15 text-amber-300"
+                          : "bg-red-500/15 text-red-300"
+                      }`}
+                    >
+                      AI診断: {verdict === "yes" ? "該当見込み" : verdict === "maybe" ? "要確認" : "対象外の可能性"}
+                    </span>
+                  )}
+                  {timing && (
+                    <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">申請時期: {timing.label}</span>
+                  )}
                   <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">期間: {s.period}</span>
                   <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">補助率: {s.rate}</span>
                   <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">上限: {s.max}</span>
@@ -1131,12 +1255,16 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                 <div className="text-xs text-slate-300">
                   <p><strong className="text-white">要件:</strong> {s.requirement}</p>
                   <p className="mt-1"><strong className="text-white">必要書類:</strong> {s.docs}</p>
+                  {timing && timing.detail && (
+                    <p className="mt-1 text-slate-400">※ {timing.detail}</p>
+                  )}
                   {s.infoOnly && (
                     <p className="mt-1 text-amber-300/90">※ 販路開拓・業務効率化が主目的の制度です。設備費が補助対象経費になるかは事業計画次第のため、想定補助金・投資回収には含めていません。</p>
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm text-slate-500">条件に合致する補助金が見つかりません。条件を変更してください。</p>
