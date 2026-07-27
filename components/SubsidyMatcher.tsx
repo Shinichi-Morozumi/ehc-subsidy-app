@@ -108,7 +108,7 @@ export function SubsidyMatcher() {
   // 一度でも「即答」を押したら、以降は入力変更に結果を自動連動させる
   const [hasRun, setHasRun] = useState(false);
   const [eligTrigger, setEligTrigger] = useState(0);
-  const { setProject } = useProject();
+  const { setProject, setDraft, estimateManYen } = useProject();
   const [agreed, setAgreed] = useState(false);
   // プランナー②③で確定した補助金額・ご希望の補助金（提案書PDFへ反映）
   const [appliedSubsidyManYen, setAppliedSubsidyManYen] = useState<number>(0);
@@ -219,6 +219,12 @@ export function SubsidyMatcher() {
   useEffect(() => {
     if (result) setProject(input, result);
   }, [result, input, setProject]);
+
+  /* 「即答」前でも入力中の案件情報を下流（更新工事 見積シミュレーター）へ流す。
+     これで設備群を二重入力せずに済む。確定値(input/result)は上のuseEffectのまま。 */
+  useEffect(() => {
+    setDraft(input);
+  }, [input, setDraft]);
 
   const run = (checkEligibility?: boolean) => {
     if (input.bizType === "personal") {
@@ -444,7 +450,7 @@ export function SubsidyMatcher() {
         </div>
 
         <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="設備投資概算 (万円)" help={HELP.invest}>
+          <Field label="設備投資概算 (万円・税抜)" help={HELP.invest}>
             <div className="flex gap-2">
               <Input type="number" value={input.invest} onChange={(e) => set("invest", Number(e.target.value))} />
               <button
@@ -456,7 +462,26 @@ export function SubsidyMatcher() {
                 実勢で自動見積
               </button>
             </div>
-            <div className="text-[10px] text-slate-500 mt-1">「自動見積」=設備群の馬力×台数からPN見積実勢（標準グレード）で概算します。</div>
+            <div className="text-[10px] text-slate-500 mt-1">
+              <strong className="text-slate-300">この欄の役割＝補助金額・回収年数を判定するための「総額1本」。</strong>
+              明細（撤去・据付・産廃・諸経費…）は下の<strong className="text-ehc-300">「更新工事 見積シミュレーター」</strong>で作ります。
+              PNの正式見積がある場合はここに手入力で上書きしてください。
+            </div>
+            {estimateManYen != null && (
+              estimateManYen === input.invest ? (
+                <div className="mt-1.5 text-[10px] text-ehc-300 bg-ehc-500/10 border border-ehc-500/30 rounded-lg px-2 py-1.5">
+                  ✓ 下の見積シミュレーターの小計（{estimateManYen.toLocaleString("ja-JP")}万円・税抜）と一致しています。
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => set("invest", estimateManYen)}
+                  className="mt-1.5 w-full text-left text-[10px] text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-1.5 hover:bg-amber-500/20"
+                >
+                  ↑ 下の見積シミュレーターの小計は <strong>{estimateManYen.toLocaleString("ja-JP")}万円（税抜）</strong> です。クリックでこの欄に取り込む
+                </button>
+              )
+            )}
           </Field>
           <div className="flex items-end">
             <div className="text-[11px] text-slate-500 bg-white/5 border border-white/10 rounded-lg p-2.5 w-full">

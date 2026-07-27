@@ -232,24 +232,52 @@ export function estimateUpdateCost(opts: {
   return { machine, work, total: machine + work, units, grade, costClass, aerial, scaffoldRequired: needsScaffold(opts.floor) };
 }
 
-// 更新工事の明細内訳（PN見積を再現）。見積シミュレーター表示用。
+/* ───────── 更新工事の明細内訳（PN見積を再現） ─────────
+   ★唯一の見積エンジン。「案件情報の設備投資概算（実勢で自動見積）」と
+   「更新工事 見積シミュレーター」は必ずこの関数を経由し、同じ案件なら必ず同じ金額になる。
+
+   ※2026-07 の連動改修による意図的な挙動変更:
+     以前は estimateInvestManYenFromGroups() が設備群ごとに estimateUpdateCost() を呼んでいたため、
+     諸経費の下限 ¥50,000 と 系統数 ceil(台数/2) が「設備群ごと」に効いていた。
+     現在は1案件で1回だけ計上する（現場は1つなので実勢に近く、かつ上下の金額が一致する）。
+     設備群が3つある案件では概算が最大 ¥100,000 程度下がる。 */
 export interface EstimateLine { label: string; detail: string; amount: number; }
-export function estimateUpdateBreakdown(opts: {
-  units: number; hp: number; grade?: MachineGrade; costClass?: CostClass;
-  systems?: number; kg?: number; taxRate?: number; ancillary?: number; aerialDays?: number; floor?: number;
-}) {
-  const units = Math.max(0, Math.round(opts.units));
+export interface UpdateGroupInput { units: number; hp?: number; }
+export interface UpdateSiteOpts {
+  grade?: MachineGrade; costClass?: CostClass;
+  systems?: number; kg?: number; taxRate?: number;
+  ancillary?: number; aerialDays?: number; floor?: number;
+}
+
+export function estimateUpdateBreakdownGroups(groups: UpdateGroupInput[], opts: UpdateSiteOpts = {}) {
+  const gs = (groups ?? [])
+    .map((g) => ({ units: Math.max(0, Math.round(g.units || 0)), hp: Math.max(0, g.hp ?? 0) }))
+    .filter((g) => g.units > 0);
+  const units = gs.reduce((a, g) => a + g.units, 0);
   const grade = opts.grade ?? "standard";
   const costClass = opts.costClass ?? "standard";
-  const systems = Math.max(1, opts.systems ?? Math.ceil(units / 2));
+  // 台数0（未入力）のときは系統数も0にして、空の案件で諸経費だけが立つのを防ぐ
+  const systems = units > 0 ? Math.max(1, opts.systems ?? Math.ceil(units / 2)) : 0;
   const kg = Math.max(0, opts.kg ?? units * DEFAULT_KG_PER_UNIT);
   const ancillary = Math.max(0, opts.ancillary ?? 0);
   const aerialDays = Math.max(0, opts.aerialDays ?? 0);
   const taxRate = opts.taxRate ?? CONSUMPTION_TAX_RATE; // 既定は共通の消費税率（表示側もこの値を参照する）
-  const mc = estimateMachineCost(opts.hp, grade, costClass);
+  const gradeLabel = grade === "subsidy" ? "高効率/補助金グレード" : "標準グレード";
+  const classLabel = `${COST_CLASS[costClass].label}×${COST_CLASS[costClass].factor}`;
   const wasteVol = Math.round(units * WORK.wasteVolPerUnit * 10) / 10;
-  const baseLines: EstimateLine[] = [
-    { label: "機器費（室内外セット）", detail: `${opts.hp || "-"}馬力 × ${units}台（${grade === "subsidy" ? "高効率/補助金グレード" : "標準グレード"}・${COST_CLASS[costClass].label}×${COST_CLASS[costClass].factor}）`, amount: units * mc },
+
+  // 機器費は設備群ごとに1行（馬力が違えば単価も違うため合算しない）
+  const machineLines: EstimateLine[] = gs.length
+    ? gs.map((g, i) => ({
+        label: gs.length > 1 ? `機器費（室内外セット）${i + 1}` : "機器費（室内外セット）",
+        detail: `${g.hp || "-"}馬力 × ${g.units}台（${gradeLabel}・${classLabel}）`,
+        amount: g.units * estimateMachineCost(g.hp, grade, costClass),
+      }))
+    : [{ label: "機器費（室内外セット）", detail: `-馬力 × 0台（${gradeLabel}・${classLabel}）`, amount: 0 }];
+  const machine = machineLines.reduce((a, l) => a + l.amount, 0);
+
+  // 工事費は現場単位（台数・系統数の合計で1回だけ計上）
+  const workLines: EstimateLine[] = [
     { label: "既設室内機 撤去", detail: `¥${WORK.removeIndoorPerUnit.toLocaleString()}/台 × ${units}`, amount: units * WORK.removeIndoorPerUnit },
     { label: "既設室外機 撤去", detail: `¥${WORK.removeOutdoorPerUnit.toLocaleString()}/台 × ${units}`, amount: units * WORK.removeOutdoorPerUnit },
     { label: "新設室内機 据付", detail: `¥${WORK.installIndoorPerUnit.toLocaleString()}/台 × ${units}`, amount: units * WORK.installIndoorPerUnit },
@@ -261,29 +289,38 @@ export function estimateUpdateBreakdown(opts: {
     { label: "産業廃棄物処理", detail: `¥${WORK.wastePerCubicMeter.toLocaleString()}/㎥ × 約${wasteVol}㎥`, amount: Math.round(units * WORK.wasteVolPerUnit * WORK.wastePerCubicMeter) },
   ];
   if (aerialDays > 0) {
-    baseLines.push({ label: "高所作業車", detail: `¥${SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日 × ${aerialDays}日`, amount: Math.round(aerialDays * SITE_ACCESS.aerialLiftPerDay) });
+    workLines.push({ label: "高所作業車", detail: `¥${SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日 × ${aerialDays}日`, amount: Math.round(aerialDays * SITE_ACCESS.aerialLiftPerDay) });
   }
-  const preOverhead = baseLines.slice(1).reduce((a, l) => a + l.amount, 0); // 機器費を除く工事小計
-  const overhead = Math.max(WORK.overheadMin, Math.round(preOverhead * WORK.overheadRate));
-  const lines: EstimateLine[] = [...baseLines, { label: "諸経費", detail: `工事小計×${Math.round(WORK.overheadRate * 100)}%（下限¥${WORK.overheadMin.toLocaleString()}）`, amount: overhead }];
-  if (ancillary > 0) lines.push({ label: "付帯工事", detail: "配管更新・リモコン・養生・夜間割増ほか", amount: ancillary });
+  const preOverhead = workLines.reduce((a, l) => a + l.amount, 0); // 機器費を除く工事小計
+  const overhead = units > 0 ? Math.max(WORK.overheadMin, Math.round(preOverhead * WORK.overheadRate)) : 0;
+  workLines.push({ label: "諸経費", detail: `工事小計×${Math.round(WORK.overheadRate * 100)}%（下限¥${WORK.overheadMin.toLocaleString()}）`, amount: overhead });
+  if (ancillary > 0) workLines.push({ label: "付帯工事", detail: "配管更新・リモコン・養生・夜間割増ほか", amount: ancillary });
+
+  const lines: EstimateLine[] = [...machineLines, ...workLines];
   const subtotal = lines.reduce((a, l) => a + l.amount, 0);
   const tax = Math.round(subtotal * taxRate);
-  const machine = units * mc;
   const aerial = Math.round(aerialDays * SITE_ACCESS.aerialLiftPerDay);
   return {
     lines, subtotal, tax, taxRate, total: subtotal + tax, machine, work: subtotal - machine,
-    units, systems, kg, grade, costClass, aerial, aerialDays,
+    units, systems, kg, grade, costClass, aerial, aerialDays, groups: gs,
     scaffoldRequired: needsScaffold(opts.floor), floor: opts.floor ?? 1,
   };
 }
 
-// 設備グループ（馬力×台数）から設備投資額(万円)を実勢で自動概算。補助金マッチングのROI連動用。
+// 単一設備（馬力×台数1種類）版。中身は estimateUpdateBreakdownGroups と同一エンジン。
+export function estimateUpdateBreakdown(opts: {
+  units: number; hp: number; grade?: MachineGrade; costClass?: CostClass;
+  systems?: number; kg?: number; taxRate?: number; ancillary?: number; aerialDays?: number; floor?: number;
+}) {
+  return estimateUpdateBreakdownGroups([{ units: opts.units, hp: opts.hp }], opts);
+}
+
+/* 設備グループ（馬力×台数）から設備投資額(万円・税抜)を実勢で自動概算。補助金マッチングのROI連動用。
+   見積シミュレーターと同じ estimateUpdateBreakdownGroups を通すので、両者の金額は必ず一致する。 */
 export function estimateInvestManYenFromGroups(
   groups: { units: number; hp?: number }[], grade: MachineGrade = "standard", costClass: CostClass = "standard"
 ): number {
-  const yen = groups.reduce((a, g) => a + estimateUpdateCost({ units: g.units, hp: g.hp ?? 0, grade, costClass }).total, 0);
-  return Math.round(yen / 10000);
+  return Math.round(estimateUpdateBreakdownGroups(groups, { grade, costClass }).subtotal / 10000);
 }
 
 export const yenJP = (n: number) => `¥${Math.round(n).toLocaleString("ja-JP")}`;
