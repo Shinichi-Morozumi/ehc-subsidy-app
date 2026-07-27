@@ -19,7 +19,7 @@ import { useProject } from "./ProjectContext";
 import { RoadmapView } from "./RoadmapView";
 import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
-import { estimateInvestManYenFromGroups, CO2_TON_PER_KWH } from "@/lib/pricing";
+import { estimateInvestManYenFromGroups, estimateAnnualKwhFromGroups, KWH_PER_HP_YEAR, DEFAULT_HP_WHEN_UNKNOWN, CO2_TON_PER_KWH } from "@/lib/pricing";
 
 let GID = 0;
 const newGroup = (over: Partial<EquipGroup> = {}): EquipGroup => ({
@@ -414,8 +414,26 @@ export function SubsidyMatcher() {
           </div>
           {input.kwhMode === "auto" ? (
             <Field label="年間総電力使用量 (kWh)" help={HELP.kwh}>
-              <Input type="number" value={input.kwh} onChange={(e) => set("kwh", Number(e.target.value))} />
-              <div className="text-[10px] text-slate-500 mt-1">各設備グループへ「台数×馬力」で自動按分します（馬力未入力は台数で按分）。</div>
+              <div className="flex gap-2">
+                <Input type="number" value={input.kwh} onChange={(e) => set("kwh", Number(e.target.value))} />
+                <button
+                  type="button"
+                  onClick={() => set("kwh", estimateAnnualKwhFromGroups(input.equipGroups))}
+                  disabled={!input.equipGroups.some((g) => (g.units ?? 0) > 0)}
+                  className="whitespace-nowrap text-[11px] px-2.5 rounded-lg border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="電気代の請求書が手元にないときの目安値を、設備グループの馬力×台数から自動で入れます"
+                >
+                  一般値で自動計算
+                </button>
+              </div>
+              <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                <strong className="text-slate-300">この欄の役割＝削減kWh・電気代削減額・CO2削減量を出すための元データ。</strong>
+                入れた値は各設備グループへ「台数×馬力」で自動按分します（馬力未入力は台数で按分）。<br />
+                <strong className="text-cobalt-200">「一般値で自動計算」</strong>＝請求書が手元にないとき用の目安。
+                業務用エアコンの一般値<strong className="text-slate-300">1馬力あたり約{KWH_PER_HP_YEAR.toLocaleString()}kWh/年</strong>で計算します
+                （馬力未入力は{DEFAULT_HP_WHEN_UNKNOWN}馬力と仮定・空調分のみ）。
+                <strong className="text-slate-300">請求書やエニマス実測がある場合は必ずそちらを手入力してください。</strong>
+              </div>
             </Field>
           ) : (
             <div className="space-y-2">
@@ -456,16 +474,19 @@ export function SubsidyMatcher() {
               <button
                 type="button"
                 onClick={() => set("invest", estimateInvestManYenFromGroups(input.equipGroups))}
-                className="whitespace-nowrap text-[11px] px-2.5 rounded-lg border border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10"
-                title="設備の馬力×台数からPN実勢単価で自動概算"
+                disabled={!input.equipGroups.some((g) => (g.units ?? 0) > 0)}
+                className="whitespace-nowrap text-[11px] px-2.5 rounded-lg border border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="設備グループの馬力×台数から、PN実勢単価（機器費＋撤去・据付・配管・電気・産廃・諸経費）で総額を自動概算します"
               >
                 実勢で自動見積
               </button>
             </div>
-            <div className="text-[10px] text-slate-500 mt-1">
+            <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">
               <strong className="text-slate-300">この欄の役割＝補助金額・回収年数を判定するための「総額1本」。</strong>
-              明細（撤去・据付・産廃・諸経費…）は下の<strong className="text-ehc-300">「更新工事 見積シミュレーター」</strong>で作ります。
-              PNの正式見積がある場合はここに手入力で上書きしてください。
+              明細（撤去・据付・産廃・諸経費…）は下の<strong className="text-ehc-300">「更新工事 見積シミュレーター」</strong>で作ります。<br />
+              <strong className="text-ehc-300">「実勢で自動見積」</strong>＝設備グループの<strong className="text-slate-300">馬力×台数</strong>から、
+              PN実勢単価（機器費＋撤去・据付・配管・電気工事＋フロン回収/破壊＋産廃＋諸経費）で総額を自動計算します。標準グレード・現場条件なしの前提です。<br />
+              <strong className="text-slate-300">PNの正式見積がある場合は、この欄に手入力で上書きしてください。</strong>
             </div>
             {estimateManYen != null && (
               estimateManYen === input.invest ? (

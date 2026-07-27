@@ -58,6 +58,25 @@ export const DROPIN_INDUSTRY_FACTOR: Record<string, { factor: number; label: str
 // フロンガス破壊費（円/kg）※碓井さん・桝口さん確認: 高騰により¥3,000/kg。ドロップイン/更新工事で共通。
 export const GAS_DESTROY_PER_KG = 3000;
 
+/* ── 年間消費電力量の目安（電気代の請求書が手元にないとき用） ──
+   業務用パッケージエアコンのJIS期間消費電力量は概ね「馬力 × 1,000〜1,200 kWh/年」の範囲
+   （例: 4馬力 ≒ 4,400 kWh/年）。ここでは中間値 1,100 を採用する。
+   ※あくまで空調分のみの目安。請求書の実数値やエニマス等の実測がある場合は必ずそちらを優先する。 */
+export const KWH_PER_HP_YEAR = 1100;
+export const DEFAULT_HP_WHEN_UNKNOWN = 4; // 馬力未入力のグループに仮置きする馬力
+
+export function estimateAnnualKwhFromGroups(groups: { units: number; hp?: number }[]): number {
+  const total = (groups ?? []).reduce(
+    (a, g) =>
+      a +
+      Math.max(0, Math.round(g.units || 0)) *
+        (g.hp && g.hp > 0 ? g.hp : DEFAULT_HP_WHEN_UNKNOWN) *
+        KWH_PER_HP_YEAR,
+    0
+  );
+  return Math.round(total / 100) * 100; // 100kWh単位に丸め（目安であることを見た目でも示す）
+}
+
 /* ── HCガス材料単価（円/kg・税抜）の並記 ──
    sale: 大塚倉庫 実見積（HyChill 8.14kg＝¥472,120 → ¥58,000/kg・お客様向け販売単価）
    purchase: 仕入単価 ¥23,000/kg（桝口さん確認・2026-07）。MODE を "purchase" にすると原価ベースで試算。 */
