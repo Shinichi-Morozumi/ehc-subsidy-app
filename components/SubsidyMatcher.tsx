@@ -593,18 +593,30 @@ export function SubsidyMatcher() {
           <div id="agree-section" className="no-print">
           <Card className={!agreed ? "border-2 border-amber-400/70 ring-2 ring-amber-400/20" : ""}>
             <label className="flex items-start gap-2.5 text-sm text-slate-200 cursor-pointer">
-              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 w-5 h-5 accent-amber-400 flex-shrink-0" />
+              <input
+                type="checkbox"
+                checked={agreed}
+                onChange={(e) => {
+                  setAgreed(e.target.checked);
+                  if (e.target.checked) {
+                    setTimeout(() => document.getElementById("customer-report")?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+                  }
+                }}
+                className="mt-0.5 w-5 h-5 accent-amber-400 flex-shrink-0"
+              />
               <span>上記の補助金情報が<strong className="text-white">あくまで目安</strong>であり、公募内容・締切は予告なく変更されるため、最新条件は公募要領／当社で要確認であることを理解しました。（お客様提案書の表示・PDF出力に同意します）</span>
             </label>
           </Card>
           </div>
           {agreed && (
-            <CustomerReport
-              input={input}
-              result={result}
-              appliedSubsidyManYen={appliedSubsidyManYen}
-              appliedSubsidy={appliedSubsidy}
-            />
+            <div id="customer-report" className="scroll-mt-4">
+              <CustomerReport
+                input={input}
+                result={result}
+                appliedSubsidyManYen={appliedSubsidyManYen}
+                appliedSubsidy={appliedSubsidy}
+              />
+            </div>
           )}
 
           {/* 同意するまで画面下に固定するバー（見落とし防止）。押すと同意→提案書表示へ */}
@@ -621,7 +633,11 @@ export function SubsidyMatcher() {
                 <button
                   onClick={() => {
                     setAgreed(true);
-                    setTimeout(() => document.getElementById("result-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+                    // 提案書本体（PDF出力ボタンがある場所）まで送る。result-section だと結果の先頭に戻ってしまい「PDFがどこにも無い」ように見える
+                    setTimeout(() => {
+                      const el = document.getElementById("customer-report") ?? document.getElementById("result-section");
+                      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }, 150);
                   }}
                   className="flex-shrink-0 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-night-900 font-bold text-sm px-4 py-2.5 rounded-xl shadow-card transition-all whitespace-nowrap"
                 >

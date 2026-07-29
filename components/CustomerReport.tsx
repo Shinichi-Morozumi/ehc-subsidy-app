@@ -60,8 +60,10 @@ export function CustomerReport({
     { val: input.customerPhone, id: "customer-phone-input", label: "電話番号" },
     { val: input.customerAddress, id: "customer-address-input", label: "住所" },
   ];
-  const firstMissing = requiredFields.find((f) => !(f.val ?? "").trim());
+  const missingFields = requiredFields.filter((f) => !(f.val ?? "").trim());
+  const firstMissing = missingFields[0];
   const customerReady = !firstMissing;
+  const missingLabels = missingFields.map((f) => f.label).join("・");
   // クリック時の注意メッセージ（一定時間で自動的に消える）
   const [reqNotice, setReqNotice] = useState<string | null>(null);
   // 印刷/PDF後の「EHC・PNへ自動送信」確認パネルの表示制御と送信状態
@@ -71,26 +73,32 @@ export function CustomerReport({
   // PDF化する提案書本体（この要素をそのままキャプチャして添付）
   const reportRef = useRef<HTMLDivElement>(null);
 
+  // 未入力の必須欄まで画面を送ってフォーカス＆ハイライトする（PDFボタン／案内パネルの両方から呼ぶ）
+  const goToFirstMissing = () => {
+    if (!firstMissing) return;
+    const section = document.getElementById("customer-info-section");
+    const field = document.getElementById(firstMissing.id) as HTMLInputElement | null;
+    (section ?? field)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (field) {
+      window.setTimeout(() => {
+        field.focus();
+        field.classList.add("ring-2", "ring-amber-400", "border-amber-400");
+        window.setTimeout(
+          () => field.classList.remove("ring-2", "ring-amber-400", "border-amber-400"),
+          2000
+        );
+      }, 400);
+    }
+  };
+
   const handlePrint = () => {
     if (firstMissing) {
       // 未入力の必須項目があれば、印刷を止めてクリック時にメッセージを表示し、該当欄まで自動スクロール＆フォーカスして誘導
       setReqNotice(
-        `PDFを取得するには必要情報（会社名・メール・電話・住所）の記入が必要です。未入力の「${firstMissing.label}」欄へご案内しました。`
+        `PDFを出すには「お客様情報」の ${missingLabels} の入力が必要です。未入力の「${firstMissing.label}」欄へご案内しました。入力してこのボタンをもう一度押すとPDFが出力できます。`
       );
-      window.setTimeout(() => setReqNotice(null), 6000);
-      const section = document.getElementById("customer-info-section");
-      const field = document.getElementById(firstMissing.id) as HTMLInputElement | null;
-      (section ?? field)?.scrollIntoView({ behavior: "smooth", block: "center" });
-      if (field) {
-        window.setTimeout(() => {
-          field.focus();
-          field.classList.add("ring-2", "ring-amber-400", "border-amber-400");
-          window.setTimeout(
-            () => field.classList.remove("ring-2", "ring-amber-400", "border-amber-400"),
-            2000
-          );
-        }, 400);
-      }
+      window.setTimeout(() => setReqNotice(null), 8000);
+      goToFirstMissing();
       return;
     }
     setReqNotice(null);
@@ -275,16 +283,30 @@ ${result.ehcPlan}
         <div className="flex flex-col items-end gap-1.5">
           <button
             onClick={handlePrint}
-            title={customerReady ? "" : "押すと未入力の必須項目（会社名・メール・電話・住所）へご案内します"}
+            title={customerReady ? "" : `お客様情報の ${missingLabels} が未入力です。押すと入力欄へご案内します`}
             className="bg-gradient-to-r from-ehc-700 to-ehc-600 hover:from-ehc-800 hover:to-ehc-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-card hover:shadow-lift transition-all"
           >
             <Printer className="w-4 h-4" />
             印刷 / PDF保存
           </button>
           {!customerReady && (
-            <span className="text-[11px] text-amber-600 font-medium">
-              PDF出力には会社名・メール・電話・住所の入力が必要です
-            </span>
+            <div className="max-w-[320px] text-left text-[12px] leading-snug text-amber-100 bg-amber-500/10 border border-amber-400/60 rounded-lg px-3 py-2.5 shadow-card space-y-2">
+              <p className="font-bold text-amber-300">PDF出力まであと1ステップ</p>
+              <p>
+                画面上部の<strong className="text-white">「お客様情報」</strong>にご入力ください。未入力：
+                <strong className="text-white">{missingLabels}</strong>
+              </p>
+              <p className="text-amber-200/90">
+                入力後、この<strong className="text-white">「印刷 / PDF保存」</strong>ボタンからPDFを保存できます。
+              </p>
+              <button
+                type="button"
+                onClick={goToFirstMissing}
+                className="w-full bg-amber-400 hover:bg-amber-300 text-night-900 font-bold px-3 py-1.5 rounded-md transition-colors"
+              >
+                お客様情報の入力欄へ移動
+              </button>
+            </div>
           )}
           {reqNotice && (
             <div
