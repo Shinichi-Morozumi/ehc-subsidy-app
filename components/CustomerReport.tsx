@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { MatchInput, Subsidy } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
@@ -64,8 +64,8 @@ export function CustomerReport({
   const firstMissing = missingFields[0];
   const customerReady = !firstMissing;
   const missingLabels = missingFields.map((f) => f.label).join("・");
-  // クリック時の注意メッセージ（一定時間で自動的に消える）
-  const [reqNotice, setReqNotice] = useState<string | null>(null);
+  // 未入力のままPDFボタンを押したときに出すライトボックス（モーダル）の表示制御
+  const [showReqModal, setShowReqModal] = useState(false);
   // 印刷/PDF後の「EHC・PNへ自動送信」確認パネルの表示制御と送信状態
   const [showSend, setShowSend] = useState(false);
   const [sending, setSending] = useState(false);
@@ -73,8 +73,19 @@ export function CustomerReport({
   // PDF化する提案書本体（この要素をそのままキャプチャして添付）
   const reportRef = useRef<HTMLDivElement>(null);
 
-  // 未入力の必須欄まで画面を送ってフォーカス＆ハイライトする（PDFボタン／案内パネルの両方から呼ぶ）
+  // ライトボックスは Esc でも閉じられるようにする
+  useEffect(() => {
+    if (!showReqModal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowReqModal(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showReqModal]);
+
+  // 未入力の必須欄まで画面を送ってフォーカス＆ハイライトする（PDFボタン／案内パネル／モーダルから呼ぶ）
   const goToFirstMissing = () => {
+    setShowReqModal(false);
     if (!firstMissing) return;
     const section = document.getElementById("customer-info-section");
     const field = document.getElementById(firstMissing.id) as HTMLInputElement | null;
@@ -93,15 +104,11 @@ export function CustomerReport({
 
   const handlePrint = () => {
     if (firstMissing) {
-      // 未入力の必須項目があれば、印刷を止めてクリック時にメッセージを表示し、該当欄まで自動スクロール＆フォーカスして誘導
-      setReqNotice(
-        `PDFを出すには「お客様情報」の ${missingLabels} の入力が必要です。未入力の「${firstMissing.label}」欄へご案内しました。入力してこのボタンをもう一度押すとPDFが出力できます。`
-      );
-      window.setTimeout(() => setReqNotice(null), 8000);
-      goToFirstMissing();
+      // 未入力の必須項目があれば、印刷を止めてライトボックス（モーダル）で理由と手順を伝える
+      setShowReqModal(true);
       return;
     }
-    setReqNotice(null);
+    setShowReqModal(false);
     // 印刷/PDF保存が終わったら、確認を挟まずEHC（+PN cc）へPDF添付で即自動送信する
     const onAfterPrint = () => {
       window.removeEventListener("afterprint", onAfterPrint);
@@ -276,6 +283,66 @@ ${result.ehcPlan}
 
   return (
     <Card className="border-2 border-ehc-200 customer-report">
+      {/* 未入力のままPDFボタンを押したときのライトボックス（印刷には出さない） */}
+      {showReqModal && !customerReady && (
+        <div
+          className="no-print fixed inset-0 z-[100] flex items-center justify-center p-4 bg-night-900/70 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pdf-req-modal-title"
+          onClick={() => setShowReqModal(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-2xl shadow-lift border border-ehc-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-amber-50 border-b border-amber-200 px-5 py-3.5 flex items-start gap-2.5">
+              <ClipboardList className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 id="pdf-req-modal-title" className="font-bold text-amber-900 leading-tight">
+                  PDF出力まであと1ステップ
+                </h3>
+                <p className="text-[12px] text-amber-800 mt-0.5">
+                  提案書PDFのお名前・宛先の記載に必要な項目が未入力です。
+                </p>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3 text-sm text-gray-800">
+              <div>
+                <p className="text-[12px] font-semibold text-gray-500 mb-1.5">未入力の項目</p>
+                <ul className="space-y-1">
+                  {missingFields.map((f) => (
+                    <li key={f.id} className="flex items-center gap-2 text-[13px]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                      <span className="font-semibold">{f.label}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p className="text-[13px] leading-relaxed bg-ehc-50 border border-ehc-200 rounded-lg px-3 py-2.5">
+                画面上部の<strong>「お客様情報」</strong>に上記をご入力ください。入力後、この
+                <strong>「印刷 / PDF保存」</strong>ボタンを押すとPDFが出力できます。
+              </p>
+            </div>
+            <div className="px-5 pb-5 flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={goToFirstMissing}
+                className="flex-1 bg-gradient-to-r from-ehc-700 to-ehc-600 hover:from-ehc-800 hover:to-ehc-700 text-white font-bold px-4 py-2.5 rounded-lg text-sm shadow-card transition-all"
+              >
+                「{firstMissing?.label}」の入力欄へ移動
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowReqModal(false)}
+                className="sm:w-28 border border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5 no-print">
         <CardTitle icon={<FileText className="w-5 h-5" />} className="border-b-0 pb-0 mb-0">
           お客様向け提案書
@@ -306,14 +373,6 @@ ${result.ehcPlan}
               >
                 お客様情報の入力欄へ移動
               </button>
-            </div>
-          )}
-          {reqNotice && (
-            <div
-              role="alert"
-              className="max-w-[280px] text-right text-[12px] leading-snug text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 shadow-card"
-            >
-              {reqNotice}
             </div>
           )}
           {showSend && (
