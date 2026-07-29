@@ -3,6 +3,16 @@ export type BizType = "business" | "personal";
 export type SizeType = "sme" | "middle" | "large";
 export type RefriType = "r22" | "r410a" | "r32" | "unknown";
 
+// AIヒアリングの冒頭で伺う「今日のご関心」。以降の案内先（タブ/CTA）と提案書・メールの記載に使う
+export type InterestType = "subsidy" | "energy" | "dropin" | "update" | "unsure";
+export const INTEREST_LABELS: Record<InterestType, string> = {
+  subsidy: "補助金でいくら安くなるか",
+  energy: "電気代を下げたい",
+  dropin: "冷媒だけ入替（ドロップイン）",
+  update: "機器の入替・更新工事",
+  unsure: "まだ決めていない・おまかせ",
+};
+
 export interface Subsidy {
   id: string;
   name: string;
@@ -75,4 +85,5 @@ export interface MatchInput {
   customerPhone: string;
   customerAddress: string;
   ehcStaff: string;
+  interest?: InterestType; // AIヒアリング冒頭で選ばれたご関心（任意）
 }

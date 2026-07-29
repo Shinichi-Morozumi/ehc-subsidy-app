@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MatchInput, SizeType, EquipType, RefriType } from "@/lib/types";
+import { MatchInput, SizeType, EquipType, RefriType, InterestType, INTEREST_LABELS } from "@/lib/types";
 import { estimateInvestManYenFromGroups } from "@/lib/pricing";
+import { useTabSwitch } from "./ui/Tabs";
 import { MessageCircle, Send, Sparkles, X, RotateCcw, Wand2, CheckCircle2, CornerUpLeft } from "lucide-react";
 
 /* ───────────────────────────────────────────────────────────
@@ -22,11 +23,6 @@ const CY = new Date().getFullYear();
 const UNKNOWN = "__unknown__";
 // 自由入力で「わからない」系の言葉が来たら、わからないボタンと同じ扱いにする
 const UNKNOWN_WORDS = /^(わからない|分からない|わかりません|分かりません|わかんない|不明|しらない|知らない|おまかせ|お任せ|特になし|なし)$/;
-
-// 設備群ステップの範囲（この間だけ「N系統目」を頭に付ける）
-const GROUP_START = 7; // refri
-const GROUP_END = 11; // hp
-const MORE_STEP = 12; // moreEquip
 
 let HGID = 0;
 const newGroup = (): MatchInput["equipGroups"][number] => ({
@@ -118,6 +114,31 @@ const estKwhFromGroups = (input: MatchInput): number => {
   return Math.max(10000, Math.round(kwh / 1000) * 1000);
 };
 
+// ご関心に応じた「次の一手」。提案書作成のあとに見てもらうタブと、その案内文を切り替える
+const INTEREST_NEXT: Record<InterestType, { tab: string; label: string; lead: string } | null> = {
+  subsidy: {
+    tab: "db",
+    label: "補助金DBを見る",
+    lead: "補助金の該当可否と実質負担額をいちばん知りたい、というご関心でした。まずは「提案書＋補助金の該当チェック」で、要件を1問ずつ確認しましょう。",
+  },
+  energy: {
+    tab: "breaker",
+    label: "電気の基本料金も下げる",
+    lead: "電気代の削減がご関心でした。提案書に年間削減額と回収年数が出ます。基本料金側の削減（電子ブレーカー）も併せてご覧いただけます。",
+  },
+  dropin: {
+    tab: "dropin",
+    label: "ドロップインの詳細を見る",
+    lead: "冷媒だけを入れ替えるドロップインがご関心でした。提案書を作成したあと、ドロップインのページで工事内容・工期・適用条件をご確認ください。",
+  },
+  update: {
+    tab: "roadmap",
+    label: "更新の進め方を見る",
+    lead: "機器の入替・更新工事がご関心でした。提案書を作成したあと、導入ロードマップで公募スケジュールに合わせた進め方をご確認ください。",
+  },
+  unsure: null,
+};
+
 const BUILDINGS: Chip[] = [
   { label: "オフィス・事務所", value: "office" },
   { label: "小売店舗", value: "retail" },
@@ -140,53 +161,33 @@ const buildingFromText = (raw: string): string => {
 
 const STEPS: Step[] = [
   {
-    id: "company",
-    ask: (t) => (t === "sales" ? "お客様の会社名を教えてください。（提案書のヘッダーに載ります）" : "御社名を教えてください。（提案書のヘッダーに表示されます）"),
+    id: "interest",
+    ask: (t) =>
+      t === "sales"
+        ? "まず、お客様が今いちばん気にされているのはどれですか？（あとで変えられます）"
+        : "まず、今いちばん気になっていることを教えてください。（あとで変えられます）",
+    chips: [
+      { label: "補助金でいくら安くなるか", value: "subsidy" },
+      { label: "電気代を下げたい", value: "energy" },
+      { label: "冷媒だけ入替（ドロップイン）", value: "dropin" },
+      { label: "機器の入替・更新工事", value: "update" },
+      { label: "まだ決めていない・おまかせ", value: "unsure" },
+    ],
+    allowUnknown: false, // 「まだ決めていない」チップが実値なので3段階処理は不要
+    apply: (v, { setInput }) => setInput((p) => ({ ...p, interest: v as InterestType })),
+  },
+  {
+    id: "pref",
+    ask: () => "設備がある場所の都道府県はどちらですか？国だけでなく、地域の補助金も自動で判定します。",
+    chips: PREFS_IN_SELECT.map((p) => ({ label: p, value: p })),
     freeInput: "text",
-    placeholder: "例: 株式会社○○",
-    apply: (v, { setInput }) => setInput((p) => ({ ...p, customerCompany: v.trim() })),
-    fallback: () => ({ note: "会社名：未入力（あとでフォームに入力してください）" }),
-  },
-  {
-    id: "contact",
-    ask: () => "ご担当者様のお名前は？（任意。なければ「わからない」でOK）",
-    freeInput: "text",
-    placeholder: "例: 田中",
-    apply: (v, { setInput }) => setInput((p) => ({ ...p, customerContact: v.trim() })),
-    fallback: () => ({ note: null }),
-  },
-  {
-    id: "email",
-    ask: () => "ご連絡用のメールアドレスを教えてください。",
-    freeInput: "email",
-    placeholder: "例: info@example.co.jp",
-    parse: (raw) => (/\S+@\S+\.\S+/.test(raw) ? raw.trim() : null),
-    apply: (v, { setInput }) => setInput((p) => ({ ...p, customerEmail: v })),
-    fallback: () => ({ note: "メール：未入力（提案書PDFの送付に必要です）" }),
-  },
-  {
-    id: "phone",
-    ask: () => "お電話番号を教えてください。",
-    freeInput: "tel",
-    placeholder: "例: 03-1234-5678",
-    parse: (raw) => {
-      const digits = raw.replace(/[^\d]/g, "");
-      return digits.length >= 9 ? raw.trim() : null;
+    placeholder: "自由入力でもOK（例: 兵庫県）",
+    parse: (raw) => prefFromAddress(raw.trim()) ?? null,
+    apply: (v, { setInput }) => setInput((p) => ({ ...p, pref: v })),
+    fallback: ({ setInput }) => {
+      setInput((p) => ({ ...p, pref: "東京都" }));
+      return { note: "都道府県：東京都として概算（地域補助金は要確認）" };
     },
-    apply: (v, { setInput }) => setInput((p) => ({ ...p, customerPhone: v })),
-    fallback: () => ({ note: "電話：未入力（提案書PDFに必要です）" }),
-  },
-  {
-    id: "address",
-    ask: () => "所在地（ご住所）を教えてください。都道府県から地域の補助金も自動で判定します。",
-    freeInput: "text",
-    placeholder: "例: 東京都新宿区西新宿1-1-1 ○○ビル3F",
-    apply: (v, { setInput }) => {
-      const addr = v.trim();
-      const pref = prefFromAddress(addr);
-      setInput((p) => ({ ...p, customerAddress: addr, ...(pref ? { pref } : {}) }));
-    },
-    fallback: () => ({ note: "住所：未入力（提案書PDFに必要です）" }),
   },
   {
     id: "building",
@@ -355,7 +356,62 @@ const STEPS: Step[] = [
       return { note: `設備投資：約${est.toLocaleString("ja-JP")}万円（実勢単価で自動見積）` };
     },
   },
+  // ── ここから連絡先（提案書PDF・メール送付用）。診断の質問が終わってから最後にまとめて伺う ──
+  {
+    id: "company",
+    ask: (t) => (t === "sales" ? "診断はここまでです。最後に提案書の宛名を伺います。お客様の会社名を教えてください。" : "診断はここまでです。最後に提案書の宛名を伺います。御社名を教えてください。"),
+    freeInput: "text",
+    placeholder: "例: 株式会社○○",
+    apply: (v, { setInput }) => setInput((p) => ({ ...p, customerCompany: v.trim() })),
+    fallback: () => ({ note: "会社名：未入力（あとでフォームに入力してください）" }),
+  },
+  {
+    id: "contact",
+    ask: () => "ご担当者様のお名前は？（任意。なければ「わからない」でOK）",
+    freeInput: "text",
+    placeholder: "例: 田中",
+    apply: (v, { setInput }) => setInput((p) => ({ ...p, customerContact: v.trim() })),
+    fallback: () => ({ note: null }),
+  },
+  {
+    id: "email",
+    ask: () => "提案書PDFのお届け先メールアドレスを教えてください。",
+    freeInput: "email",
+    placeholder: "例: info@example.co.jp",
+    parse: (raw) => (/\S+@\S+\.\S+/.test(raw) ? raw.trim() : null),
+    apply: (v, { setInput }) => setInput((p) => ({ ...p, customerEmail: v })),
+    fallback: () => ({ note: "メール：未入力（提案書PDFの送付に必要です）" }),
+  },
+  {
+    id: "phone",
+    ask: () => "お電話番号を教えてください。",
+    freeInput: "tel",
+    placeholder: "例: 03-1234-5678",
+    parse: (raw) => {
+      const digits = raw.replace(/[^\d]/g, "");
+      return digits.length >= 9 ? raw.trim() : null;
+    },
+    apply: (v, { setInput }) => setInput((p) => ({ ...p, customerPhone: v })),
+    fallback: () => ({ note: "電話：未入力（提案書PDFに必要です）" }),
+  },
+  {
+    id: "address",
+    ask: () => "最後に、所在地（ご住所）を教えてください。提案書に記載します。",
+    freeInput: "text",
+    placeholder: "例: 東京都新宿区西新宿1-1-1 ○○ビル3F",
+    apply: (v, { setInput }) => {
+      const addr = v.trim();
+      const pref = prefFromAddress(addr);
+      setInput((p) => ({ ...p, customerAddress: addr, ...(pref ? { pref } : {}) }));
+    },
+    fallback: () => ({ note: "住所：未入力（提案書PDFに必要です）" }),
+  },
 ];
+
+// 設備群ステップの範囲（この間だけ「N系統目」を頭に付ける）。並び替えに強いようidから引く
+const stepIdx = (id: string) => STEPS.findIndex((s) => s.id === id);
+const GROUP_START = stepIdx("refri");
+const GROUP_END = stepIdx("hp");
 
 export function HearingChat({
   input,
@@ -376,6 +432,9 @@ export function HearingChat({
   const [history, setHistory] = useState<Snap[]>([]);
   const [draft, setDraft] = useState("");
   const [done, setDone] = useState(false);
+  const switchTab = useTabSwitch(); // ご関心に応じて別タブ（ドロップイン等）へ案内する
+  const interest = input.interest;
+  const nextByInterest = interest ? INTEREST_NEXT[interest] : null;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef(input);
   inputRef.current = input;
@@ -416,8 +475,8 @@ export function HearingChat({
         role: "bot",
         text:
           t === "sales"
-            ? "承知しました。営業担当モードで進めます。お客様に聞きながら、順番に答えてください。「わからない」を押せば、こちらで概算して補完します。入力ミスは「1つ戻る」でいつでも直せます。"
-            : "ありがとうございます。かんたんな質問に答えるだけで、お見積り・補助金診断ができます。わからない項目は「わからない」を押せば、こちらで概算します。入力ミスは「1つ戻る」でいつでも直せます。",
+            ? "承知しました。営業担当モードで進めます。まずご関心と設備のことから伺い、会社名やご連絡先は最後にまとめてお聞きします。「わからない」を押せば、こちらで概算して補完します。入力ミスは「1つ戻る」でいつでも直せます。"
+            : "ありがとうございます。かんたんな質問に答えるだけで、お見積り・補助金診断ができます。はじめにご関心と設備のことだけ伺い、会社名やご連絡先は最後にまとめてお聞きします。わからない項目は「わからない」を押せば、こちらで概算します。入力ミスは「1つ戻る」でいつでも直せます。",
       },
       { role: "bot", text: STEPS[0].ask(t) },
     ]);
@@ -706,6 +765,13 @@ export function HearingChat({
                         <CheckCircle2 className="w-4 h-4 text-ehc-400" /> すべて入力いただけました。
                       </p>
                     )}
+                    {interest && (
+                      <div className="mb-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
+                        <p className="text-[10.5px] text-slate-400 mb-0.5">ご関心</p>
+                        <p className="text-[12px] font-bold text-ehc-200 mb-1">{INTEREST_LABELS[interest]}</p>
+                        {nextByInterest && <p className="text-[11px] text-slate-300 leading-relaxed">{nextByInterest.lead}</p>}
+                      </div>
+                    )}
                     <div className="mb-3 rounded-lg border border-cobalt-500/30 bg-cobalt-600/10 px-3 py-2.5">
                       <p className="text-[12px] text-slate-200 font-semibold mb-0.5">続けて、補助金の該当もチェックしますか？</p>
                       <p className="text-[11px] text-slate-400">「はい」を選ぶと、提案書作成後に最有力の補助金について要件を1問ずつ確認し、結果を要件チェック（実質負担額・回収年数）に自動反映します。</p>
@@ -731,6 +797,19 @@ export function HearingChat({
                       >
                         提案書のみ作成
                       </button>
+                      {nextByInterest && switchTab && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpen(false);
+                            switchTab(nextByInterest.tab);
+                            setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 80);
+                          }}
+                          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-cobalt-400/50 text-cobalt-100 bg-cobalt-600/15 hover:bg-cobalt-600/30 text-sm font-bold"
+                        >
+                          {nextByInterest.label}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
@@ -788,7 +867,8 @@ export function HearingChat({
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") {
+                          // 日本語IMEの変換確定Enterで送信してしまわないようガードする
+                          if (e.key === "Enter" && !(e.nativeEvent as unknown as { isComposing?: boolean }).isComposing) {
                             e.preventDefault();
                             onSubmitText();
                           }

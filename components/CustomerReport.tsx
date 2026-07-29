@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Card, CardTitle } from "./ui/Card";
-import { MatchInput, Subsidy } from "@/lib/types";
+import { MatchInput, Subsidy, INTEREST_LABELS } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
 import { RoiChart } from "./RoiChart";
 import { NextSteps } from "./NextSteps";
@@ -52,6 +52,8 @@ export function CustomerReport({
   const displaySubsidyYen = Math.round(displaySubsidyManYen * 10000);
   const rewardYen = Math.round(displaySubsidyManYen * 10000 * 0.1);
   const industryLabel = (INDUSTRY_PROFILES[input.building] ?? INDUSTRY_PROFILES.other).label;
+  // AIヒアリング冒頭で伺った「今日のご関心」。メール本文・Notionのメモに残して営業のフォローに使う
+  const interestLabel = input.interest ? INTEREST_LABELS[input.interest] : null;
 
   // 会社名・メール・電話・住所を必須にする
   const requiredFields = [
@@ -182,7 +184,7 @@ export function CustomerReport({
             wishSubsidy: appliedSubsidy ? appliedSubsidy.name : null,
             proposalNo,
             sentDate: new Date().toISOString().slice(0, 10),
-            memo: `${industryLabel} / 投資${input.invest}万円 / EHC担当:${input.ehcStaff || "-"}`,
+            memo: `${industryLabel} / 投資${input.invest}万円 / ご関心:${interestLabel ?? "-"} / EHC担当:${input.ehcStaff || "-"}`,
           },
         }),
       });
@@ -237,7 +239,7 @@ export function CustomerReport({
 メール: ${input.customerEmail || "（未入力）"}
 電話: ${input.customerPhone || "（未入力）"}
 住所: ${input.customerAddress || "（未入力）"}
-
+${interestLabel ? `ご関心: ${interestLabel}\n` : ""}
 【1. ご確認条件（ヒアリング内容）】
 業種・用途: ${BUILDING_LABELS[input.building] ?? "—"}（${industryLabel}）
 対象設備: 合計 ${totalUnits}台
@@ -470,6 +472,7 @@ ${result.ehcPlan}
               <CondCell label="業種・用途" value={`${BUILDING_LABELS[input.building] ?? "—"}（${industryLabel}）`} />
               <CondCell label="年間電力使用量" value={`${result.totalKwh.toLocaleString("ja-JP")} kWh${input.kwhMode === "measured" ? "（実測）" : "（自動按分）"}`} />
               <CondCell label="設備投資概算" value={`${input.invest.toLocaleString("ja-JP")} 万円`} />
+              {interestLabel && <CondCell label="ご関心" value={interestLabel} />}
             </div>
             <table className="w-full text-[11px]">
               <thead>
