@@ -1,9 +1,9 @@
 "use client";
 import { Card, CardTitle } from "./ui/Card";
-import { MatchInput } from "@/lib/types";
+import { MatchInput, Subsidy } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
 import { buildSubsidyTimeline, buildConstructionTimeline, buildMultiYearRoadmap, DatedStep } from "@/lib/timeline";
-import { CalendarClock, Wrench, Map, AlertTriangle, Banknote, Leaf, Receipt } from "lucide-react";
+import { CalendarClock, Wrench, Map, AlertTriangle, Banknote, Leaf, Scale } from "lucide-react";
 import { estimateUpdateCost, estimateMachineCost, PRICING_SOURCE } from "@/lib/pricing";
 
 const yen = (n: number) => `¥${Math.round(n).toLocaleString("ja-JP")}`;
@@ -63,16 +63,31 @@ function DatedStepper({ steps }: { steps: DatedStep[] }) {
   );
 }
 
-export function RoadmapView({ input, result, compact = false }: { input: MatchInput; result: MatchResult; compact?: boolean }) {
+/* 導入ロードマップ。
+   appliedSubsidy＝結果画面で実際に選択・適用された制度。渡されればそれを軸にタイムラインを組む。
+   （渡さないと「マッチした中の適当な1件」になり、案件と無関係な補助金が出てしまう） */
+export function RoadmapView({
+  input,
+  result,
+  appliedSubsidy = null,
+}: {
+  input: MatchInput;
+  result: MatchResult;
+  appliedSubsidy?: Subsidy | null;
+}) {
   const today = new Date();
   const candidates = result.matched.filter((s) => !s.infoOnly);
   const openOnes = candidates
     .filter((s) => s.applyClose && new Date(s.applyClose + "T00:00:00") >= today)
     .sort((a, b) => new Date(a.applyClose!).getTime() - new Date(b.applyClose!).getTime());
-  const bestSubsidy = openOnes[0] || candidates[0];
+  const bestSubsidy = appliedSubsidy || openOnes[0] || candidates[0];
+  const dropinOnly = input.interest === "dropin";
   const subsidyTL = buildSubsidyTimeline(bestSubsidy, today);
-  const constructionTL = buildConstructionTimeline();
-  const roadmap = buildMultiYearRoadmap(input, 3);
+  const constructionPlan = buildConstructionTimeline(input, {
+    subsidyName: dropinOnly ? null : bestSubsidy?.name ?? null,
+    dropinOnly,
+  });
+  const roadmap = buildMultiYearRoadmap(input, 3, bestSubsidy?.id ?? null);
 
   // 実勢工事費レンジ（PN見積基準）：設備群の台数×馬力から機器費+工事費を積算
   const costStd = input.equipGroups.reduce(
@@ -138,9 +153,13 @@ export function RoadmapView({ input, result, compact = false }: { input: MatchIn
 
   const CostRef = (
     <Card>
-      <CardTitle icon={<Receipt className="w-5 h-5" />}>更新工事の実勢費用レンジ（{PRICING_SOURCE}）</CardTitle>
+      <CardTitle icon={<Scale className="w-5 h-5" />}>投資額の妥当性チェック（実勢レンジ照合）</CardTitle>
       <p className="text-xs text-slate-400 mb-3">
-        入力された設備（{totalUnits}台）を全更新した場合の機器費＋工事費の目安。機種グレード・高所/搬入条件・配管長で変動するため<strong className="text-slate-200">参考値</strong>です。
+        入力された設備（{totalUnits}台）を全更新した場合の機器費＋工事費の<strong className="text-slate-200">レンジ</strong>と、入力した投資額がその範囲に収まっているかを照合します（{PRICING_SOURCE}）。
+        機種グレード・高所/搬入条件・配管長で変動するため<strong className="text-slate-200">参考値</strong>です。
+      </p>
+      <p className="text-[11px] text-cobalt-200 bg-cobalt-600/10 border border-cobalt-500/30 rounded-lg px-3 py-2 mb-3">
+        お客様にお出しする<strong>明細つきの見積</strong>は、このページ下の「更新工事 見積シミュレーター」で作成します。ここは金額の桁が妥当かを確認するだけの欄です。
       </p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="border border-white/10 bg-night-900 rounded-xl p-3">
@@ -172,40 +191,47 @@ export function RoadmapView({ input, result, compact = false }: { input: MatchIn
     </Card>
   );
 
-  if (compact) {
-    return (
-      <Card>
-        <CardTitle icon={<Map className="w-5 h-5" />}>導入ロードマップ（要約）</CardTitle>
-        <p className="text-xs text-slate-400 mb-3">「導入ロードマップ」タブで、申請〜入金／工事のタイムラインと年次プランの詳細を表示します。</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          {roadmap.map((r) => (
-            <div key={r.year} className="border border-white/10 bg-night-900 rounded-lg p-3 text-[11px]">
-              <div className="font-bold text-ehc-300 mb-1">{r.phaseLabel} / {r.year}</div>
-              <div className="text-slate-300">{r.units}台更新 ・ 年{yen(r.saveYenPerYear)}削減</div>
-            </div>
-          ))}
-        </div>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-5">
+      {/* 統合後の見出し。ロードマップが独立タブではなく結果の続きであることを明示する */}
+      <div className="border border-ehc-500/30 bg-gradient-to-br from-ehc-500/10 to-night-900 rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Map className="w-5 h-5 text-ehc-300" />
+          <span className="text-base font-bold text-slate-100">導入ロードマップ（この案件専用）</span>
+        </div>
+        <p className="text-xs text-slate-400">
+          上のヒアリング内容（{input.equipGroups.reduce((a, g) => a + g.units, 0)}台・
+          {Array.from(new Set(input.equipGroups.map((g) => g.refri))).length}種の冷媒
+          {bestSubsidy ? `・${bestSubsidy.name}` : ""}）から自動生成しています。設備や制度を変えて「即答」を押すと、ここも連動して変わります。
+        </p>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <Card>
           <CardTitle icon={<CalendarClock className="w-5 h-5" />}>補助金タイムライン（申請〜入金）</CardTitle>
-          {bestSubsidy && <p className="text-xs text-ehc-300 mb-2">対象例: {bestSubsidy.name}（{bestSubsidy.period}）</p>}
-          <div className={`mb-3 text-xs font-semibold ${subsidyTL.estimated ? "text-slate-300" : "text-cobalt-200"}`}>{subsidyTL.headline}</div>
-          <DatedStepper steps={subsidyTL.steps} />
-          {subsidyTL.estimated && <p className="mt-2 text-[10px] text-slate-500">※ 日程は次回公募基準の概算です。公募回確定後は実日付で自動表示されます。</p>}
-          <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-[11px] text-amber-200 flex gap-2">
-            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            {subsidyTL.caution}
-          </div>
+          {bestSubsidy ? (
+            <>
+              <p className="text-xs text-ehc-300 mb-2">
+                {appliedSubsidy ? "適用中の制度" : "対象例"}: {bestSubsidy.name}（{bestSubsidy.period}）
+              </p>
+              <div className={`mb-3 text-xs font-semibold ${subsidyTL.estimated ? "text-slate-300" : "text-cobalt-200"}`}>{subsidyTL.headline}</div>
+              <DatedStepper steps={subsidyTL.steps} />
+              {subsidyTL.estimated && <p className="mt-2 text-[10px] text-slate-500">※ 日程は次回公募基準の概算です。公募回確定後は実日付で自動表示されます。</p>}
+              <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-[11px] text-amber-200 flex gap-2">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                {subsidyTL.caution}
+              </div>
+            </>
+          ) : (
+            /* マッチする制度が無いのに架空の申請スケジュールを出すと「関係ない補助金」になるため出さない */
+            <p className="text-xs text-slate-400 leading-relaxed">
+              入力条件に合致する補助金が見つからなかったため、申請スケジュールは表示していません。補助金を使わない前提で、右の工事タイムライン（交付決定待ちなし）でご検討ください。条件が変われば再判定されます。
+            </p>
+          )}
         </Card>
         <Card>
           <CardTitle icon={<Wrench className="w-5 h-5" />}>工事タイムライン（EHC施工）</CardTitle>
-          <Stepper steps={constructionTL} />
+          <div className="mb-3 text-xs font-semibold text-cobalt-200">{constructionPlan.headline}</div>
+          <Stepper steps={constructionPlan.steps} />
           <div className="mt-3 bg-ehc-500/10 border border-ehc-500/30 rounded-lg p-3 text-[11px] text-ehc-200 flex gap-2">
             <Banknote className="w-4 h-4 flex-shrink-0 mt-0.5" />
             ビフォー/アフターのENIMAS実測で削減実績を数値化し、次年度提案のエビデンスにします。

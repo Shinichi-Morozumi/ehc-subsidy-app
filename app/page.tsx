@@ -8,23 +8,44 @@ import { WeaponList } from "@/components/WeaponList";
 import { DiffList } from "@/components/DiffList";
 import { DropinDept } from "@/components/DropinDept";
 import { BreakerDept } from "@/components/BreakerDept";
-import { Target, Database, Wind, TrendingUp, Award, Wrench, AlertCircle, Droplet, Bolt, CalendarClock } from "lucide-react";
+import { Target, Database, Wind, TrendingUp, Award, AlertCircle, Droplet, Bolt } from "lucide-react";
 import { ProjectProvider } from "@/components/ProjectContext";
-import { RoadmapTab } from "@/components/RoadmapTab";
 import { DeadlineBanner } from "@/components/DeadlineBanner";
 import { DataFreshnessAlert } from "@/components/DataFreshnessAlert";
 import { DROPIN_REDUCTION_LABEL } from "@/lib/pricing";
 import { REGULATION, freonLawOutlook } from "@/lib/regulations";
 
-const TAB_HINTS: Record<string, string> = {
-  match: "設備の情報から使える補助金を自動診断し、実質負担額とROIを試算します。",
-  roadmap: "申請から施工・補助金入金までの流れとスケジュールを可視化します。",
-  dropin: "既存の業務用空調はそのまま、冷媒だけ交換して電気代と環境負荷を削減します。",
-  breaker: "電気の基本料金（契約電力）を見直し、電子ブレーカーで固定費を削減します。",
-  db: "国・自治体の補助金を、対象・補助率・締切・申請難易度で一覧比較できます。",
-  vendor: "主要メーカーの高効率機種のスペックや特徴を比較します。",
-  weapon: "冷媒規制・脱炭素など、商談で使える最新の業界トピックスをまとめています。",
-  diff: "競合と比べたEHCグループの強み・差別化ポイントを紹介します。",
+/* タブ名と説明の唯一の情報源。TabsTrigger のツールチップと、常時表示の TabHint パネルの両方がこれを読む。
+   「各タブの説明必須」＝どのタブを開いても、何をする画面か必ず読める状態にするための構造。 */
+const TAB_HINTS: Record<string, { label: string; hint: string }> = {
+  match: {
+    label: "空調更新＋補助金マッチング",
+    hint: "設備の情報から使える補助金を自動診断し、実質負担額とROIを試算します。入力して「即答」を押すと、そのまま下に申請〜入金・工事の導入ロードマップまで表示されます。",
+  },
+  dropin: {
+    label: "ドロップイン",
+    hint: "既存の業務用空調はそのまま、冷媒だけ交換して電気代と環境負荷を削減します。機器を入れ替えないため工期が短く、交付決定待ちも不要です。",
+  },
+  breaker: {
+    label: "電子ブレーカー",
+    hint: "電気の基本料金（契約電力）を見直し、電子ブレーカーで固定費を削減します。空調更新と併せると削減効果を上乗せできます。",
+  },
+  db: {
+    label: "補助金DB",
+    hint: "国・自治体の補助金を、対象・補助率・締切・申請難易度で一覧比較できます。制度そのものを調べたいときはこちら。",
+  },
+  vendor: {
+    label: "メーカー機器",
+    hint: "主要メーカーの高効率機種のスペックや特徴を比較します。提案する機種を決めるときに使います。",
+  },
+  weapon: {
+    label: "業界トピックス",
+    hint: "冷媒規制・脱炭素など、商談で使える最新の業界トピックスをまとめています。お客様への「なぜ今か」の説明材料に。",
+  },
+  diff: {
+    label: "EHCの強み",
+    hint: "競合と比べたEHCグループの強み・差別化ポイントを紹介します。相見積もりになったときの切り返しに使います。",
+  },
 };
 
 export default function Page() {
@@ -80,16 +101,15 @@ export default function Page() {
         <TabsList>
           {/* 「提案をつくる」側と「調べる」側を2段に分けるだけ。折りたたまないのでクリック数は不変。 */}
           <TabGroup label="まず使う">
-            <TabsTrigger value="match" icon={<Target className="w-4 h-4" />} hint={TAB_HINTS.match}>空調更新＋補助金マッチング</TabsTrigger>
-            <TabsTrigger value="roadmap" icon={<CalendarClock className="w-4 h-4" />} hint={TAB_HINTS.roadmap}>導入ロードマップ</TabsTrigger>
-            <TabsTrigger value="dropin" icon={<Droplet className="w-4 h-4" />} hint={TAB_HINTS.dropin}>ドロップイン</TabsTrigger>
-            <TabsTrigger value="breaker" icon={<Bolt className="w-4 h-4" />} hint={TAB_HINTS.breaker}>電子ブレーカー</TabsTrigger>
+            <TabsTrigger value="match" icon={<Target className="w-4 h-4" />} hint={TAB_HINTS.match.hint}>{TAB_HINTS.match.label}</TabsTrigger>
+            <TabsTrigger value="dropin" icon={<Droplet className="w-4 h-4" />} hint={TAB_HINTS.dropin.hint}>{TAB_HINTS.dropin.label}</TabsTrigger>
+            <TabsTrigger value="breaker" icon={<Bolt className="w-4 h-4" />} hint={TAB_HINTS.breaker.hint}>{TAB_HINTS.breaker.label}</TabsTrigger>
           </TabGroup>
           <TabGroup label="調べる">
-            <TabsTrigger value="db" icon={<Database className="w-4 h-4" />} hint={TAB_HINTS.db}>補助金DB</TabsTrigger>
-            <TabsTrigger value="vendor" icon={<Wind className="w-4 h-4" />} hint={TAB_HINTS.vendor}>メーカー機器</TabsTrigger>
-            <TabsTrigger value="weapon" icon={<TrendingUp className="w-4 h-4" />} hint={TAB_HINTS.weapon}>業界トピックス</TabsTrigger>
-            <TabsTrigger value="diff" icon={<Award className="w-4 h-4" />} hint={TAB_HINTS.diff}>EHCの強み</TabsTrigger>
+            <TabsTrigger value="db" icon={<Database className="w-4 h-4" />} hint={TAB_HINTS.db.hint}>{TAB_HINTS.db.label}</TabsTrigger>
+            <TabsTrigger value="vendor" icon={<Wind className="w-4 h-4" />} hint={TAB_HINTS.vendor.hint}>{TAB_HINTS.vendor.label}</TabsTrigger>
+            <TabsTrigger value="weapon" icon={<TrendingUp className="w-4 h-4" />} hint={TAB_HINTS.weapon.hint}>{TAB_HINTS.weapon.label}</TabsTrigger>
+            <TabsTrigger value="diff" icon={<Award className="w-4 h-4" />} hint={TAB_HINTS.diff.hint}>{TAB_HINTS.diff.label}</TabsTrigger>
           </TabGroup>
         </TabsList>
         <TabHint hints={TAB_HINTS} />
@@ -98,7 +118,6 @@ export default function Page() {
           {/* 更新工事の明細つき概算（高所作業車・設置階=足場判定・価格帯補正はここで入力） */}
           <div className="mt-5 no-print"><UpdateEstimator /></div>
         </TabsContent>
-        <TabsContent value="roadmap"><RoadmapTab /></TabsContent>
         <TabsContent value="dropin"><DropinDept /></TabsContent>
         <TabsContent value="breaker"><BreakerDept /></TabsContent>
         <TabsContent value="db"><SubsidyDB /></TabsContent>

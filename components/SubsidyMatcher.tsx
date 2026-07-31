@@ -243,7 +243,9 @@ export function SubsidyMatcher() {
   return (
     <div className="space-y-5">
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-ehc-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lift flex items-center gap-2 no-print">
+        {/* 画面下部は同意固定バー(bottom-0/z-40)とAIヒアリングFAB(z-50)が常駐するため、
+            トーストはそれらより上（bottom-24）に出して重なりを避ける */}
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-ehc-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lift flex items-center gap-2 no-print">
           <CheckCircle2 className="w-4 h-4" />
           {toast}
         </div>
@@ -613,7 +615,9 @@ export function SubsidyMatcher() {
             }}
           />
           <div className="no-print">
-            <RoadmapView input={input} result={result} compact />
+            {/* 独立タブを廃止し、入力完了＝結果表示と同時にフル版ロードマップを出す。
+                appliedSubsidy を渡すことで、選択中の制度とタイムラインが一致する。 */}
+            <RoadmapView input={input} result={result} appliedSubsidy={appliedSubsidy} />
           </div>
           <div className="no-print">
             <SubsidyDisclaimer />

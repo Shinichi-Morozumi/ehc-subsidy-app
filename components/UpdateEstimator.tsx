@@ -126,6 +126,9 @@ export function UpdateEstimator() {
   return (
     <Card>
       <CardTitle icon={<Receipt className="w-5 h-5" />}>更新工事 見積シミュレーター（お客様提示用の明細）</CardTitle>
+      <p className="text-[11px] text-cobalt-200 bg-cobalt-600/10 border border-cobalt-500/30 rounded-lg px-3 py-2 mb-3">
+        上のロードマップ内「投資額の妥当性チェック」が<strong>レンジ（金額の桁が妥当か）</strong>の確認なのに対し、ここは<strong>明細（お客様にそのまま出せる内訳）</strong>を作る欄です。
+      </p>
       <p className="text-xs text-slate-400 mb-3">
         上の<strong className="text-slate-200">「案件情報」が補助金判定用の総額1本</strong>なのに対し、ここは
         <strong className="text-ehc-300">お客様に出す内訳（明細）</strong>を作る欄です。

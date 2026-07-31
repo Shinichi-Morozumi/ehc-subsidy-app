@@ -119,16 +119,119 @@ export function buildSubsidyTimeline(
   return { headline, steps, caution: SUBSIDY_CAUTION, estimated: true };
 }
 
-// 工事フロー（EHC施工・ENIMAS計測込み）
-export function buildConstructionTimeline(): TimelineStep[] {
-  return [
-    { label: "現地調査・機器確認", month: 0, note: "ENIMASでビフォー計測開始（2週間〜が理想）" },
+// 工事フロー（EHC施工・ENIMAS計測込み）。
+// 案件の設備構成（台数・種別・冷媒）と、補助金を使うか／ドロップインかで工程と日数を出し分ける。
+// 固定文言を返すと「機器と無関係の工事日程」になるため、必ず input を渡すこと。
+export interface ConstructionPlan {
+  steps: TimelineStep[];
+  headline: string;
+  useSubsidy: boolean;
+  workDays: number;
+  units: number;
+}
+
+export function buildConstructionTimeline(
+  input?: MatchInput | null,
+  opts?: { subsidyName?: string | null; dropinOnly?: boolean }
+): ConstructionPlan {
+  const groups = input?.equipGroups ?? [];
+  const units = groups.reduce((a, g) => a + Math.max(0, g.units), 0);
+  const multiUnits = groups.filter((g) => g.equip === "multi").reduce((a, g) => a + Math.max(0, g.units), 0);
+  const pkgUnits = Math.max(0, units - multiUnits);
+  const dropinOnly = opts?.dropinOnly ?? input?.interest === "dropin";
+  const useSubsidy = !!opts?.subsidyName;
+
+  // 実働日数の目安：更新工事＝パッケージ1日2台／ビル用マルチ1日1台、ドロップイン＝1日6台
+  const workDays = dropinOnly
+    ? Math.max(1, Math.ceil(units / 6))
+    : Math.max(1, Math.ceil(pkgUnits / 2) + multiUnits);
+  // 20営業日/月を超える規模は施工〜引渡を後ろへずらす
+  const workMonths = Math.max(0, Math.ceil(workDays / 20) - 1);
+
+  const refriLabels = Array.from(new Set(groups.map((g) => REFRI_LABEL[g.refri])));
+  const equipLabel =
+    multiUnits > 0 && pkgUnits > 0
+      ? `パッケージ${pkgUnits}台＋ビル用マルチ${multiUnits}台`
+      : multiUnits > 0
+      ? `ビル用マルチ${multiUnits}台`
+      : `パッケージ${pkgUnits}台`;
+  const surveyNote =
+    units > 0
+      ? `対象 ${equipLabel}（冷媒: ${refriLabels.join("・") || "要確認"}）。ENIMASでビフォー計測開始（2週間〜が理想）`
+      : "ENIMASでビフォー計測開始（2週間〜が理想）";
+
+  // ① ドロップイン（冷媒入替のみ）：交付決定待ちが不要なぶん最短
+  if (dropinOnly) {
+    const steps: TimelineStep[] = [
+      { label: "現地調査・機器確認", month: 0, note: surveyNote },
+      { label: "冷媒選定・見積", month: 0, note: "既存機の適合可否と必要冷媒量を確定" },
+      { label: "発注・工程調整", month: 1 },
+      {
+        label: `ドロップイン施工（${units || "—"}台・実働約${workDays}日）`,
+        month: 1 + workMonths,
+        note: "既存冷媒の回収・破壊処理を含む。営業時間内の系統ごと施工が可能で全館停止は不要",
+      },
+      { label: "試運転・アフター計測", month: 2 + workMonths, note: "ENIMASでアフター計測→削減実績を可視化" },
+      { label: "引渡・報告書提出", month: 2 + workMonths },
+    ];
+    return {
+      steps,
+      headline: `ドロップイン（冷媒入替）：${units || "—"}台・実働約${workDays}日・着手から約${2 + workMonths}か月で引渡`,
+      useSubsidy,
+      workDays,
+      units,
+    };
+  }
+
+  // ② 更新工事＋補助金：発注は交付決定後（フライング厳禁）
+  if (useSubsidy) {
+    const steps: TimelineStep[] = [
+      { label: "現地調査・機器確認", month: 0, note: surveyNote },
+      { label: "設計・見積", month: 0 },
+      { label: "補助金申請書類の作成・提出", month: 1, note: `${opts?.subsidyName}で申請` },
+      {
+        label: "発注（交付決定後）",
+        month: 3,
+        star: true,
+        note: "交付決定前の発注・着工は補助対象外。機器の納期確保もこの時点から",
+      },
+      {
+        label: `更新工事（${units || "—"}台・実働約${workDays}日）`,
+        month: 4,
+        note: multiUnits > 0 ? "ビル用マルチは系統単位で切替。夜間・休日施工で営業影響を最小化" : "系統ごとに切替え、営業への影響を最小化",
+      },
+      { label: "試運転・アフター計測", month: 4 + workMonths, note: "ENIMASでアフター計測→削減実績を可視化" },
+      { label: "引渡・実績報告", month: 5 + workMonths, note: "請求書・施工写真・計測データを提出" },
+    ];
+    return {
+      steps,
+      headline: `更新工事＋補助金：${units || "—"}台・実働約${workDays}日・交付決定後に着工（着手から約${5 + workMonths}か月で引渡）`,
+      useSubsidy,
+      workDays,
+      units,
+    };
+  }
+
+  // ③ 更新工事（補助金なし）：交付決定待ちが無いので即発注できる
+  const steps: TimelineStep[] = [
+    { label: "現地調査・機器確認", month: 0, note: surveyNote },
     { label: "設計・見積", month: 0 },
-    { label: "発注（交付決定後）", month: 3, note: "補助金案件は交付決定を待って発注" },
-    { label: "施工（ドロップイン/更新）", month: 4 },
-    { label: "試運転・アフター計測", month: 4, note: "ENIMASでアフター計測→削減実績を可視化" },
-    { label: "引渡・実績報告", month: 5 },
+    { label: "発注・機器手配", month: 1, note: "補助金を使わないため交付決定待ちは不要" },
+    {
+      label: `更新工事（${units || "—"}台・実働約${workDays}日）`,
+      month: 2,
+      note: multiUnits > 0 ? "ビル用マルチは系統単位で切替。夜間・休日施工で営業影響を最小化" : "系統ごとに切替え、営業への影響を最小化",
+    },
+    { label: "試運転・アフター計測", month: 2 + workMonths, note: "ENIMASでアフター計測→削減実績を可視化" },
+    { label: "引渡・報告書提出", month: 3 + workMonths },
   ];
+  return {
+    steps,
+    headline: `更新工事：${units || "—"}台・実働約${workDays}日・着手から約${3 + workMonths}か月で引渡`,
+    useSubsidy,
+    workDays,
+    units,
+  };
 }
 
 export interface RoadmapCategory {
@@ -158,7 +261,13 @@ const REFRI_PRIORITY: Record<RefriType, number> = { r22: 0, r410a: 1, unknown: 1
 const REFRI_LABEL: Record<RefriType, string> = { r22: "R22", r410a: "R410A", r32: "R32", unknown: "冷媒不明" };
 
 // 段階更新ロードマップ：古い/R22群から優先し、年次に分割。各年をその年に動かす設備＋補助金に紐付け。
-export function buildMultiYearRoadmap(input: MatchInput, maxYears = 3): RoadmapYear[] {
+// preferredSubsidyId＝画面で選択中の制度。その年の設備部分集合でも実際にマッチする場合のみ採用し、
+// マッチしない年は無理に載せない（＝案件と関係ない補助金を表示しないため）。
+export function buildMultiYearRoadmap(
+  input: MatchInput,
+  maxYears = 3,
+  preferredSubsidyId?: string | null
+): RoadmapYear[] {
   const startYear = new Date().getFullYear();
   const sorted = [...input.equipGroups].sort((a, b) => {
     if (REFRI_PRIORITY[a.refri] !== REFRI_PRIORITY[b.refri]) return REFRI_PRIORITY[a.refri] - REFRI_PRIORITY[b.refri];
@@ -183,7 +292,10 @@ export function buildMultiYearRoadmap(input: MatchInput, maxYears = 3): RoadmapY
     };
     const r = matchSubsidies(subInput);
     const saveKwh = r.groups.reduce((a, g) => a + g.saveKwhPerYear, 0);
-    const subsidyName = r.matched.find((s) => !s.infoOnly)?.name || "（対象補助金は要確認）";
+    const preferred = preferredSubsidyId
+      ? r.matched.find((s) => s.id === preferredSubsidyId && !s.infoOnly)
+      : undefined;
+    const subsidyName = (preferred ?? r.matched.find((s) => !s.infoOnly))?.name || "（この設備量では対象制度なし・要確認）";
     // カテゴリ(設備群)別に投資を按分し、ROI・損益分岐を算出
     const gw = yg.map((g) => Math.max(1, g.units) * (g.hp && g.hp > 0 ? g.hp : 1));
     const gwSum = gw.reduce((a, b) => a + b, 0) || 1;

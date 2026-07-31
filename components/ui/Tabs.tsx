@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { useState, createContext, useContext } from "react";
+import { Info } from "lucide-react";
 
 interface TabsContextValue {
   active: string;
@@ -98,16 +99,25 @@ export function TabsTrigger({
   );
 }
 
-/* 選択中タブの説明を全デバイスで常時表示するキャプション。
-   タブのツールチップは group-hover のみ＝タッチデバイスでは発火しないため、
-   これが無いとスマホでは各タブが何のタブなのか永久に分からない。 */
-export function TabHint({ hints }: { hints: Record<string, string> }) {
+/* 選択中タブの「タブ名＋何をする画面か」を全デバイスで常時表示するパネル。
+   タブのツールチップは group-hover のみ＝タッチデバイスでは発火しないうえ、
+   極小グレー1行では読み飛ばされる。説明を必ず目に入れるため枠付きパネルに格上げしている。 */
+export function TabHint({ hints }: { hints: Record<string, { label: string; hint: string }> }) {
   const ctx = useContext(TabsContext)!;
-  const text = hints[ctx.active];
-  if (!text) return null;
+  const item = hints[ctx.active];
+  if (!item) return null;
   return (
-    <div className="-mt-2 mb-4 px-1 text-xs leading-relaxed text-slate-400 no-print">
-      {text}
+    <div className="-mt-2 mb-5 rounded-xl border border-white/10 bg-night-900/70 px-4 py-3 no-print">
+      <div className="flex items-start gap-2.5">
+        <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-ehc-300" />
+        <div>
+          <div className="text-sm font-bold text-slate-100">
+            {item.label}
+            <span className="ml-2 text-[10px] font-medium tracking-wider text-slate-500">このタブでできること</span>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-slate-300">{item.hint}</p>
+        </div>
+      </div>
     </div>
   );
 }
