@@ -245,7 +245,7 @@ ${interestLabel ? `ご関心: ${interestLabel}\n` : ""}
 対象設備: 合計 ${totalUnits}台
 ${groupsText}
 年間電力使用量: ${result.totalKwh.toLocaleString("ja-JP")} kWh（${input.kwhMode === "measured" ? "実測" : "自動按分"}）
-設備投資概算: ${input.invest.toLocaleString("ja-JP")} 万円
+今回更新分の設備投資概算: ${input.invest.toLocaleString("ja-JP")} 万円
 
 【2. ご提案サマリー】（全体の実効削減率 約${(result.effectiveReductionRate * 100).toFixed(0)}%）
 想定補助金額: ¥${displaySubsidyYen.toLocaleString("ja-JP")}
@@ -471,7 +471,7 @@ ${result.ehcPlan}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1.5 mb-3">
               <CondCell label="業種・用途" value={`${BUILDING_LABELS[input.building] ?? "—"}（${industryLabel}）`} />
               <CondCell label="年間電力使用量" value={`${result.totalKwh.toLocaleString("ja-JP")} kWh${input.kwhMode === "measured" ? "（実測）" : "（自動按分）"}`} />
-              <CondCell label="設備投資概算" value={`${input.invest.toLocaleString("ja-JP")} 万円`} />
+              <CondCell label="今回更新分の設備投資概算" value={`${input.invest.toLocaleString("ja-JP")} 万円`} />
               {interestLabel && <CondCell label="ご関心" value={interestLabel} />}
             </div>
             <table className="w-full text-[11px]">

@@ -1,4 +1,5 @@
-import { Tabs, TabsList, TabsTrigger, TabsContent, TabHint } from "@/components/ui/Tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent, TabHint, TabGroup } from "@/components/ui/Tabs";
+import { HowItWorks } from "@/components/HowItWorks";
 import { SubsidyMatcher } from "@/components/SubsidyMatcher";
 import { UpdateEstimator } from "@/components/UpdateEstimator";
 import { SubsidyDB } from "@/components/SubsidyDB";
@@ -58,6 +59,9 @@ export default function Page() {
         </div>
       </header>
 
+      {/* 着地直後に「何を入れると何が返るか」を伝える常時表示バー。主導線のCTAはここ1本に集約。 */}
+      <HowItWorks />
+
       <DeadlineBanner />
       <DataFreshnessAlert />
 
@@ -74,14 +78,19 @@ export default function Page() {
       <ProjectProvider>
       <Tabs defaultValue="match">
         <TabsList>
-          <TabsTrigger value="match" icon={<Target className="w-4 h-4" />} hint={TAB_HINTS.match}>空調更新＋補助金マッチング</TabsTrigger>
-          <TabsTrigger value="roadmap" icon={<CalendarClock className="w-4 h-4" />} hint={TAB_HINTS.roadmap}>導入ロードマップ</TabsTrigger>
-          <TabsTrigger value="dropin" icon={<Droplet className="w-4 h-4" />} hint={TAB_HINTS.dropin}>ドロップイン</TabsTrigger>
-          <TabsTrigger value="breaker" icon={<Bolt className="w-4 h-4" />} hint={TAB_HINTS.breaker}>電子ブレーカー</TabsTrigger>
-          <TabsTrigger value="db" icon={<Database className="w-4 h-4" />} hint={TAB_HINTS.db}>補助金DB</TabsTrigger>
-          <TabsTrigger value="vendor" icon={<Wind className="w-4 h-4" />} hint={TAB_HINTS.vendor}>メーカー機器</TabsTrigger>
-          <TabsTrigger value="weapon" icon={<TrendingUp className="w-4 h-4" />} hint={TAB_HINTS.weapon}>業界トピックス</TabsTrigger>
-          <TabsTrigger value="diff" icon={<Award className="w-4 h-4" />} hint={TAB_HINTS.diff}>EHCの強み</TabsTrigger>
+          {/* 「提案をつくる」側と「調べる」側を2段に分けるだけ。折りたたまないのでクリック数は不変。 */}
+          <TabGroup label="まず使う">
+            <TabsTrigger value="match" icon={<Target className="w-4 h-4" />} hint={TAB_HINTS.match}>空調更新＋補助金マッチング</TabsTrigger>
+            <TabsTrigger value="roadmap" icon={<CalendarClock className="w-4 h-4" />} hint={TAB_HINTS.roadmap}>導入ロードマップ</TabsTrigger>
+            <TabsTrigger value="dropin" icon={<Droplet className="w-4 h-4" />} hint={TAB_HINTS.dropin}>ドロップイン</TabsTrigger>
+            <TabsTrigger value="breaker" icon={<Bolt className="w-4 h-4" />} hint={TAB_HINTS.breaker}>電子ブレーカー</TabsTrigger>
+          </TabGroup>
+          <TabGroup label="調べる">
+            <TabsTrigger value="db" icon={<Database className="w-4 h-4" />} hint={TAB_HINTS.db}>補助金DB</TabsTrigger>
+            <TabsTrigger value="vendor" icon={<Wind className="w-4 h-4" />} hint={TAB_HINTS.vendor}>メーカー機器</TabsTrigger>
+            <TabsTrigger value="weapon" icon={<TrendingUp className="w-4 h-4" />} hint={TAB_HINTS.weapon}>業界トピックス</TabsTrigger>
+            <TabsTrigger value="diff" icon={<Award className="w-4 h-4" />} hint={TAB_HINTS.diff}>EHCの強み</TabsTrigger>
+          </TabGroup>
         </TabsList>
         <TabHint hints={TAB_HINTS} />
         <TabsContent value="match">

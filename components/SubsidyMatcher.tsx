@@ -20,7 +20,7 @@ import { useProject } from "./ProjectContext";
 import { RoadmapView } from "./RoadmapView";
 import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
-import { estimateInvestManYenFromGroups, estimateAnnualKwhFromGroups, kwhPerHpYear, siiBuildingUse, DEFAULT_HP_WHEN_UNKNOWN, CO2_TON_PER_KWH } from "@/lib/pricing";
+import { estimateInvestManYenFromGroups, estimateAnnualKwhFromGroups, kwhPerHpYear, siiBuildingUse, DEFAULT_HP_WHEN_UNKNOWN, CO2_TON_PER_KWH, MACHINE, WORK, COST_CLASS, SITE_ACCESS, DEFAULT_KG_PER_UNIT, PRICING_SOURCE } from "@/lib/pricing";
 
 let GID = 0;
 const newGroup = (over: Partial<EquipGroup> = {}): EquipGroup => ({
@@ -84,7 +84,7 @@ const HELP = {
   years: "業務用空調の法定耐用年数は15年。10年を超えると効率が20〜40%低下し、補助金活用の絶好のタイミングです。",
   refri: "R22は既に製造禁止（修理部品入手困難）。R410Aは2025年で製造規制完了（修理コスト2-3倍）。R32が現行最有力。",
   kwh: "直近1年間の電力会社請求書の合計kWh。複数事業所がある場合は、空調を更新する事業所分のみで結構です。",
-  invest: "新空調機器の本体価格＋設置工事費の合計見積額。参考：業務用パッケージ50〜150万円/台、ビル用マルチ500〜3,000万円。",
+  invest: "今回の更新範囲（今回入れ替える設備）に限った、新空調機器の本体価格＋設置工事費の合計見積額。将来のフェーズ分や他の設備は含めません。参考：業務用パッケージ50〜150万円/台、ビル用マルチ500〜3,000万円。",
   co2: `年間電力削減量(kWh) × ${CO2_TON_PER_KWH} で概算可能。神奈川県補助金は3t/年以上が必須条件です。`,
 };
 
@@ -258,80 +258,9 @@ export function SubsidyMatcher() {
       <SampleCases onPick={applySample} selectedId={selectedSampleId} />
       </div>
 
-      <div className="no-print" id="customer-info-section">
-      <Card>
-        <CardTitle icon={<User className="w-5 h-5" />}>お客様情報（提案書ヘッダー用）</CardTitle>
-        <p className="text-[11px] text-slate-500 -mt-2 mb-3">
-          <strong className="text-amber-400">*</strong> の付いた<strong className="text-slate-300">会社名・メール・電話・住所</strong>は提案書PDF出力に必須です。担当者名・EHC担当は任意。住所からは都道府県を自動判定し、一都三県など地域補助金の該当可否に反映します。
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Field label="お客様会社名 *" help={HELP.customerCompany}>
-            <Input
-              id="customer-company-input"
-              value={input.customerCompany}
-              onChange={(e) => set("customerCompany", e.target.value)}
-              placeholder="例: 株式会社○○"
-            />
-          </Field>
-          <Field label="メールアドレス *" help={HELP.customerEmail}>
-            <Input
-              id="customer-email-input"
-              type="email"
-              value={input.customerEmail ?? ""}
-              onChange={(e) => set("customerEmail", e.target.value)}
-              placeholder="例: info@example.co.jp"
-            />
-          </Field>
-          <Field label="電話番号 *" help={HELP.customerPhone}>
-            <Input
-              id="customer-phone-input"
-              type="tel"
-              value={input.customerPhone ?? ""}
-              onChange={(e) => set("customerPhone", e.target.value)}
-              placeholder="例: 03-1234-5678"
-            />
-          </Field>
-          <div className="md:col-span-2">
-            <Field label="住所 *" help={HELP.customerAddress}>
-              <Input
-                id="customer-address-input"
-                value={input.customerAddress ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const p = prefFromAddress(v);
-                  setInput((prev) => ({ ...prev, customerAddress: v, ...(p ? { pref: p } : {}) }));
-                }}
-                placeholder="例: 東京都新宿区西新宿1-1-1 ○○ビル3F"
-              />
-            </Field>
-            {(input.customerAddress ?? "").trim() &&
-              (prefFromAddress(input.customerAddress) ? (
-                <p className="text-[11px] text-ehc-300 mt-1">
-                  住所から「{prefFromAddress(input.customerAddress)}」と判定 → 地域補助金の該当判定に反映しました。
-                </p>
-              ) : (
-                <p className="text-[11px] text-amber-500 mt-1">
-                  住所から都道府県を判定できませんでした。下の「所在地（都道府県）」で選択してください。
-                </p>
-              ))}
-          </div>
-          <Field label="ご担当者名" help={HELP.customerContact}>
-            <Input
-              value={input.customerContact}
-              onChange={(e) => set("customerContact", e.target.value)}
-              placeholder="例: 田中"
-            />
-          </Field>
-          <Field label="EHC担当" help={HELP.ehcStaff}>
-            <Input
-              value={input.ehcStaff}
-              onChange={(e) => set("ehcStaff", e.target.value)}
-              placeholder="例: 桝口"
-            />
-          </Field>
-        </div>
-      </Card>
-
+      {/* 入力順は「設備 → 連絡先」。AIヒアリング（関心→設備→連絡先）と並びを揃え、
+          着地直後にいきなり必須の個人情報を求めない。お客様情報カードは診断ボタンの下にある。 */}
+      <div className="no-print scroll-mt-4" id="project-info-section">
       <Card>
         <CardTitle icon={<Building2 className="w-5 h-5" />}>案件情報入力</CardTitle>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -476,7 +405,7 @@ export function SubsidyMatcher() {
         </div>
 
         <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="設備投資概算 (万円・税抜)" help={HELP.invest}>
+          <Field label="今回更新分の設備投資概算 (万円・税抜)" help={HELP.invest}>
             <div className="flex gap-2">
               <Input type="number" value={input.invest} onChange={(e) => set("invest", Number(e.target.value))} />
               <button
@@ -490,11 +419,33 @@ export function SubsidyMatcher() {
               </button>
             </div>
             <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-              <strong className="text-slate-300">この欄の役割＝補助金額・回収年数を判定するための「総額1本」。</strong>
+              <strong className="text-slate-300">この欄の役割＝補助金額・実質負担・回収年数を出すための「今回更新分の総額1本」。</strong>
+              入れるのは<strong className="text-slate-300">今回入れ替える設備の分だけ</strong>です（将来フェーズ・別棟・別会社分は含めない）。
+              補助金額＝<strong className="text-slate-300">投資額×補助率</strong>（各制度の上限で頭打ち）、実質負担＝投資額−補助金額、
+              回収年数＝実質負担÷年間削減額、として全画面・提案書PDFで共通に使います。
+              <strong className="text-slate-300">税抜</strong>で入れてください（補助対象額は税抜が原則。税込額は下の見積シミュレーターが別に表示します）。
               明細（撤去・据付・産廃・諸経費…）は下の<strong className="text-ehc-300">「更新工事 見積シミュレーター」</strong>で作ります。<br />
               <strong className="text-ehc-300">「実勢で自動見積」</strong>＝設備グループの<strong className="text-slate-300">馬力×台数</strong>から、
-              PN実勢単価（機器費＋撤去・据付・配管・電気工事＋フロン回収/破壊＋産廃＋諸経費）で総額を自動計算します。標準グレード・現場条件なしの前提です。<br />
-              <strong className="text-slate-300">PNの正式見積がある場合は、この欄に手入力で上書きしてください。</strong>
+              <strong className="text-slate-300">機器費（基礎{MACHINE.base.standard.toLocaleString()}円＋{MACHINE.perHp.standard.toLocaleString()}円/馬力・{MACHINE.highHpThreshold}馬力を超える分は+{MACHINE.highHpPerHp.standard.toLocaleString()}円/馬力・最低{MACHINE.min.toLocaleString()}円/台）</strong>に、
+              撤去（室内{(WORK.removeIndoorPerUnit / 10000).toFixed(1)}万＋室外{(WORK.removeOutdoorPerUnit / 10000).toFixed(1)}万/台）・
+              据付（室内{(WORK.installIndoorPerUnit / 10000).toFixed(1)}万＋室外{(WORK.installOutdoorPerUnit / 10000).toFixed(1)}万/台）・
+              配管{(WORK.pipingPerUnit / 10000).toFixed(1)}万/台・電気{(WORK.electricPerUnit / 10000).toFixed(1)}万/台・
+              フロン回収{(WORK.gasRecoverPerSystem / 10000).toFixed(1)}万/系統（系統数＝台数÷2の切上げ）・
+              破壊{WORK.gasDestroyPerKg.toLocaleString()}円/kg（{DEFAULT_KG_PER_UNIT}kg/台と仮定）・
+              産廃{(WORK.wastePerCubicMeter / 10000).toFixed(1)}万/㎥（{WORK.wasteVolPerUnit}㎥/台）を積み、
+              最後に<strong className="text-slate-300">諸経費＝工事小計×{Math.round(WORK.overheadRate * 100)}%（下限{(WORK.overheadMin / 10000).toFixed(0)}万円）</strong>を1案件につき1回だけ加算した金額です。
+              グレードは<strong className="text-slate-300">標準（{COST_CLASS.standard.label}・係数{COST_CLASS.standard.factor}）</strong>固定で、下の見積シミュレーターと必ず同額になります。<br />
+              <span className="text-slate-400">
+                根拠：{PRICING_SOURCE}。工事単価は同見積の工事明細から抽出した
+                <strong className="text-slate-300">中央値</strong>（室内機撤去 n=451／室外機撤去 n=320／室内機据付 n=366／室外機据付 n=189／フロン回収 n=224）に、
+                <strong className="text-slate-300">碓井さんの校正（2026-07）</strong>を反映した値です。機器費の標準単価は同分析の下位25%水準＝安全側に置いています。
+              </span><br />
+              <span className="text-amber-200/80">
+                自動見積に<strong className="text-amber-200">含まれない</strong>もの：足場（{SITE_ACCESS.scaffoldFloorThreshold}階以上は原則必要・金額は現地条件で大きく変動）、
+                高所作業車（{(SITE_ACCESS.aerialLiftPerDay / 10000).toFixed(0)}万円/日・既定0日）、付帯工事（配管更新・リモコン・養生・夜間/休日割増ほか）、
+                アスベスト・電源増設・キュービクル等の別途工事。これらは現地調査で確定します。
+              </span><br />
+              <strong className="text-slate-300">PNの正式見積がある場合は、必ずこの欄に手入力で上書きしてください（自動見積より正式見積が優先）。</strong>
             </div>
             {estimateManYen != null && (
               estimateManYen === input.invest ? (
@@ -570,6 +521,83 @@ export function SubsidyMatcher() {
             </div>
           </div>
         )}
+      </Card>
+      </div>
+
+      {/* 連絡先は最後にまとめて。提案書PDFを出す段階で初めて必要になる情報のため。 */}
+      <div className="no-print" id="customer-info-section">
+      <Card>
+        <CardTitle icon={<User className="w-5 h-5" />}>お客様情報（提案書ヘッダー用）</CardTitle>
+        <p className="text-[11px] text-slate-500 -mt-2 mb-3">
+          ここは<strong className="text-slate-300">提案書PDFを出すとき</strong>に必要な情報です。診断結果を見るだけなら入力不要。
+          <strong className="text-amber-400">*</strong> の付いた<strong className="text-slate-300">会社名・メール・電話・住所</strong>は提案書PDF出力に必須です。担当者名・EHC担当は任意。住所からは都道府県を自動判定し、一都三県など地域補助金の該当可否に反映します。
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Field label="お客様会社名 *" help={HELP.customerCompany}>
+            <Input
+              id="customer-company-input"
+              value={input.customerCompany}
+              onChange={(e) => set("customerCompany", e.target.value)}
+              placeholder="例: 株式会社○○"
+            />
+          </Field>
+          <Field label="メールアドレス *" help={HELP.customerEmail}>
+            <Input
+              id="customer-email-input"
+              type="email"
+              value={input.customerEmail ?? ""}
+              onChange={(e) => set("customerEmail", e.target.value)}
+              placeholder="例: info@example.co.jp"
+            />
+          </Field>
+          <Field label="電話番号 *" help={HELP.customerPhone}>
+            <Input
+              id="customer-phone-input"
+              type="tel"
+              value={input.customerPhone ?? ""}
+              onChange={(e) => set("customerPhone", e.target.value)}
+              placeholder="例: 03-1234-5678"
+            />
+          </Field>
+          <div className="md:col-span-2">
+            <Field label="住所 *" help={HELP.customerAddress}>
+              <Input
+                id="customer-address-input"
+                value={input.customerAddress ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const p = prefFromAddress(v);
+                  setInput((prev) => ({ ...prev, customerAddress: v, ...(p ? { pref: p } : {}) }));
+                }}
+                placeholder="例: 東京都新宿区西新宿1-1-1 ○○ビル3F"
+              />
+            </Field>
+            {(input.customerAddress ?? "").trim() &&
+              (prefFromAddress(input.customerAddress) ? (
+                <p className="text-[11px] text-ehc-300 mt-1">
+                  住所から「{prefFromAddress(input.customerAddress)}」と判定 → 地域補助金の該当判定に反映しました。
+                </p>
+              ) : (
+                <p className="text-[11px] text-amber-500 mt-1">
+                  住所から都道府県を判定できませんでした。上の「所在地（都道府県）」で選択してください。
+                </p>
+              ))}
+          </div>
+          <Field label="ご担当者名" help={HELP.customerContact}>
+            <Input
+              value={input.customerContact}
+              onChange={(e) => set("customerContact", e.target.value)}
+              placeholder="例: 田中"
+            />
+          </Field>
+          <Field label="EHC担当" help={HELP.ehcStaff}>
+            <Input
+              value={input.ehcStaff}
+              onChange={(e) => set("ehcStaff", e.target.value)}
+              placeholder="例: 桝口"
+            />
+          </Field>
+        </div>
       </Card>
       </div>
 

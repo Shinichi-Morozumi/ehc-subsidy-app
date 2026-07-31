@@ -37,7 +37,7 @@ export function ReportTeaser() {
           </div>
           <div className="mt-3 flex items-center gap-2 text-sm font-semibold animate-bounce">
             <ArrowDown className="w-4 h-4" />
-            下記フォームに入力してください
+            AIヒアリングで答えるか、下のフォームに直接入力してください
           </div>
         </div>
         <div className="bg-white/95 rounded-xl p-4 text-white shadow-2xl rotate-1 hover:rotate-0 transition-transform">

@@ -5,7 +5,7 @@ import { Sparkles, MousePointerClick, Check } from "lucide-react";
 
 export function SampleCases({ onPick, selectedId }: { onPick: (sample: SampleCase) => void; selectedId?: string | null }) {
   return (
-    <div className="bg-night-900 border border-white/10 rounded-2xl p-5 shadow-soft no-print">
+    <div id="sample-cases" className="scroll-mt-4 bg-night-900 border border-white/10 rounded-2xl p-5 shadow-soft no-print">
       <div className="mb-4">
         <div className="text-sm font-bold text-white flex items-center gap-1.5">
           <Sparkles className="w-4 h-4 text-ehc-400" />

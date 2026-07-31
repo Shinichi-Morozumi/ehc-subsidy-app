@@ -275,7 +275,7 @@ export function UpdateEstimator() {
 
       <div className="mb-4 text-[11px] text-slate-400 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5">
         この小計（税抜）＝<strong className="text-slate-200">{subtotalManYen.toLocaleString("ja-JP")}万円</strong>が、上の
-        <strong className="text-ehc-300">「設備投資概算」</strong>に取り込める金額です。
+        <strong className="text-ehc-300">「今回更新分の設備投資概算」</strong>に取り込める金額です。
         上の欄で「実勢で自動見積」を押した場合も<strong className="text-slate-200">同じ計算式</strong>を使うため、
         標準グレード・現場条件なしなら数字は一致します。
       </div>

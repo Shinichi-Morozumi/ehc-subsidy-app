@@ -36,11 +36,24 @@ export function TabsList({ children, className }: { children: React.ReactNode; c
   return (
     <div
       className={cn(
-        "flex flex-wrap gap-1 mb-5 p-1.5 bg-night-900 rounded-2xl shadow-soft border border-white/10 no-print",
+        "flex flex-col gap-2 mb-5 p-2 bg-night-900 rounded-2xl shadow-soft border border-white/10 no-print",
         className
       )}
     >
       {children}
+    </div>
+  );
+}
+
+/* タブを役割で2段に分けるだけのグループ。折りたたまないのでクリック数は増えない。
+   フラットに8個並ぶと選択コストが高く、「どれから触ればいいか」が伝わらないための措置。 */
+export function TabGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="px-2 pb-1 text-[10px] font-bold tracking-[0.18em] text-slate-500 uppercase">
+        {label}
+      </div>
+      <div className="flex flex-wrap gap-1">{children}</div>
     </div>
   );
 }
@@ -85,13 +98,15 @@ export function TabsTrigger({
   );
 }
 
-// スマホ（hoverなし）向け: 選択中タブの説明を常時表示するキャプション
+/* 選択中タブの説明を全デバイスで常時表示するキャプション。
+   タブのツールチップは group-hover のみ＝タッチデバイスでは発火しないため、
+   これが無いとスマホでは各タブが何のタブなのか永久に分からない。 */
 export function TabHint({ hints }: { hints: Record<string, string> }) {
   const ctx = useContext(TabsContext)!;
   const text = hints[ctx.active];
   if (!text) return null;
   return (
-    <div className="md:hidden -mt-2 mb-4 px-1 text-xs leading-relaxed text-slate-400 no-print">
+    <div className="-mt-2 mb-4 px-1 text-xs leading-relaxed text-slate-400 no-print">
       {text}
     </div>
   );

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { MatchInput, SizeType, EquipType, RefriType, InterestType, INTEREST_LABELS } from "@/lib/types";
 import { estimateInvestManYenFromGroups } from "@/lib/pricing";
 import { useTabSwitch } from "./ui/Tabs";
+import { OPEN_HEARING_EVENT } from "./HowItWorks";
 import { MessageCircle, Send, Sparkles, X, RotateCcw, Wand2, CheckCircle2, CornerUpLeft } from "lucide-react";
 
 /* ───────────────────────────────────────────────────────────
@@ -336,7 +337,7 @@ const STEPS: Step[] = [
   },
   {
     id: "invest",
-    ask: () => "設備投資の概算（万円）はありますか？なければ「わからない」を押すと、設備内容から自動で見積ります。",
+    ask: () => "今回更新する分の設備投資の概算（万円）はありますか？なければ「わからない」を押すと、設備内容から自動で見積ります。",
     freeInput: "number",
     placeholder: "例: 500（万円）",
     parse: (raw) => {
@@ -453,6 +454,19 @@ export function HearingChat({
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, done]);
+
+  /* ヒーロー直下の主CTA「AIに聞きながら入力」から開く。
+     CTAは Tabs の外側（page.tsx）にあるため props を通せない。window イベントで受ける。
+     別タブを見ている最中に押された場合は、マッチングタブへ戻してから開く。 */
+  useEffect(() => {
+    const onOpen = () => {
+      switchTab?.("match");
+      setOpen(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    window.addEventListener(OPEN_HEARING_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_HEARING_EVENT, onOpen);
+  }, [switchTab]);
 
   const pushBot = (text: string) => setMessages((m) => [...m, { role: "bot", text }]);
   const pushUser = (text: string) => setMessages((m) => [...m, { role: "user", text }]);
