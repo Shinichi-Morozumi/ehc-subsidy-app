@@ -43,6 +43,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </div>
         {children}
         <PwaRegister />
+        {/* Vercel Web Analytics（Hobby枠）。@vercel/analytics を入れると package-lock.json と
+            ズレて Vercel の npm ci が落ちるため、パッケージが注入するのと同じ計測スクリプトを直接読む。
+            /_vercel/insights/ は Vercel のエッジが配信するので、ローカル開発では404になるが実害はない。 */}
+        <script defer src="/_vercel/insights/script.js" />
       </body>
     </html>
   );
