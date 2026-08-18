@@ -91,6 +91,19 @@ select option:hover {
 .tooltip-trigger:hover .tooltip,
 .tooltip-trigger:focus-within .tooltip { opacity: 1; }
 
+@media (max-width: 640px) {
+  .tooltip {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: 20px;
+    width: auto;
+    max-width: none;
+    transform: none;
+  }
+  .tooltip::after { display: none; }
+}
+
 @media print {
   body { background: #fff; }
   .no-print { display: none !important; }

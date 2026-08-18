@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input, Button } from "./ui/Field";
 import { MatchInput, BizType, SizeType, EquipType, RefriType, EquipGroup, KwhMode, Subsidy } from "@/lib/types";
@@ -54,6 +54,10 @@ const prefFromAddress = (address: string): string | null => {
   if (!hit) return null;
   return PREFS.includes(hit) ? hit : null;
 };
+
+const programStateKey = (programs: Subsidy[]) => programs
+  .map((s) => [s.id, s.status, s.verificationState, s.fetchedAt, s.rateNum, s.capManYen].join(":"))
+  .join(",");
 
 const REFRI_SHORT: Record<RefriType, string> = { r22: "R22", r410a: "R410A", r32: "R32", unknown: "冷媒不明" };
 const groupLabel = (g: EquipGroup, i: number) =>
@@ -135,11 +139,33 @@ export function SubsidyMatcher() {
   // プランナー②③で確定した補助金額・ご希望の補助金（提案書PDFへ反映）
   const [appliedSubsidyManYen, setAppliedSubsidyManYen] = useState<number>(0);
   const [appliedSubsidy, setAppliedSubsidy] = useState<Subsidy | null>(null);
+  const [simulationPrograms, setSimulationPrograms] = useState<Subsidy[]>([]);
+  const [eligibilityScreening, setEligibilityScreening] = useState<ScreeningResult | null>(null);
+  const [eligibilityScreenOpen, setEligibilityScreenOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [selectedSampleId, setSelectedSampleId] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
   const [shareUrl, setShareUrl] = useState<string>("");
   const toastTimer = useRef<number | null>(null);
+
+  const handleSimulationProgramsChange = useCallback((programs: Subsidy[]) => {
+    setSimulationPrograms((previous) => {
+      const previousKey = programStateKey(previous);
+      const nextKey = programStateKey(programs);
+      return previousKey === nextKey ? previous : programs;
+    });
+  }, []);
+  const simulationProgramKey = programStateKey(simulationPrograms);
+  useEffect(() => {
+    setEligibilityScreening(null);
+  }, [simulationProgramKey]);
+  const eligibleSimulationPrograms = useMemo(() => {
+    if (!eligibilityScreening || eligibilityScreening.overall !== "yes") return [];
+    return simulationPrograms.filter((s) =>
+      eligibilityScreening.verdictById[s.id] === "yes" &&
+      eligibilityScreening.timingById[s.id]?.key !== "closed"
+    );
+  }, [eligibilityScreening, simulationPrograms]);
 
   const set = <K extends keyof MatchInput>(key: K, val: MatchInput[K]) =>
     setInput((prev) => ({ ...prev, [key]: val }));
@@ -327,25 +353,29 @@ export function SubsidyMatcher() {
           </Field>
         </div>
 
-        {/* 設備グループ（複数機種対応） */}
+        {/* 設備系統／同一仕様グループ（複数機種対応） */}
         <div className="mt-5">
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <Layers className="w-4 h-4 text-cobalt-300" /> 設備グループ（冷媒・台数・設置年が異なる機種を行で追加）
+              <Layers className="w-4 h-4 text-cobalt-300" /> 設備系統／同一仕様グループ
             </div>
             <button onClick={addGroup} type="button" className="text-[11px] px-2.5 py-1 rounded-md border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-600/15 flex items-center gap-1">
-              <Plus className="w-3.5 h-3.5" /> 設備グループ追加
+              <Plus className="w-3.5 h-3.5" /> 別の系統・機種を追加
             </button>
           </div>
-          <div className="text-[10px] text-slate-500 bg-white/5 border border-white/10 rounded-lg p-2 mb-2 leading-relaxed">
-            <strong className="text-slate-400">冷媒</strong>＝室外機側面の銘板シールに記載（R22/R410A/R32）。分からなければ「不明」でOK。
-            <strong className="text-slate-400 ml-1.5">設置年</strong>＝おおよそで結構です。
-            <strong className="text-slate-400 ml-1.5">馬力</strong>＝室外機の能力（例: 3馬力）。不明なら空欄のままでOK（台数のみで按分します）。
-          </div>
+          <details className="text-[10px] text-slate-400 bg-cobalt-600/10 border border-cobalt-500/30 rounded-lg p-2.5 mb-2 leading-relaxed">
+            <summary className="cursor-pointer font-bold text-cobalt-200">入力方法を見る｜年式・機器が系統ごとに違う場合</summary>
+            <div className="mt-2 space-y-1.5">
+              <p><strong className="text-slate-200">1行の単位：</strong>同じ系統、または型式・設置年・馬力が同じ機器だけをまとめます。どれかが違えば「別の系統・機種を追加」で行を分けます。</p>
+              <p><strong className="text-slate-200">確認場所：</strong>室外機側面の銘板にある「型式・製造年・冷媒・能力」を確認します。室外機全体と銘板をスマホで撮っておくと、EHC担当が後から補完できます。</p>
+              <p><strong className="text-slate-200">分からない場合：</strong>冷媒は「不明」、馬力は空欄、設置年はおおよそで仮診断できます。正式な補助金判定・見積前に現地調査で確定します。</p>
+            </div>
+          </details>
           <div className="space-y-2">
-            {input.equipGroups.map((g) => (
+            {input.equipGroups.map((g, index) => (
               <GroupRow
                 key={g.id}
+                index={index}
                 g={g}
                 canRemove={input.equipGroups.length > 1}
                 onChange={(p) => updateGroup(g.id, p)}
@@ -557,11 +587,64 @@ export function SubsidyMatcher() {
 
       {result && (
         <div id="result-section" className="space-y-5">
-          <ProgramMatchBoard input={input} result={result} />
-          <div className="no-print">
-            <UpdateEstimator />
+          <ProgramMatchBoard input={input} result={result} onSimulationProgramsChange={handleSimulationProgramsChange} />
+          <div className="no-print rounded-2xl border border-white/10 bg-night-900 p-4 md:p-5">
+            <div className="flex items-start gap-3">
+              <ClipboardCheck className="w-5 h-5 text-ehc-300 mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-bold text-white">該当条件診断</h3>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                  基本条件で絞った制度について、発注・着工前か、指定機器、必要書類、GビズIDなどを5問で確認します。
+                  診断を通過した制度だけを下の補助率欄とシミュレーションに表示します。
+                </p>
+                {simulationPrograms.length === 0 ? (
+                  <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-xs text-slate-400">
+                    現在の入力条件で、受付中または受付予定かつ公式確認済みの設備補助制度はありません。
+                  </div>
+                ) : eligibilityScreening ? (
+                  <div className={`mt-3 rounded-xl border px-3 py-3 ${eligibilityScreening.overall === "yes" ? "border-ehc-500/40 bg-ehc-500/10" : eligibilityScreening.overall === "maybe" ? "border-amber-500/40 bg-amber-500/10" : "border-red-500/40 bg-red-500/10"}`}>
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className={`text-xs font-bold ${eligibilityScreening.overall === "yes" ? "text-ehc-200" : eligibilityScreening.overall === "maybe" ? "text-amber-200" : "text-red-200"}`}>
+                        {eligibilityScreening.overall === "yes"
+                          ? `該当見込み ${eligibleSimulationPrograms.length}件をシミュレーションへ反映`
+                          : eligibilityScreening.overall === "maybe"
+                            ? "不足情報があるため、補助金はまだ自動反映しません"
+                            : "現在の回答では対象外の可能性が高いため、補助金は反映しません"}
+                      </div>
+                      <button type="button" onClick={() => setEligibilityScreenOpen(true)} className="text-[11px] text-ehc-300 underline underline-offset-2">診断をやり直す</button>
+                    </div>
+                    {eligibleSimulationPrograms.length > 0 && (
+                      <ul className="mt-2 space-y-1 text-[11px] text-slate-300">
+                        {eligibleSimulationPrograms.map((s) => <li key={s.id}>・{s.name}（{s.rate}）{s.verificationState === "verified" ? "" : "／公式情報の再確認が必要"}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setEligibilityScreenOpen(true)} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 px-4 py-2.5 text-xs font-bold text-white shadow-glow hover:from-ehc-500 hover:to-ehc-400">
+                    <ClipboardCheck className="w-4 h-4" /> 該当するか5問で診断する
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
-          <details className="no-print rounded-2xl border border-white/10 bg-night-900 p-4">
+          {eligibilityScreenOpen && simulationPrograms.length > 0 && (
+            <SubsidyScreeningChat
+              input={input}
+              candidates={simulationPrograms}
+              onDone={(screeningResult) => {
+                setEligibilityScreening(screeningResult);
+                setEligibilityScreenOpen(false);
+              }}
+              onClose={() => setEligibilityScreenOpen(false)}
+            />
+          )}
+          <div className="no-print">
+            <UpdateEstimator
+              eligiblePrograms={eligibleSimulationPrograms}
+              diagnosisComplete={Boolean(eligibilityScreening)}
+            />
+          </div>
+          <details className="no-print overflow-hidden rounded-2xl border border-white/10 bg-night-900 p-4">
             <summary className="cursor-pointer list-none flex items-center gap-2 text-sm font-bold text-slate-200">
               <LineChartIcon className="w-4 h-4 text-cobalt-300" />
               実質負担・ROI・設備診断を詳しく見る
@@ -705,11 +788,13 @@ export function SubsidyMatcher() {
 
 // 設備グループ1行の編集UI
 function GroupRow({
+  index,
   g,
   canRemove,
   onChange,
   onRemove,
 }: {
+  index: number;
   g: EquipGroup;
   canRemove: boolean;
   onChange: (p: Partial<EquipGroup>) => void;
@@ -718,6 +803,7 @@ function GroupRow({
   const cls = "px-2 py-1.5 border border-white/15 rounded-md text-xs bg-night-800 text-white focus:outline-none focus:border-cobalt-500 w-full";
   return (
     <div className="bg-white/5 border border-white/10 rounded-lg p-2.5">
+      <div className="mb-2 text-[10px] font-bold text-cobalt-200">系統・機種 {index + 1}</div>
       <div className="grid grid-cols-2 md:grid-cols-12 gap-2 items-end">
         <div className="md:col-span-3">
           <label className="text-[10px] text-slate-500">冷媒</label>

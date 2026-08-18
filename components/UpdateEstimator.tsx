@@ -4,11 +4,16 @@ import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input } from "./ui/Field";
 import { Receipt, Link2, Link2Off, Lock, ArrowUp } from "lucide-react";
 import { estimateUpdateBreakdownGroups, MachineGrade, CostClass, COST_CLASS, SITE_ACCESS, PRICING_SOURCE, yenJP, DEFAULT_KG_PER_UNIT } from "@/lib/pricing";
-import { SUBSIDY_RATE_PRESETS } from "@/lib/subsidies";
 import { useProject } from "./ProjectContext";
+import { Subsidy } from "@/lib/types";
 
-// 補助率プリセットは lib/subsidies.ts の実データに対応（制度名と補助率の食い違いを防ぐ）
-const RATES = SUBSIDY_RATE_PRESETS;
+interface RateOption {
+  key: string;
+  label: string;
+  rate: number;
+  capManYen: number;
+  subsidy: Subsidy | null;
+}
 
 // 万円の数値を「3億円」「1億2,000万円」のような読みやすい表記にする
 function okuLabel(manYen: number): string {
@@ -19,7 +24,7 @@ function okuLabel(manYen: number): string {
   return `${oku.toLocaleString("ja-JP")}億${man.toLocaleString("ja-JP")}万円`;
 }
 
-export function UpdateEstimator() {
+export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = false }: { eligiblePrograms?: Subsidy[]; diagnosisComplete?: boolean }) {
   const { input, result, setEstimateManYen } = useProject();
 
   /* 表示条件：上の「案件情報」で〈即答〉を押して判定が確定してから出す。
@@ -28,7 +33,14 @@ export function UpdateEstimator() {
 
   // 案件情報で確定した設備グループ（＝この見積の台数・馬力の唯一の入力元）
   const projectGroups = useMemo(
-    () => (input?.equipGroups ?? []).filter((g) => (g.units ?? 0) > 0).map((g) => ({ units: g.units, hp: g.hp ?? 0 })),
+    () => (input?.equipGroups ?? []).filter((g) => (g.units ?? 0) > 0).map((g) => ({
+      id: g.id,
+      units: g.units,
+      hp: g.hp ?? 0,
+      equip: g.equip,
+      refri: g.refri,
+      installYear: g.installYear,
+    })),
     [input]
   );
   const hasProjectGroups = projectGroups.length > 0;
@@ -44,21 +56,37 @@ export function UpdateEstimator() {
   const [hp, setHp] = useState(4);
   const [units, setUnits] = useState(3);
 
-  const groups = useProjectGroups ? projectGroups : [{ units, hp }];
+  const groups = useProjectGroups ? projectGroups.map((g) => ({ units: g.units, hp: g.hp })) : [{ units, hp }];
   const totalUnits = groups.reduce((a, g) => a + g.units, 0);
-  const autoSystems = Math.max(1, Math.ceil(totalUnits / 2));
+  const autoSystems = useProjectGroups ? Math.max(1, projectGroups.length) : Math.max(1, Math.ceil(totalUnits / 2));
   const [systemsOverride, setSystemsOverride] = useState<number | null>(null);
   const systems = systemsOverride ?? autoSystems;
 
   const [grade, setGrade] = useState<MachineGrade>("standard");
   const [costClass, setCostClass] = useState<CostClass>("standard");
 
-  /* 共通診断＋個別要件の確認前に補助金を自動適用しない。
-     この見積カードは「補助金なし」を初期値とし、確認後だけ手動で仮定する。 */
+  const rateOptions = useMemo<RateOption[]>(() => [
+    { key: "none", label: "補助金なし", rate: 0, capManYen: 0, subsidy: null },
+    ...eligiblePrograms.map((s) => ({
+      key: `program:${s.id}`,
+      label: `${s.verificationState === "verified" ? "" : "【公式再確認】"}${s.rate}｜${s.name}`,
+      rate: s.rateNum,
+      capManYen: s.capManYen,
+      subsidy: s,
+    })),
+  ], [eligiblePrograms]);
+
+  /* 該当診断を通過した制度だけを選択肢へ出す。初期値は必ず補助金なし。 */
   const [rateKeyOverride, setRateKeyOverride] = useState<string | null>(null);
   const [capOverride, setCapOverride] = useState<number | null>(null);
   const rateKey = rateKeyOverride ?? "none";
-  const capManYen = capOverride ?? 0;
+  const selectedRate = rateOptions.find((r) => r.key === rateKey) ?? rateOptions[0];
+  const capManYen = capOverride ?? selectedRate.capManYen;
+  useEffect(() => {
+    if (rateOptions.some((r) => r.key === rateKey)) return;
+    setRateKeyOverride(null);
+    setCapOverride(null);
+  }, [rateKey, rateOptions]);
 
   const [ancillaryManYen, setAncillaryManYen] = useState(0); // 付帯工事(万円)
   const [aerialDays, setAerialDays] = useState(0); // 高所作業車(日)
@@ -68,12 +96,25 @@ export function UpdateEstimator() {
   const est = estimateUpdateBreakdownGroups(groups, {
     grade, costClass, systems, kg, aerialDays, floor, ancillary: ancillaryManYen * 10000,
   });
-  const rate = RATES.find((r) => r.key === rateKey)?.rate ?? 0;
+  const rate = selectedRate.rate;
   const rawSubsidy = Math.round(est.subtotal * rate); // 税抜ベースで補助
   const capYen = capManYen > 0 ? capManYen * 10000 : Infinity;
   const subsidy = Math.min(rawSubsidy, capYen);
   const capped = rawSubsidy > capYen; // 上限に頭打ちされたか
   const netOut = est.total - subsidy; // 実質負担(税込−補助)
+  const annualSavingsYen = result?.saveYenPerYear ?? 0;
+  const scenarioRows = rateOptions.map((option) => {
+    const optionRaw = Math.round(est.subtotal * option.rate);
+    const optionCapYen = option.capManYen > 0 ? option.capManYen * 10000 : Infinity;
+    const optionSubsidy = Math.min(optionRaw, optionCapYen);
+    const optionNet = est.total - optionSubsidy;
+    return {
+      ...option,
+      subsidyYen: optionSubsidy,
+      netYen: optionNet,
+      recoveryYears: annualSavingsYen > 0 ? optionNet / annualSavingsYen : null,
+    };
+  });
 
   // 小計(税抜・万円)を上の「設備投資概算」へ返す＝双方向連動。未表示のときは何も返さない。
   const subtotalManYen = Math.round(est.subtotal / 10000);
@@ -116,6 +157,23 @@ export function UpdateEstimator() {
         実見積は機種グレード・搬入条件・配管長で変動する<strong className="text-slate-200">参考値</strong>です。
       </p>
 
+      <details className="mb-3 rounded-xl border border-cobalt-500/30 bg-cobalt-600/10 px-3 py-2.5">
+        <summary className="cursor-pointer text-xs font-bold text-cobalt-200">入力サポート｜系統ごとに機器・年式が違う場合</summary>
+        <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-300">
+          <p>室外機の系統ごとに1行作り、同じ型式・年式・馬力の機器だけを同じ行にまとめます。機種や設置年が違う場合は行を分けてください。</p>
+          <p><strong className="text-white">確認する場所：</strong>室外機側面の銘板で「型式・製造年・冷媒・能力」を確認します。分からない項目は不明のままでも仮診断できます。</p>
+          <button type="button" onClick={() => {
+            const details = document.getElementById("project-info-section") as HTMLDetailsElement | null;
+            if (details) {
+              details.open = true;
+              details.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+          }} className="mt-1 inline-flex rounded-lg border border-cobalt-500/40 px-3 py-1.5 text-[11px] font-bold text-cobalt-200 hover:bg-cobalt-500/10">
+            系統別の設備情報を入力・修正する
+          </button>
+        </div>
+      </details>
+
       {/* 連動ステータス */}
       <div className={`flex flex-wrap items-center gap-2 mb-3 rounded-xl border px-3 py-2.5 text-[11px] ${useProjectGroups ? "border-ehc-500/30 bg-ehc-500/10" : "border-white/10 bg-white/5"}`}>
         {useProjectGroups ? (
@@ -124,9 +182,9 @@ export function UpdateEstimator() {
             <span className="text-ehc-200">
               上の案件情報と連動中：
               <strong className="text-ehc-100">
-                {projectGroups.map((g) => `${g.hp || "?"}馬力×${g.units}台`).join(" ／ ")}
+                {projectGroups.map((g, index) => `系統${index + 1} ${g.equip === "multi" ? "マルチ" : "パッケージ"}・${g.installYear}年・${g.hp || "?"}馬力×${g.units}台`).join(" ／ ")}
               </strong>
-              （合計 {totalUnits}台）
+              （{projectGroups.length}系統・合計 {totalUnits}台）
             </span>
             <button type="button" onClick={() => setManual(true)}
               className="ml-auto px-2 py-1 rounded-lg border border-white/15 text-slate-300 hover:bg-white/10">
@@ -168,7 +226,7 @@ export function UpdateEstimator() {
             </Field>
           </>
         )}
-        <Field label="冷媒系統数">
+        <Field label="冷媒系統数（入力行と連動）">
           <Input type="number" value={systems} onChange={(e) => setSystemsOverride(Number(e.target.value))} />
           {systemsOverride != null && (
             <button type="button" onClick={() => setSystemsOverride(null)} className="text-[10px] text-ehc-300 hover:underline mt-0.5">
@@ -190,11 +248,16 @@ export function UpdateEstimator() {
           </Select>
         </Field>
         <Field label="補助率">
-          <Select value={rateKey} onChange={(e) => setRateKeyOverride(e.target.value)}>
-            {RATES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+          <Select value={rateKey} onChange={(e) => {
+            setRateKeyOverride(e.target.value === "none" ? null : e.target.value);
+            setCapOverride(null);
+          }}>
+            {rateOptions.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
           </Select>
-          {rateKeyOverride == null ? (
-            <div className="text-[10px] text-amber-300 mt-0.5">未確認のため補助金なし</div>
+          {eligiblePrograms.length === 0 ? (
+            <div className="text-[10px] text-amber-300 mt-0.5">{diagnosisComplete ? "該当見込みの制度なし" : "上の該当条件診断後に制度を表示"}</div>
+          ) : rateKeyOverride == null ? (
+            <div className="text-[10px] text-slate-500 mt-0.5">診断済み制度から選択できます</div>
           ) : (
             <button type="button" onClick={() => setRateKeyOverride(null)} className="text-[10px] text-ehc-300 hover:underline mt-0.5">
               補助金なしに戻す
@@ -220,6 +283,41 @@ export function UpdateEstimator() {
           <span> ／ {floor}階＝足場は不要想定（{SITE_ACCESS.scaffoldFloorThreshold}階以上で要・暫定ルール）。</span>
         )}
       </p>
+
+      <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.02] p-3 md:p-4">
+        <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+          <div>
+            <h3 className="text-sm font-bold text-white">該当制度別シミュレーション</h3>
+            <p className="mt-1 text-[10px] text-slate-500">補助金なしと、該当条件診断を通過した制度を同じ工事条件で比較します。制度が複数ある場合はすべて表示します。</p>
+          </div>
+          <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] text-slate-400">{eligiblePrograms.length}制度</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {scenarioRows.map((scenario) => {
+            const active = scenario.key === rateKey;
+            return (
+              <button
+                key={scenario.key}
+                type="button"
+                onClick={() => {
+                  setRateKeyOverride(scenario.key === "none" ? null : scenario.key);
+                  setCapOverride(null);
+                }}
+                className={`rounded-xl border p-3 text-left transition-colors ${active ? "border-ehc-400 bg-ehc-500/10" : "border-white/10 bg-night-900 hover:border-ehc-500/35"}`}
+              >
+                <div className="min-h-10 text-xs font-bold leading-snug text-slate-100">{scenario.label}</div>
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                  <dt className="text-slate-500">総費用（税込）</dt><dd className="text-right font-semibold text-slate-200">{yenJP(est.total)}</dd>
+                  <dt className="text-slate-500">想定補助額</dt><dd className="text-right font-semibold text-amber-300">{yenJP(scenario.subsidyYen)}</dd>
+                  <dt className="text-slate-500">実質負担</dt><dd className="text-right font-bold text-ehc-300">{yenJP(scenario.netYen)}</dd>
+                  <dt className="text-slate-500">回収目安</dt><dd className="text-right font-semibold text-slate-200">{scenario.recoveryYears == null ? "算定不可" : `約${scenario.recoveryYears.toFixed(1)}年`}</dd>
+                </dl>
+                {scenario.subsidy && <p className="mt-2 text-[10px] text-slate-500">上限 {scenario.subsidy.max}／{scenario.subsidy.verificationState === "verified" ? "" : "公式情報の再確認が必要／"}採択・受給を保証しません</p>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* 明細 */}
       <div className="border border-white/10 rounded-xl overflow-hidden mb-4">
@@ -290,10 +388,10 @@ export function UpdateEstimator() {
           <div className="text-[10px] mt-1 leading-tight">
             {capOverride != null ? (
               <button type="button" onClick={() => setCapOverride(null)} className="text-ehc-300 hover:underline">
-                上限未設定に戻す
+                診断制度の上限に戻す
               </button>
             ) : (
-              <span className="text-slate-500">制度確認後に上限を入力してください</span>
+              <span className="text-slate-500">{selectedRate.subsidy ? "選択制度の上限を自動反映" : "補助金なし"}</span>
             )}
           </div>
         </div>
@@ -304,7 +402,7 @@ export function UpdateEstimator() {
             {capped ? (
               <span className="text-amber-200">上限で頭打ち（{yenJP(rawSubsidy)} → {yenJP(subsidy)}）</span>
             ) : (
-              <>小計 {yenJP(est.subtotal)} × {RATES.find((r) => r.key === rateKey)?.label.split("（")[0]}</>
+              <>小計 {yenJP(est.subtotal)} × {selectedRate.subsidy ? selectedRate.subsidy.rate : "補助金なし"}</>
             )}
           </div>
         </div>
@@ -315,7 +413,7 @@ export function UpdateEstimator() {
       </div>
       <p className="mt-3 text-[10px] text-slate-500">
         ※ 補助金額は小計(税抜)×補助率の概算。消費税は補助対象外が一般的。上限・対象経費は各制度の公募要領で要確認。
-        補助率・上限は初期状態では反映しません。上のガイド診断と個別要件を確認した後、制度の公式条件を基に手動で仮定してください。
+        補助率・上限は初期状態では反映しません。上の該当条件診断を通過した制度だけを比較表示しますが、採択・受給・補助額を保証するものではありません。
       </p>
     </Card>
   );

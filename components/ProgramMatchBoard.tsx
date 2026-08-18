@@ -4,7 +4,7 @@ import { SUBSIDIES } from "@/lib/subsidies";
 import { MatchInput, Subsidy } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
 import { AlertCircle, CalendarClock, CheckCircle2, ExternalLink, HelpCircle, WalletCards, XCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type ProgramBucket = "A" | "B" | "C";
 
@@ -113,15 +113,30 @@ const BUCKETS: { key: ProgramBucket; title: string; note: string; icon: typeof C
   { key: "C", title: "今回は対象外・受付終了", note: "対象外の理由または終了した受付回を確認できます", icon: XCircle, tone: "border-white/15 bg-white/[0.03] text-slate-300" },
 ];
 
-export function ProgramMatchBoard({ input, result, printable = false }: { input: MatchInput; result: MatchResult; printable?: boolean }) {
+export function ProgramMatchBoard({ input, result, printable = false, onSimulationProgramsChange }: { input: MatchInput; result: MatchResult; printable?: boolean; onSimulationProgramsChange?: (programs: Subsidy[]) => void }) {
   const [monitor, setMonitor] = useState<MonitorPayload | null>(null);
   useEffect(() => { let active = true; loadMonitor().then((data) => { if (active) setMonitor(data); }); return () => { active = false; }; }, []);
-  const monitorStates = Object.fromEntries((monitor?.sources ?? []).map((s) => [s.id, s]));
-  const assessments = assessPrograms(input, result, monitorStates);
+  const assessments = useMemo(() => {
+    const monitorStates = Object.fromEntries((monitor?.sources ?? []).map((s) => [s.id, s]));
+    return assessPrograms(input, result, monitorStates);
+  }, [input, result, monitor]);
   const active = assessments.filter((a) => a.bucket === "A");
   const conditional = assessments.filter((a) => a.bucket === "B");
+  const simulationPrograms = useMemo(() => assessments
+    .filter((a) =>
+      (a.bucket === "A" || a.bucket === "B") &&
+      !a.subsidy.infoOnly &&
+      a.subsidy.programCategory === "equipment" &&
+      a.subsidy.status !== "closed" &&
+      a.subsidy.status !== "suspended" &&
+      a.potentialManYen > 0
+    )
+    .map((a) => a.subsidy), [assessments]);
+  useEffect(() => {
+    onSimulationProgramsChange?.(simulationPrograms);
+  }, [onSimulationProgramsChange, simulationPrograms]);
   const conclusion = active.length
-    ? { label: "高い", reason: active[0].reason, tone: "border-ehc-500/50 bg-ehc-500/10 text-ehc-200" }
+    ? { label: "候補制度あり（条件診断へ）", reason: "所在地・事業規模・設備種別の基本条件とは矛盾しません。発注状況・指定機器・必要書類を確認すると該当見込みを絞れます。", tone: "border-ehc-500/50 bg-ehc-500/10 text-ehc-200" }
     : conditional.length
       ? { label: "条件確認が必要", reason: conditional[0].reason, tone: "border-amber-500/50 bg-amber-500/10 text-amber-200" }
       : { label: "今回は対象外", reason: assessments[0]?.reason ?? "現在の入力条件で候補を確認できませんでした。", tone: "border-white/15 bg-white/[0.03] text-slate-300" };
