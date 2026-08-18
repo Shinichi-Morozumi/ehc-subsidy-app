@@ -93,10 +93,9 @@ export function UpdateEstimator() {
               <ArrowUp className="w-4 h-4 text-ehc-300" />
               まず上の「案件情報」を入力して〈補助金＆ROIを即答〉を押してください。
             </div>
-            案件情報の<strong className="text-slate-200">設備グループ（馬力・台数）</strong>と
-            <strong className="text-slate-200">判定された制度の補助率・補助上限</strong>をそのまま引き継いで、
+            案件情報の<strong className="text-slate-200">設備グループ（馬力・台数）</strong>を引き継いで、
             <strong className="text-ehc-300">お客様に出す内訳見積</strong>をここに作ります。
-            二重入力は不要です。
+            補助率・上限はガイド式の要件確認後に手動で選び、未確認時は補助金なしで表示します。
           </div>
         </div>
       </Card>
