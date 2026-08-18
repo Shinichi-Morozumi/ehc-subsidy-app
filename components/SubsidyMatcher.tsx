@@ -416,21 +416,24 @@ export function SubsidyMatcher() {
                   一般値で自動計算
                 </button>
               </div>
-              <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-                <strong className="text-slate-300">この欄の役割＝削減kWh・電気代削減額・CO2削減量を出すための元データ。</strong>
-                入れた値は各設備グループへ「台数×馬力」で自動按分します（馬力未入力は台数で按分）。<br />
-                <strong className="text-cobalt-200">「一般値で自動計算」</strong>＝請求書が手元にないとき用の目安。
-                いま選択中の建物用途「{siiBuildingUse(input.building) === "office" ? "事務所" : "店舗"}」で
-                <strong className="text-slate-300">1馬力あたり約{kwhPerHpYear(input.building).toLocaleString()}kWh/年</strong>として計算します
-                （馬力未入力は{DEFAULT_HP_WHEN_UNKNOWN}馬力と仮定・空調分のみ）。<br />
-                <span className="text-slate-400">
-                  根拠：SII（環境共創イニシアチブ）「省エネルギー量計算の手引き【電気式パッケージエアコン】」の
-                  <strong className="text-slate-300">指定計算</strong>に、同手引きの既存設備参考値（天井カセット4方向 112形＝4馬力／1997年度製品平均）と
-                  JIS B 8616 東京の平均負荷率・稼働変換率、SII既定の運転時間（店舗13h×30日／事務所12h×26日）を代入して試算。
-                  平均COP比は1.0（＝削減効果を盛らない安全側）。
-                </span><br />
-                <strong className="text-slate-300">請求書やエニマス実測がある場合は必ずそちらを手入力してください。</strong>
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                <div className="rounded-lg border border-ehc-500/30 bg-ehc-500/10 px-3 py-2 text-slate-300">
+                  <strong className="block text-ehc-200 mb-0.5">請求書・実測値がある</strong>
+                  直近1年のkWhを手入力してください。こちらを優先します。
+                </div>
+                <div className="rounded-lg border border-cobalt-500/30 bg-cobalt-600/10 px-3 py-2 text-slate-300">
+                  <strong className="block text-cobalt-200 mb-0.5">数値が分からない</strong>
+                  「一般値で自動計算」で設備情報から目安を入れられます。
+                </div>
               </div>
+              <details className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] text-slate-400">
+                <summary className="cursor-pointer font-semibold text-slate-300">自動計算の方法・根拠を見る</summary>
+                <div className="mt-2 space-y-1.5 leading-relaxed">
+                  <p>入力値は各設備系統へ「台数×馬力」で按分します。馬力未入力の場合は台数で按分します。</p>
+                  <p>自動計算は、建物用途「{siiBuildingUse(input.building) === "office" ? "事務所" : "店舗"}」で、1馬力あたり約<strong className="text-slate-200">{kwhPerHpYear(input.building).toLocaleString()}kWh/年</strong>を使用します。馬力未入力は{DEFAULT_HP_WHEN_UNKNOWN}馬力と仮定します。</p>
+                  <p>根拠：SII「省エネルギー量計算の手引き【電気式パッケージエアコン】」の指定計算、既存設備参考値、JIS B 8616 東京の平均負荷率・稼働変換率、SII既定運転時間を使用。平均COP比は1.0の安全側です。</p>
+                </div>
+              </details>
             </Field>
           ) : (
             <div className="space-y-2">
@@ -478,35 +481,34 @@ export function SubsidyMatcher() {
                 実勢で自動見積
               </button>
             </div>
-            <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-              <strong className="text-slate-300">この欄の役割＝補助金額・実質負担・回収年数を出すための「今回更新分の総額1本」。</strong>
-              入れるのは<strong className="text-slate-300">今回入れ替える設備の分だけ</strong>です（将来フェーズ・別棟・別会社分は含めない）。
-              補助金額＝<strong className="text-slate-300">投資額×補助率</strong>（各制度の上限で頭打ち）、実質負担＝投資額−補助金額、
-              回収年数＝実質負担÷年間削減額、として全画面・提案書PDFで共通に使います。
-              <strong className="text-slate-300">税抜</strong>で入れてください（補助対象額は税抜が原則。税込額は下の見積シミュレーターが別に表示します）。
-              明細（撤去・据付・産廃・諸経費…）は下の<strong className="text-ehc-300">「更新工事 見積シミュレーター」</strong>で作ります。<br />
-              <strong className="text-ehc-300">「実勢で自動見積」</strong>＝設備グループの<strong className="text-slate-300">馬力×台数</strong>から、
-              <strong className="text-slate-300">機器費（基礎{MACHINE.base.standard.toLocaleString()}円＋{MACHINE.perHp.standard.toLocaleString()}円/馬力・{MACHINE.highHpThreshold}馬力を超える分は+{MACHINE.highHpPerHp.standard.toLocaleString()}円/馬力・最低{MACHINE.min.toLocaleString()}円/台）</strong>に、
-              撤去（室内{(WORK.removeIndoorPerUnit / 10000).toFixed(1)}万＋室外{(WORK.removeOutdoorPerUnit / 10000).toFixed(1)}万/台）・
-              据付（室内{(WORK.installIndoorPerUnit / 10000).toFixed(1)}万＋室外{(WORK.installOutdoorPerUnit / 10000).toFixed(1)}万/台）・
-              配管{(WORK.pipingPerUnit / 10000).toFixed(1)}万/台・電気{(WORK.electricPerUnit / 10000).toFixed(1)}万/台・
-              フロン回収{(WORK.gasRecoverPerSystem / 10000).toFixed(1)}万/系統（系統数＝台数÷2の切上げ）・
-              破壊{WORK.gasDestroyPerKg.toLocaleString()}円/kg（{DEFAULT_KG_PER_UNIT}kg/台と仮定）・
-              産廃{(WORK.wastePerCubicMeter / 10000).toFixed(1)}万/㎥（{WORK.wasteVolPerUnit}㎥/台）を積み、
-              最後に<strong className="text-slate-300">諸経費＝工事小計×{Math.round(WORK.overheadRate * 100)}%（下限{(WORK.overheadMin / 10000).toFixed(0)}万円）</strong>を1案件につき1回だけ加算した金額です。
-              グレードは<strong className="text-slate-300">標準（{COST_CLASS.standard.label}・係数{COST_CLASS.standard.factor}）</strong>固定で、下の見積シミュレーターと必ず同額になります。<br />
-              <span className="text-slate-400">
-                根拠：{PRICING_SOURCE}。工事単価は同見積の工事明細から抽出した
-                <strong className="text-slate-300">中央値</strong>（室内機撤去 n=451／室外機撤去 n=320／室内機据付 n=366／室外機据付 n=189／フロン回収 n=224）に、
-                <strong className="text-slate-300">碓井さんの校正（2026-07）</strong>を反映した値です。機器費の標準単価は同分析の下位25%水準＝安全側に置いています。
-              </span><br />
-              <span className="text-amber-200/80">
-                自動見積に<strong className="text-amber-200">含まれない</strong>もの：足場（{SITE_ACCESS.scaffoldFloorThreshold}階以上は原則必要・金額は現地条件で大きく変動）、
-                高所作業車（{(SITE_ACCESS.aerialLiftPerDay / 10000).toFixed(0)}万円/日・既定0日）、付帯工事（配管更新・リモコン・養生・夜間/休日割増ほか）、
-                アスベスト・電源増設・キュービクル等の別途工事。これらは現地調査で確定します。
-              </span><br />
-              <strong className="text-slate-300">PNの正式見積がある場合は、必ずこの欄に手入力で上書きしてください（自動見積より正式見積が優先）。</strong>
+            <div className="mt-2 rounded-lg border border-ehc-500/30 bg-ehc-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-slate-300">
+              <strong className="block text-ehc-200 mb-0.5">ここに入れる金額</strong>
+              今回入れ替える設備だけの総額を<strong className="text-white">万円・税抜</strong>で入力します。正式見積があれば手入力、なければ「実勢で自動見積」を使います。
             </div>
+            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-slate-400">
+                <strong className="block text-slate-200 mb-0.5">この金額から計算</strong>
+                補助額・実質負担・回収年数・PDFへ共通反映
+              </div>
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-100/80">
+                <strong className="block text-amber-200 mb-0.5">含めないもの</strong>
+                将来分・別棟・別会社分。正式見積がある場合は自動見積より優先
+              </div>
+            </div>
+            <details className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] text-slate-400">
+              <summary className="cursor-pointer font-semibold text-slate-300">自動見積の内訳・単価根拠を見る</summary>
+              <div className="mt-2 space-y-1.5 leading-relaxed">
+                <p>設備系統の馬力×台数から、機器費、撤去、据付、配管、電気、フロン回収・破壊、産廃、諸経費を積算します。明細は下の「更新工事 見積シミュレーター」で確認できます。</p>
+                <p>機器費：基礎{MACHINE.base.standard.toLocaleString()}円＋{MACHINE.perHp.standard.toLocaleString()}円/馬力。{MACHINE.highHpThreshold}馬力超は+{MACHINE.highHpPerHp.standard.toLocaleString()}円/馬力、最低{MACHINE.min.toLocaleString()}円/台。</p>
+                <p>工事：撤去 室内{(WORK.removeIndoorPerUnit / 10000).toFixed(1)}万＋室外{(WORK.removeOutdoorPerUnit / 10000).toFixed(1)}万/台、据付 室内{(WORK.installIndoorPerUnit / 10000).toFixed(1)}万＋室外{(WORK.installOutdoorPerUnit / 10000).toFixed(1)}万/台、配管{(WORK.pipingPerUnit / 10000).toFixed(1)}万/台、電気{(WORK.electricPerUnit / 10000).toFixed(1)}万/台。</p>
+                <p>フロン回収{(WORK.gasRecoverPerSystem / 10000).toFixed(1)}万/系統、破壊{WORK.gasDestroyPerKg.toLocaleString()}円/kg（{DEFAULT_KG_PER_UNIT}kg/台）、産廃{(WORK.wastePerCubicMeter / 10000).toFixed(1)}万/㎥（{WORK.wasteVolPerUnit}㎥/台）、諸経費は工事小計×{Math.round(WORK.overheadRate * 100)}%（下限{(WORK.overheadMin / 10000).toFixed(0)}万円）。</p>
+                <p>根拠：{PRICING_SOURCE}。工事明細の中央値と碓井さんの校正（2026-07）を反映し、機器費は下位25%水準の安全側です。標準グレード（{COST_CLASS.standard.label}・係数{COST_CLASS.standard.factor}）で計算します。</p>
+              </div>
+            </details>
+            <details className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-100/80">
+              <summary className="cursor-pointer font-semibold text-amber-200">自動見積に含まれない費用を見る</summary>
+              <p className="mt-2 leading-relaxed">足場（{SITE_ACCESS.scaffoldFloorThreshold}階以上は原則必要）、高所作業車（{(SITE_ACCESS.aerialLiftPerDay / 10000).toFixed(0)}万円/日）、配管更新・リモコン・養生・夜間休日割増、アスベスト、電源増設、キュービクル等。現地調査で確定します。</p>
+            </details>
             {estimateManYen != null && (
               estimateManYen === input.invest ? (
                 <div className="mt-1.5 text-[10px] text-ehc-300 bg-ehc-500/10 border border-ehc-500/30 rounded-lg px-2 py-1.5">
