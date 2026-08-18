@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardList, Calculator, FileText } from "lucide-react";
+import { ClipboardList, SearchCheck, FileText } from "lucide-react";
 
 /* 着地直後に「何を入れると、何が返ってくるか」を3秒で伝える常時表示バー。
    ツアーUI（コーチマーク）は文言が腐る・客先で毎回出る/一度も出ないのどちらかで事故るため採用しない。
@@ -10,14 +10,14 @@ const STEPS = [
   {
     icon: ClipboardList,
     n: "1",
-    title: "設備の情報を入れる",
-    body: "1画面1問のガイドに沿って回答。分からない項目だけAI目安を使えます。",
+    title: "更新時期と所在地を入力",
+    body: "期限に関わる質問から開始。細かな空調仕様は後で補完できます。",
   },
   {
-    icon: Calculator,
+    icon: SearchCheck,
     n: "2",
-    title: "候補制度と回収年数を照合",
-    body: "国・自治体の候補を横断照合。要件確認前は補助金0円で安全側に試算します。",
+    title: "候補制度と期限を確認",
+    body: "申請可能性・条件確認・対象外に分け、次に何をするかを表示します。",
   },
   {
     icon: FileText,
@@ -38,10 +38,10 @@ export function HowItWorks() {
   return (
     <section className="no-print mb-5 rounded-2xl border border-white/10 bg-night-900 p-5 md:p-6 shadow-soft">
       <h2 className="text-sm md:text-base font-bold text-white mb-1">
-        このツールでできること
+        空調更新に使える制度と期限を、3分で確認
       </h2>
       <p className="text-xs text-slate-400 mb-4">
-        業務用空調の設備情報から、補助金候補・実質負担・投資回収・申請準備を整理し、診断書にします。
+        個人情報なしで候補を確認できます。採択・受給を保証する診断ではありません。
       </p>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
@@ -51,13 +51,9 @@ export function HowItWorks() {
           className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 text-white font-bold text-sm shadow-glow hover:from-ehc-500 hover:to-ehc-400 transition-all active:scale-[0.98]"
         >
           <ClipboardList className="w-4 h-4" />
-          かんたんガイド診断を始める
+          3分で診断を始める
         </button>
-        <div className="flex items-center gap-3 text-[11px] text-slate-400">
-          <button type="button" onClick={() => scrollTo("sample-cases")} className="underline underline-offset-2 hover:text-slate-200">サンプルで試す</button>
-          <span className="text-slate-600">/</span>
-          <button type="button" onClick={() => scrollTo("project-info-section")} className="underline underline-offset-2 hover:text-slate-200">フォームに直接入力</button>
-        </div>
+        <button type="button" onClick={() => scrollTo("project-info-section")} className="text-[11px] text-slate-400 underline underline-offset-2 hover:text-slate-200">詳しい設備情報を直接入力する</button>
       </div>
 
       <ol className="grid grid-cols-1 md:grid-cols-3 gap-3">

@@ -143,7 +143,9 @@ export function matchSubsidies(input: MatchInput): MatchResult {
 
   // 補助金マッチング（いずれかのグループの種別が対象なら適用）
   const matched = SUBSIDIES.filter((s) => {
-    if (s.closed) return false; // 今年度受付終了はマッチング対象外（補助金DBタブには表示）
+    // 資金額・ROIに反映するのは、公式確認済みかつ現在受付中の制度だけ。
+    // 受付予定・要再確認・終了制度は ProgramMatchBoard のB/Cに表示し、ここでは安全側に0円とする。
+    if (s.closed || s.status !== "open" || s.verificationState !== "verified") return false;
     if (!s.biz.includes(input.bizType)) return false;
     if (!s.size.includes(input.size)) return false;
     if (s.pref !== "all" && !s.pref.includes(input.pref)) return false;

@@ -121,22 +121,22 @@ export function assessPrep(acceptanceEnd: string | null, now: Date = new Date())
     return {
       daysLeft,
       verdict: "ample",
-      label: "◎ 十分間に合います",
-      note: `締切まで残り約${daysLeft}日。現地調査から申請書類作成まで余裕をもって準備できます。`,
+      label: "○ 準備できる可能性",
+      note: `締切まで残り約${daysLeft}日。一般的な準備目安では余裕がありますが、制度固有の書類・事前手続を公式要領で確認してください。`,
     };
   }
   if (daysLeft >= 21) {
     return {
       daysLeft,
       verdict: "rush",
-      label: "△ 急げば間に合います",
-      note: `締切まで残り約${daysLeft}日。今すぐ現地調査に着手すれば申請可能です。早めのご連絡を推奨します。`,
+      label: "△ 早急な確認が必要",
+      note: `締切まで残り約${daysLeft}日。間に合うかは必要書類と発注状況によるため、直ちに個別確認してください。`,
     };
   }
   return {
     daysLeft,
     verdict: "tight",
-    label: "✕ 今回は厳しい見込み",
+    label: "△ 今回は厳しい可能性",
     note: `締切まで残り約${daysLeft}日。書類準備が間に合わない可能性が高いため、次回公募での申請をおすすめします。`,
   };
 }

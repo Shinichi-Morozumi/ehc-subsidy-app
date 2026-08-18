@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/subsidies/monitor",
+      "schedule": "15 0 * * *"
+    }
+  ]
+}

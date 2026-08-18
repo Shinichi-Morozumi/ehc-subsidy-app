@@ -22,6 +22,7 @@ import { RoadmapView } from "./RoadmapView";
 import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
 import { estimateInvestManYenFromGroups, estimateAnnualKwhFromGroups, kwhPerHpYear, siiBuildingUse, DEFAULT_HP_WHEN_UNKNOWN, CO2_TON_PER_KWH, MACHINE, WORK, COST_CLASS, SITE_ACCESS, DEFAULT_KG_PER_UNIT, PRICING_SOURCE } from "@/lib/pricing";
+import { ProgramMatchBoard } from "./ProgramMatchBoard";
 
 let GID = 0;
 const newGroup = (over: Partial<EquipGroup> = {}): EquipGroup => ({
@@ -34,8 +35,6 @@ const newGroup = (over: Partial<EquipGroup> = {}): EquipGroup => ({
   ...over,
 });
 
-const PREFS = ["東京都", "神奈川県", "大阪府", "埼玉県", "千葉県", "愛知県", "北海道", "福岡県", "その他"];
-
 // 全47都道府県（住所文字列からの判定用）
 const ALL_PREFS = [
   "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県",
@@ -46,12 +45,13 @@ const ALL_PREFS = [
   "徳島県", "香川県", "愛媛県", "高知県", "福岡県", "佐賀県", "長崎県",
   "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
 ];
+const PREFS = ALL_PREFS;
 
 // 住所文字列から都道府県を検出。ドロップダウン候補にあればその値、無ければ"その他"。未検出はnull
 const prefFromAddress = (address: string): string | null => {
   const hit = ALL_PREFS.find((p) => address.includes(p));
   if (!hit) return null;
-  return PREFS.includes(hit) ? hit : "その他";
+  return PREFS.includes(hit) ? hit : null;
 };
 
 const REFRI_SHORT: Record<RefriType, string> = { r22: "R22", r410a: "R410A", r32: "R32", unknown: "冷媒不明" };
@@ -117,6 +117,12 @@ export function SubsidyMatcher() {
     customerAddress: "",
     ehcStaff: "",
     customerKind: "company",
+    entityType: "corporation",
+    updatePlan: "considering",
+    desiredTiming: "undecided",
+    employmentInsurance: "unknown",
+    hiringOrTrainingPlan: "unknown",
+    resilienceNeed: "unknown",
   });
   const [result, setResult] = useState<MatchResult | null>(null);
   // 一度でも「即答」を押したら、以降は入力変更に結果を自動連動させる
@@ -271,19 +277,19 @@ export function SubsidyMatcher() {
           {toast}
         </div>
       )}
-      <ReportTeaser />
-
       <div className="no-print">
       <GuidedDiagnosis input={input} setInput={setInput} onComplete={run} />
       </div>
 
-      <div className="no-print">
-      <SampleCases onPick={applySample} selectedId={selectedSampleId} />
-      </div>
-
       {/* 入力順は「設備 → 診断結果 → 必要な場合だけ連絡先」。
           着地直後にいきなり必須の個人情報を求めない。お客様情報カードは診断ボタンの下にある。 */}
-      <div className="no-print scroll-mt-4" id="project-info-section">
+      <details className="no-print scroll-mt-4 rounded-2xl border border-white/10 bg-night-900 p-4" id="project-info-section">
+      <summary className="cursor-pointer list-none flex items-center gap-2 text-sm font-bold text-slate-200">
+        <Building2 className="w-4 h-4 text-cobalt-300" />
+        詳しい設備情報を入力する（任意）
+        <span className="ml-auto text-[10px] font-normal text-slate-500">精度を上げたい方向け</span>
+      </summary>
+      <div className="mt-4">
       <Card>
         <CardTitle icon={<Building2 className="w-5 h-5" />}>案件情報入力</CardTitle>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -546,9 +552,18 @@ export function SubsidyMatcher() {
         )}
       </Card>
       </div>
+      </details>
 
       {result && (
         <div id="result-section" className="space-y-5">
+          <ProgramMatchBoard input={input} result={result} />
+          <details className="no-print rounded-2xl border border-white/10 bg-night-900 p-4">
+            <summary className="cursor-pointer list-none flex items-center gap-2 text-sm font-bold text-slate-200">
+              <LineChartIcon className="w-4 h-4 text-cobalt-300" />
+              実質負担・ROI・設備診断を詳しく見る
+              <span className="ml-auto text-[10px] font-normal text-slate-500">制度確認の後に利用</span>
+            </summary>
+            <div className="mt-4 space-y-5">
           <DiagnosisSummary
             input={input}
             result={result}
@@ -572,6 +587,8 @@ export function SubsidyMatcher() {
           <div className="no-print">
             <SubsidyDisclaimer />
           </div>
+            </div>
+          </details>
 
           {/* 診断結果を先に見せ、PDF作成・送付・相談を希望する人だけ連絡先を入力する。 */}
           <div className="no-print" id="customer-info-section">
@@ -653,8 +670,8 @@ export function SubsidyMatcher() {
 
           {/* 同意するまで画面下に固定するバー（見落とし防止）。押すと同意→提案書表示へ */}
           {(!agreed || !privacyAgreed) && (
-            <div className="fixed bottom-0 left-0 right-0 z-40 no-print px-3 pb-3 pt-0 pointer-events-none">
-              <div className="pointer-events-auto max-w-3xl mx-auto bg-night-800/95 backdrop-blur border-2 border-amber-400/80 shadow-lift rounded-2xl px-4 py-3 flex items-center gap-3">
+            <div className="no-print">
+              <div className="bg-night-800 border border-amber-400/50 rounded-2xl px-4 py-3 flex items-center gap-3">
                 <span className="relative flex h-3 w-3 flex-shrink-0">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-70"></span>
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400"></span>

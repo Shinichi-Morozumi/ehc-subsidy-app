@@ -3,7 +3,7 @@ import { Subsidy } from "./types";
 // 補助金データの確認日（注記・鮮度表示に使用）。データ更新時はここも更新。
 export const SUBSIDY_DATA_ASOF = "2026年8月18日";
 
-export const SUBSIDIES: Subsidy[] = [
+const RAW_SUBSIDIES: Subsidy[] = [
   {
     id: "sii_iv",
     applyOpen: "2026-06-01",
@@ -231,7 +231,83 @@ export const SUBSIDIES: Subsidy[] = [
     useOfFunds: "販路開拓・業務効率化の事業計画に必要な機械装置等費。空調の単純更新・修繕は対象外",
     nextCheck: "小規模事業者の従業員要件、販路開拓との関連、GビズID、商工会・商工会議所の様式4発行期限を確認",
   },
+  {
+    id: "mhlw_human_resources",
+    name: "人材開発支援助成金（関連可能性の確認枠）",
+    org: "厚生労働省",
+    period: "コース・訓練計画により異なるため公式要件を個別確認",
+    rate: "コース・企業規模・訓練内容により異なる",
+    max: "コース・対象者数により異なる",
+    target: ["ac", "multi"],
+    biz: ["business"],
+    size: ["sme", "middle", "large"],
+    pref: "all",
+    requirement: "雇用保険適用事業所であること等の共通要件に加え、訓練計画・対象労働者・実施時期など各コースの要件確認が必要。空調更新費そのものの助成制度ではありません",
+    docs: "雇用保険関係書類・訓練計画・受講記録・賃金台帳等（コースにより異なる）",
+    url: "https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/koyou_roudou/jinzaikaihatsu/index.html",
+    rateNum: 0,
+    capManYen: 0,
+    infoOnly: true,
+    programKind: "grant",
+    programCategory: "training",
+    status: "unknown",
+    verificationState: "needs_review",
+    useOfFunds: "空調更新に伴う従業員研修・リスキリング等がある場合の関連制度。設備費には算入しません",
+    nextCheck: "雇用保険の適用、訓練計画、対象者、訓練開始前の計画届期限を確認",
+  },
+  {
+    id: "mhlw_workplace_support",
+    name: "人材確保等支援助成金（関連可能性の確認枠）",
+    org: "厚生労働省",
+    period: "コース・取組内容により異なるため公式要件を個別確認",
+    rate: "コース・取組内容により異なる",
+    max: "コース・取組内容により異なる",
+    target: ["ac", "multi"],
+    biz: ["business"],
+    size: ["sme", "middle", "large"],
+    pref: "all",
+    requirement: "雇用管理改善等の取組と各コース要件の確認が必要。空調設備の単純更新を対象とする制度ではありません",
+    docs: "雇用管理制度計画・就業規則・賃金台帳等（コースにより異なる）",
+    url: "https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/0000199292.html",
+    rateNum: 0,
+    capManYen: 0,
+    infoOnly: true,
+    programKind: "grant",
+    programCategory: "employment",
+    status: "unknown",
+    verificationState: "needs_review",
+    useOfFunds: "雇用管理改善や人材確保の取組に関連する可能性を確認する枠。設備費には算入しません",
+    nextCheck: "該当コース、雇用保険、計画認定・提出期限、設備更新との関係を確認",
+  },
 ];
+
+const OFFICIAL_CHECKED_AT = "2026-08-18T09:00:00+09:00";
+const STATUS_REFERENCE_DATE = "2026-08-18";
+
+function inferStatus(s: Subsidy): Subsidy["status"] {
+  if (s.status) return s.status;
+  if (s.closed) return "closed";
+  if (s.applyOpen && s.applyOpen > STATUS_REFERENCE_DATE) return "upcoming";
+  if (s.applyClose && s.applyClose < STATUS_REFERENCE_DATE) return "closed";
+  if (s.applyClose && s.applyClose >= STATUS_REFERENCE_DATE) return "open";
+  return "unknown";
+}
+
+// 制度ごとに公式参照先・確認日時・受付状態を保持する。
+// 更新監視で変更を検知した場合は verificationState を needs_review に落とし、A判定から除外する。
+export const SUBSIDIES: Subsidy[] = RAW_SUBSIDIES.map((s) => ({
+  ...s,
+  programKind: s.programKind ?? "subsidy",
+  programCategory: s.programCategory ?? "equipment",
+  status: inferStatus(s),
+  verificationState: s.verificationState ?? "verified",
+  officialCheckedAt: s.officialCheckedAt ?? OFFICIAL_CHECKED_AT,
+  sourceType: s.sourceType ?? "official_page",
+  sourceUrl: s.sourceUrl ?? s.url,
+  fetchedAt: s.fetchedAt ?? OFFICIAL_CHECKED_AT,
+  prepLeadDaysMin: s.prepLeadDaysMin ?? (s.difficulty === "高" ? 35 : 21),
+  prepLeadDaysMax: s.prepLeadDaysMax ?? (s.difficulty === "高" ? 56 : 42),
+}));
 
 /* 見積シミュレーター用の代表補助率プリセット。
    ラベルは上の SUBSIDIES に実在する制度（rateNum）に対応させること。

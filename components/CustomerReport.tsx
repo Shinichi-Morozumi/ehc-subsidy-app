@@ -11,6 +11,7 @@ import { Printer, FileText, Handshake, Calendar, LineChart, Award, ClipboardList
 import { INDUSTRY_PROFILES } from "@/lib/industries";
 import { QRCodeSVG } from "qrcode.react";
 import { DiagnosisSummary } from "./DiagnosisSummary";
+import { ProgramMatchBoard } from "./ProgramMatchBoard";
 
 // ── 提案書の送付フロー（将来実装メモ）─────────────────────────
 // 現状: 画面で「印刷 / PDF保存」して手動共有。
@@ -511,6 +512,10 @@ ${result.ehcPlan}
             ※ 上記は御社からのヒアリング値に基づく試算条件です。正式見積は現地調査後にご提示します。
           </p>
         </section>
+
+        <div className="mb-5">
+          <ProgramMatchBoard input={input} result={result} printable />
+        </div>
 
         <DiagnosisSummary
           input={input}

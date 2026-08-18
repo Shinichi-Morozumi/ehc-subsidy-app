@@ -2,6 +2,11 @@ export type EquipType = "ac" | "multi";
 export type BizType = "business" | "personal";
 export type SizeType = "sme" | "middle" | "large";
 export type RefriType = "r22" | "r410a" | "r32" | "unknown";
+export type EntityType = "corporation" | "sole_proprietor";
+export type UpdatePlan = "planned" | "considering" | "none";
+export type DesiredTiming = "within_1m" | "within_3m" | "within_6m" | "within_12m" | "undecided";
+export type ProgramStatus = "open" | "upcoming" | "closed" | "unknown" | "suspended";
+export type VerificationState = "verified" | "needs_review" | "stale" | "unavailable";
 
 // AIヒアリングの冒頭で伺う「今日のご関心」。以降の案内先（タブ/CTA）と提案書・メールの記載に使う
 export type InterestType = "subsidy" | "energy" | "dropin" | "update" | "unsure";
@@ -39,6 +44,16 @@ export interface Subsidy {
   scheduleNote?: string; // 次回公募の見込み等の注記
   useOfFunds?: string; // この制度で想定する主な使い道（対象経費は公募要領で最終確認）
   nextCheck?: string; // 申請前に次に確認する事項
+  programKind?: "subsidy" | "grant";
+  programCategory?: "equipment" | "employment" | "training" | "resilience";
+  status?: ProgramStatus;
+  verificationState?: VerificationState;
+  officialCheckedAt?: string;
+  sourceType?: "official_api" | "official_page" | "official_pdf";
+  sourceUrl?: string;
+  fetchedAt?: string;
+  prepLeadDaysMin?: number;
+  prepLeadDaysMax?: number;
 }
 
 export interface Vendor {
@@ -89,4 +104,11 @@ export interface MatchInput {
   ehcStaff: string;
   customerKind?: "company" | "individual"; // 診断書の宛名区分（個人は個人事業主向け）
   interest?: InterestType; // AIヒアリング冒頭で選ばれたご関心（任意）
+  entityType?: EntityType;
+  updatePlan?: UpdatePlan;
+  desiredTiming?: DesiredTiming;
+  employeeCount?: number;
+  employmentInsurance?: "yes" | "no" | "unknown";
+  hiringOrTrainingPlan?: "yes" | "no" | "unknown";
+  resilienceNeed?: "yes" | "no" | "unknown";
 }

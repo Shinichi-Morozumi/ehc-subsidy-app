@@ -98,9 +98,11 @@ function yen(n: number | null): string {
 }
 
 interface ApiResponse {
-  updatedAt: string;
+  fetchedAt: string;
   count: number;
   items: JGrantsSubsidy[];
+  verificationState: "needs_review" | "unavailable";
+  note?: string;
   error?: string;
 }
 
@@ -140,10 +142,10 @@ export function JGrantsLive() {
     <Card>
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <CardTitle icon={<Radio className="w-5 h-5" />}>
-          Jグランツ 最新公募（受付中・自動取得）
+          Jグランツ 公募候補（受付中・自動取得）
         </CardTitle>
         <span className="text-[10px] px-2 py-1 rounded-md bg-ehc-500/15 text-ehc-300 border border-ehc-400/30 font-semibold flex items-center gap-1">
-          <RefreshCw className="w-3 h-3" /> 常に最新
+          <RefreshCw className="w-3 h-3" /> 6時間ごとに候補取得
         </span>
       </div>
       <p className="text-[11px] text-slate-500 mb-2">
@@ -237,9 +239,9 @@ export function JGrantsLive() {
               })}
             </div>
           )}
-          {data?.updatedAt && (
+          {data?.fetchedAt && (
             <p className="text-[10px] text-slate-600 mt-3">
-              取得日時: {new Date(data.updatedAt).toLocaleString("ja-JP")}（最大6時間キャッシュ）／出典: デジタル庁 Jグランツ公開API
+              取得日時: {new Date(data.fetchedAt).toLocaleString("ja-JP")}（最大6時間キャッシュ）／候補発見のみ・要件確認前／出典: デジタル庁 Jグランツ公開API
             </p>
           )}
         </>

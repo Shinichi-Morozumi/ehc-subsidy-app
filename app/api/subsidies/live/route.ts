@@ -10,7 +10,13 @@ export async function GET() {
   try {
     const items = await fetchLiveSubsidies();
     return NextResponse.json(
-      { updatedAt: new Date().toISOString(), count: items.length, items },
+      {
+        fetchedAt: new Date().toISOString(),
+        count: items.length,
+        verificationState: "needs_review",
+        note: "J-Grants一覧APIによる候補発見結果です。詳細・公募要領を確認するまで申請可能とは表示しません。",
+        items,
+      },
       {
         headers: {
           // CDN側でも6時間キャッシュ・24hはstaleを許容
@@ -20,7 +26,7 @@ export async function GET() {
     );
   } catch (e) {
     return NextResponse.json(
-      { updatedAt: new Date().toISOString(), count: 0, items: [], error: "fetch_failed" },
+      { fetchedAt: new Date().toISOString(), count: 0, verificationState: "unavailable", items: [], error: "fetch_failed" },
       { status: 200 }
     );
   }
