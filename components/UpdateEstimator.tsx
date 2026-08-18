@@ -4,19 +4,11 @@ import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input } from "./ui/Field";
 import { Receipt, Link2, Link2Off, Lock, ArrowUp } from "lucide-react";
 import { estimateUpdateBreakdownGroups, MachineGrade, CostClass, COST_CLASS, SITE_ACCESS, PRICING_SOURCE, yenJP, DEFAULT_KG_PER_UNIT } from "@/lib/pricing";
-import { SUBSIDY_RATE_PRESETS, DEFAULT_SUBSIDY_RATE_KEY } from "@/lib/subsidies";
-import { Subsidy } from "@/lib/types";
+import { SUBSIDY_RATE_PRESETS } from "@/lib/subsidies";
 import { useProject } from "./ProjectContext";
 
 // 補助率プリセットは lib/subsidies.ts の実データに対応（制度名と補助率の食い違いを防ぐ）
 const RATES = SUBSIDY_RATE_PRESETS;
-
-// 制度の補助率(rateNum) に一番近いプリセットkeyを返す（表示と計算の食い違いを防ぐ）
-function rateKeyFor(rateNum: number): string {
-  return RATES.reduce((best, r) =>
-    Math.abs(r.rate - rateNum) < Math.abs(best.rate - rateNum) ? r : best
-  , RATES[0]).key;
-}
 
 // 万円の数値を「3億円」「1億2,000万円」のような読みやすい表記にする
 function okuLabel(manYen: number): string {
@@ -44,16 +36,6 @@ export function UpdateEstimator() {
   // 馬力が未入力のグループ（機器費が最低単価で入るため注意喚起する）
   const noHpUnits = projectGroups.filter((g) => !g.hp).reduce((a, g) => a + g.units, 0);
 
-  // 判定で最有力の制度（補助率・補助上限をここから自動で引き継ぐ＝全連動）
-  const bestSubsidy: Subsidy | null = useMemo(() => {
-    if (!input || !result) return null;
-    const cands = result.matched.filter((s) => !s.infoOnly && !s.closed);
-    if (!cands.length) return null;
-    return cands.reduce((best, s) =>
-      Math.min(input.invest * s.rateNum, s.capManYen) > Math.min(input.invest * best.rateNum, best.capManYen) ? s : best
-    );
-  }, [input, result]);
-
   // 入力ソース: 案件情報に連動 / このカードだけで手入力
   const [manual, setManual] = useState(false);
   const useProjectGroups = hasProjectGroups && !manual;
@@ -71,14 +53,12 @@ export function UpdateEstimator() {
   const [grade, setGrade] = useState<MachineGrade>("standard");
   const [costClass, setCostClass] = useState<CostClass>("standard");
 
-  /* 補助率・補助上限は「判定で最有力の制度」から自動。手で触ったときだけ上書き値を使う。
-     0 という数字だけを置くと意味が伝わらないため、未設定は空欄＋説明文で表す。 */
-  const autoRateKey = bestSubsidy ? rateKeyFor(bestSubsidy.rateNum) : DEFAULT_SUBSIDY_RATE_KEY;
-  const autoCapManYen = bestSubsidy ? bestSubsidy.capManYen : 0;
+  /* 共通診断＋個別要件の確認前に補助金を自動適用しない。
+     この見積カードは「補助金なし」を初期値とし、確認後だけ手動で仮定する。 */
   const [rateKeyOverride, setRateKeyOverride] = useState<string | null>(null);
   const [capOverride, setCapOverride] = useState<number | null>(null);
-  const rateKey = rateKeyOverride ?? autoRateKey;
-  const capManYen = capOverride ?? autoCapManYen;
+  const rateKey = rateKeyOverride ?? "none";
+  const capManYen = capOverride ?? 0;
 
   const [ancillaryManYen, setAncillaryManYen] = useState(0); // 付帯工事(万円)
   const [aerialDays, setAerialDays] = useState(0); // 高所作業車(日)
@@ -132,7 +112,7 @@ export function UpdateEstimator() {
       <p className="text-xs text-slate-400 mb-3">
         上の<strong className="text-slate-200">「案件情報」が補助金判定用の総額1本</strong>なのに対し、ここは
         <strong className="text-ehc-300">お客様に出す内訳（明細）</strong>を作る欄です。
-        台数・馬力・補助率・補助上限は<strong className="text-slate-200">上の判定結果から自動で入ります</strong>。
+        台数・馬力は<strong className="text-slate-200">上の入力から自動連動</strong>します。補助率・上限は未確認の制度を反映しないため、初期値は補助金なしです。
         現場条件（高所作業車・設置階・価格帯・付帯工事）だけここで入力します（{PRICING_SOURCE}）。
         実見積は機種グレード・搬入条件・配管長で変動する<strong className="text-slate-200">参考値</strong>です。
       </p>
@@ -215,10 +195,10 @@ export function UpdateEstimator() {
             {RATES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
           </Select>
           {rateKeyOverride == null ? (
-            bestSubsidy && <div className="text-[10px] text-ehc-300 mt-0.5">自動：{bestSubsidy.name}</div>
+            <div className="text-[10px] text-amber-300 mt-0.5">未確認のため補助金なし</div>
           ) : (
             <button type="button" onClick={() => setRateKeyOverride(null)} className="text-[10px] text-ehc-300 hover:underline mt-0.5">
-              判定結果の補助率に戻す
+              補助金なしに戻す
             </button>
           )}
         </Field>
@@ -311,12 +291,10 @@ export function UpdateEstimator() {
           <div className="text-[10px] mt-1 leading-tight">
             {capOverride != null ? (
               <button type="button" onClick={() => setCapOverride(null)} className="text-ehc-300 hover:underline">
-                判定結果の上限に戻す
+                上限未設定に戻す
               </button>
-            ) : bestSubsidy && autoCapManYen > 0 ? (
-              <span className="text-ehc-300">自動：{bestSubsidy.name} の上限</span>
             ) : (
-              <span className="text-slate-500">空欄＝上限なしで計算</span>
+              <span className="text-slate-500">制度確認後に上限を入力してください</span>
             )}
           </div>
         </div>
@@ -338,7 +316,7 @@ export function UpdateEstimator() {
       </div>
       <p className="mt-3 text-[10px] text-slate-500">
         ※ 補助金額は小計(税抜)×補助率の概算。消費税は補助対象外が一般的。上限・対象経費は各制度の公募要領で要確認。
-        補助率・上限は上の「即答」で最有力と判定された制度から自動で入ります（制度名と補助率は lib/subsidies.ts の実データに対応）。
+        補助率・上限は初期状態では反映しません。上のガイド診断と個別要件を確認した後、制度の公式条件を基に手動で仮定してください。
       </p>
     </Card>
   );

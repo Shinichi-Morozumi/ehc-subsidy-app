@@ -163,7 +163,7 @@ export function matchSubsidies(input: MatchInput): MatchResult {
   const saveManYenPerYear = saveYenPerYear / 10000;
   const yearsToRecover =
     saveManYenPerYear > 0
-      ? Number(((input.invest - bestSubsidyManYen) / saveManYenPerYear).toFixed(1))
+      ? Number((input.invest / saveManYenPerYear).toFixed(1))
       : null;
   const total15YearsYen = saveYenPerYear * 15;
 
@@ -176,8 +176,10 @@ export function matchSubsidies(input: MatchInput): MatchResult {
   if (anyR410a) reasons.push("R410A機を含みます。2025年で製造規制完了の1世代前。R32最新機への更新でAPF世代差分も削減（故障時の修理コスト2-3倍）。");
   if (hasMulti) reasons.push("マルチ(ビル用)は室内機の個別・部分負荷制御で未使用ゾーンを停止でき、運用面でも追加の省エネが可能。");
   if (oldest && oldest.age >= 15) reasons.push(`最も古い設備は築${oldest.age}年（${oldest.installYear}年設置）。法定耐用年数超過・経年劣化 約${Math.round(oldest.ageDegradationRate * 100)}%で、更新時の削減効果が大きい。`);
-  reasons.push("2027年フロン排出抑制法改正案：罰則強化検討。今のうちに更新で将来コストゼロ。");
-  reasons.push(`補助金 ${(bestSubsidyManYen * 10000).toLocaleString("ja-JP")} 円獲得可能：来年度は予算縮小可能性あり、今年度中の申請推奨。`);
+  reasons.push("冷媒規制や故障リスクを見据え、現地調査で更新・段階更新・既存設備活用を比較することを推奨します。");
+  if (bestSubsidyManYen > 0) {
+    reasons.push(`候補制度の要件を満たす場合、最大 ${(bestSubsidyManYen * 10000).toLocaleString("ja-JP")} 円の補助額概算です。採択・受給・補助額を保証するものではありません。`);
+  }
   if (saveYenPerYear > 0) reasons.push(`年間電気代 ${saveYenPerYear.toLocaleString("ja-JP")} 円削減（全体実効 ${Math.round(effectiveReductionRate * 100)}%）：15年で ${total15YearsYen.toLocaleString("ja-JP")} 円。`);
 
   let ehcPlan = "";

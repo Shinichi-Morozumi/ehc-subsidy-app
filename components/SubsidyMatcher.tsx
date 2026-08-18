@@ -8,7 +8,8 @@ import { matchSubsidies, MatchResult, GroupResult } from "@/lib/match";
 import { ReportTeaser } from "./ReportTeaser";
 import { CustomerReport } from "./CustomerReport";
 import { SampleCases } from "./SampleCases";
-import { HearingChat } from "./HearingChat";
+import { GuidedDiagnosis } from "./GuidedDiagnosis";
+import { DiagnosisSummary } from "./DiagnosisSummary";
 import { SubsidyEligibilityChat } from "./SubsidyEligibilityChat";
 import { SubsidyScreeningChat, VerdictChip, ScreeningResult } from "./SubsidyScreeningChat";
 import { SampleCase } from "@/lib/samples";
@@ -58,8 +59,19 @@ const groupLabel = (g: EquipGroup, i: number) =>
   `設備${i + 1}：${REFRI_SHORT[g.refri]}・${g.equip === "multi" ? "マルチ" : "パッケージ"}・${g.units}台`;
 
 // 共有リンク: 入力値をURLの ?d= に埋め込み、開いた側で同じ診断を自動再現する
-const encodeInput = (i: MatchInput) =>
-  btoa(unescape(encodeURIComponent(JSON.stringify(i))));
+const encodeInput = (i: MatchInput) => {
+  // 共有URLには診断条件だけを含め、氏名・連絡先・住所などの個人情報を載せない。
+  const safe: MatchInput = {
+    ...i,
+    customerCompany: "",
+    customerContact: "",
+    customerEmail: "",
+    customerPhone: "",
+    customerAddress: "",
+    ehcStaff: "",
+  };
+  return btoa(unescape(encodeURIComponent(JSON.stringify(safe))));
+};
 const decodeInput = (s: string): MatchInput | null => {
   try {
     const parsed = JSON.parse(decodeURIComponent(escape(atob(s))));
@@ -70,12 +82,12 @@ const decodeInput = (s: string): MatchInput | null => {
 };
 
 const HELP = {
-  customerCompany: "提案書のヘッダーに表示されるお客様の会社名（例: 株式会社○○）。提案書PDF出力には必須です。",
-  customerContact: "提案書ヘッダーに表示されるご担当者様のお名前。未定・不明の場合は空欄のままでOKです。",
-  customerEmail: "提案書の送付・ご連絡に使うお客様のメールアドレス。提案書PDF出力には必須です。",
-  customerPhone: "ご連絡用のお客様の電話番号。提案書PDF出力には必須です。",
-  customerAddress: "お客様の所在地（住所）。都道府県を自動判定し、一都三県など地域補助金の該当可否に反映します。提案書PDF出力には必須です。",
-  ehcStaff: "提案書のフッターに表示されるEHC側の担当者名（例: 桝口、伊藤）。担当者が決まっていない場合は空欄のままでOKです。",
+  customerCompany: "診断書のヘッダーに表示されるお客様の会社名（例: 株式会社○○）。診断書PDF出力には必須です。",
+  customerContact: "診断書ヘッダーに表示されるご担当者様のお名前。未定・不明の場合は空欄のままでOKです。",
+  customerEmail: "診断書の送付・ご連絡に使うお客様のメールアドレス。診断書PDF出力には必須です。",
+  customerPhone: "ご連絡用のお客様の電話番号。診断書PDF出力には必須です。",
+  customerAddress: "お客様の所在地（住所）。都道府県を自動判定し、一都三県など地域補助金の該当可否に反映します。診断書PDF出力には必須です。",
+  ehcStaff: "診断書のフッターに表示されるEHC側の担当者名（例: 桝口、伊藤）。担当者が決まっていない場合は空欄のままでOKです。",
   bizType: "EHCソリューションズは業務用（法人・事業主）専用です。個人・家庭用の空調は対象外となります。",
   size: "中小企業 = 資本金3億円以下 もしくは 従業員300人以下。多くの補助金で中小企業が優遇されます。",
   pref: "都道府県別補助金（神奈川県・大阪府・東京都等）の適用判定に使用します。",
@@ -104,6 +116,7 @@ export function SubsidyMatcher() {
     customerPhone: "",
     customerAddress: "",
     ehcStaff: "",
+    customerKind: "company",
   });
   const [result, setResult] = useState<MatchResult | null>(null);
   // 一度でも「即答」を押したら、以降は入力変更に結果を自動連動させる
@@ -111,6 +124,7 @@ export function SubsidyMatcher() {
   const [eligTrigger, setEligTrigger] = useState(0);
   const { setProject, setDraft, estimateManYen } = useProject();
   const [agreed, setAgreed] = useState(false);
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
   // プランナー②③で確定した補助金額・ご希望の補助金（提案書PDFへ反映）
   const [appliedSubsidyManYen, setAppliedSubsidyManYen] = useState<number>(0);
   const [appliedSubsidy, setAppliedSubsidy] = useState<Subsidy | null>(null);
@@ -170,7 +184,7 @@ export function SubsidyMatcher() {
   // ③提案書の印刷ビュー（顧客情報→同意の順に確認してから印刷）
   const printReport = () => {
     const required: { val: string; label: string; id: string }[] = [
-      { val: input.customerCompany, label: "会社名", id: "customer-company-input" },
+      { val: input.customerCompany, label: input.customerKind === "individual" ? "お名前または屋号" : "会社名", id: "customer-company-input" },
       { val: input.customerEmail, label: "メールアドレス", id: "customer-email-input" },
       { val: input.customerPhone, label: "電話番号", id: "customer-phone-input" },
       { val: input.customerAddress, label: "住所", id: "customer-address-input" },
@@ -185,8 +199,15 @@ export function SubsidyMatcher() {
       if (el) window.setTimeout(() => el.focus(), 400);
       return;
     }
+    if (!privacyAgreed) {
+      setToast("個人情報の利用目的を確認し、同意後に診断書PDFを出力できます");
+      if (toastTimer.current) window.clearTimeout(toastTimer.current);
+      toastTimer.current = window.setTimeout(() => setToast(null), 3000);
+      document.getElementById("customer-info-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     if (!agreed) {
-      setToast("下部の同意チェックを入れると、お客様提案書を印刷できます");
+      setToast("制度情報が概算であることを確認し、同意後に診断書PDFを出力できます");
       if (toastTimer.current) window.clearTimeout(toastTimer.current);
       toastTimer.current = window.setTimeout(() => setToast(null), 3000);
       document.getElementById("agree-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -242,7 +263,7 @@ export function SubsidyMatcher() {
 
   return (
     <div className="space-y-5">
-      {/* 画面下部は同意固定バー(bottom-0/z-40)とAIヒアリングFAB(z-50)が常駐するため、
+      {/* 画面下部は同意固定バー(bottom-0/z-40)が表示されるため、
           トーストはそれらより上（bottom-24）に出して重なりを避ける */}
       {toast && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-ehc-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lift flex items-center gap-2 no-print">
@@ -253,14 +274,14 @@ export function SubsidyMatcher() {
       <ReportTeaser />
 
       <div className="no-print">
-      <HearingChat input={input} setInput={setInput} onComplete={run} />
+      <GuidedDiagnosis input={input} setInput={setInput} onComplete={run} />
       </div>
 
       <div className="no-print">
       <SampleCases onPick={applySample} selectedId={selectedSampleId} />
       </div>
 
-      {/* 入力順は「設備 → 連絡先」。AIヒアリング（関心→設備→連絡先）と並びを揃え、
+      {/* 入力順は「設備 → 診断結果 → 必要な場合だけ連絡先」。
           着地直後にいきなり必須の個人情報を求めない。お客様情報カードは診断ボタンの下にある。 */}
       <div className="no-print scroll-mt-4" id="project-info-section">
       <Card>
@@ -481,13 +502,13 @@ export function SubsidyMatcher() {
         )}
         <Button onClick={() => run()} className="mt-5">
           <Sparkles className="w-5 h-5" />
-          {hasRun ? "再計算（最新の入力で更新）" : "即答（マッチング & 提案書生成）"}
+          {hasRun ? "再計算（最新の入力で更新）" : "即答（マッチング & 診断書生成）"}
         </Button>
         {hasRun && (
           <div className="mt-2 flex items-center justify-center gap-3 flex-wrap">
             <div className="flex items-center gap-1.5 text-[11px] text-cobalt-300">
               <span className="w-1.5 h-1.5 rounded-full bg-cobalt-400 animate-pulse" />
-              ライブ更新中：各項目を変更すると結果・ROI・提案書が自動で再計算されます
+              ライブ更新中：各項目を変更すると結果・ROI・診断書が自動で再計算されます
             </div>
             <button
               type="button"
@@ -508,7 +529,7 @@ export function SubsidyMatcher() {
               onClick={printReport}
               className="text-[11px] px-2.5 py-1 rounded-md border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-600/15 flex items-center gap-1"
             >
-              <Printer className="w-3.5 h-3.5" /> 提案書を印刷 / PDF
+              <Printer className="w-3.5 h-3.5" /> 診断書を印刷 / PDF
             </button>
           </div>
         )}
@@ -526,85 +547,14 @@ export function SubsidyMatcher() {
       </Card>
       </div>
 
-      {/* 連絡先は最後にまとめて。提案書PDFを出す段階で初めて必要になる情報のため。 */}
-      <div className="no-print" id="customer-info-section">
-      <Card>
-        <CardTitle icon={<User className="w-5 h-5" />}>お客様情報（提案書ヘッダー用）</CardTitle>
-        <p className="text-[11px] text-slate-500 -mt-2 mb-3">
-          ここは<strong className="text-slate-300">提案書PDFを出すとき</strong>に必要な情報です。診断結果を見るだけなら入力不要。
-          <strong className="text-amber-400">*</strong> の付いた<strong className="text-slate-300">会社名・メール・電話・住所</strong>は提案書PDF出力に必須です。担当者名・EHC担当は任意。住所からは都道府県を自動判定し、一都三県など地域補助金の該当可否に反映します。
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Field label="お客様会社名 *" help={HELP.customerCompany}>
-            <Input
-              id="customer-company-input"
-              value={input.customerCompany}
-              onChange={(e) => set("customerCompany", e.target.value)}
-              placeholder="例: 株式会社○○"
-            />
-          </Field>
-          <Field label="メールアドレス *" help={HELP.customerEmail}>
-            <Input
-              id="customer-email-input"
-              type="email"
-              value={input.customerEmail ?? ""}
-              onChange={(e) => set("customerEmail", e.target.value)}
-              placeholder="例: info@example.co.jp"
-            />
-          </Field>
-          <Field label="電話番号 *" help={HELP.customerPhone}>
-            <Input
-              id="customer-phone-input"
-              type="tel"
-              value={input.customerPhone ?? ""}
-              onChange={(e) => set("customerPhone", e.target.value)}
-              placeholder="例: 03-1234-5678"
-            />
-          </Field>
-          <div className="md:col-span-2">
-            <Field label="住所 *" help={HELP.customerAddress}>
-              <Input
-                id="customer-address-input"
-                value={input.customerAddress ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const p = prefFromAddress(v);
-                  setInput((prev) => ({ ...prev, customerAddress: v, ...(p ? { pref: p } : {}) }));
-                }}
-                placeholder="例: 東京都新宿区西新宿1-1-1 ○○ビル3F"
-              />
-            </Field>
-            {(input.customerAddress ?? "").trim() &&
-              (prefFromAddress(input.customerAddress) ? (
-                <p className="text-[11px] text-ehc-300 mt-1">
-                  住所から「{prefFromAddress(input.customerAddress)}」と判定 → 地域補助金の該当判定に反映しました。
-                </p>
-              ) : (
-                <p className="text-[11px] text-amber-500 mt-1">
-                  住所から都道府県を判定できませんでした。上の「所在地（都道府県）」で選択してください。
-                </p>
-              ))}
-          </div>
-          <Field label="ご担当者名" help={HELP.customerContact}>
-            <Input
-              value={input.customerContact}
-              onChange={(e) => set("customerContact", e.target.value)}
-              placeholder="例: 田中"
-            />
-          </Field>
-          <Field label="EHC担当" help={HELP.ehcStaff}>
-            <Input
-              value={input.ehcStaff}
-              onChange={(e) => set("ehcStaff", e.target.value)}
-              placeholder="例: 桝口"
-            />
-          </Field>
-        </div>
-      </Card>
-      </div>
-
       {result && (
         <div id="result-section" className="space-y-5">
+          <DiagnosisSummary
+            input={input}
+            result={result}
+            appliedSubsidyManYen={appliedSubsidyManYen}
+            appliedSubsidy={appliedSubsidy}
+          />
           <ResultView
             result={result}
             input={input}
@@ -622,6 +572,56 @@ export function SubsidyMatcher() {
           <div className="no-print">
             <SubsidyDisclaimer />
           </div>
+
+          {/* 診断結果を先に見せ、PDF作成・送付・相談を希望する人だけ連絡先を入力する。 */}
+          <div className="no-print" id="customer-info-section">
+          <Card className={!privacyAgreed ? "border-2 border-cobalt-400/50" : ""}>
+            <CardTitle icon={<User className="w-5 h-5" />}>診断書PDF・相談（任意）</CardTitle>
+            <p className="text-[11px] text-slate-400 -mt-2 mb-4 leading-relaxed">
+              匿名の診断結果はここまでで確認できます。PDF診断書の作成・送付やEHCへの相談を希望する場合だけ入力してください。
+              <strong className="text-amber-300">*</strong> はPDF作成に必要です。
+            </p>
+            <div className="mb-4">
+              <div className="text-xs font-semibold text-slate-300 mb-1.5">診断書の宛名</div>
+              <div className="flex gap-1 p-1 bg-night-800 border border-white/10 rounded-lg w-fit">
+                {([ ["company", "法人・団体"], ["individual", "個人事業主"] ] as const).map(([kind, label]) => (
+                  <button key={kind} type="button" onClick={() => set("customerKind", kind)} className={`px-3 py-1.5 text-xs rounded-md ${input.customerKind === kind ? "bg-cobalt-600 text-white" : "text-slate-400"}`}>{label}</button>
+                ))}
+              </div>
+              {input.customerKind === "individual" && <p className="text-[10px] text-amber-300 mt-1.5">個人事業主の事業用空調が対象です。家庭用空調は対象外です。</p>}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Field label={`${input.customerKind === "individual" ? "お名前または屋号" : "お客様会社名"} *`} help={HELP.customerCompany}>
+                <Input id="customer-company-input" value={input.customerCompany} onChange={(e) => set("customerCompany", e.target.value)} placeholder={input.customerKind === "individual" ? "例: 山田 太郎 / 山田商店" : "例: 株式会社○○"} />
+              </Field>
+              <Field label="メールアドレス *" help={HELP.customerEmail}>
+                <Input id="customer-email-input" type="email" value={input.customerEmail ?? ""} onChange={(e) => set("customerEmail", e.target.value)} placeholder="例: info@example.co.jp" />
+              </Field>
+              <Field label="電話番号 *" help={HELP.customerPhone}>
+                <Input id="customer-phone-input" type="tel" value={input.customerPhone ?? ""} onChange={(e) => set("customerPhone", e.target.value)} placeholder="例: 03-1234-5678" />
+              </Field>
+              <div className="md:col-span-2">
+                <Field label="住所 *" help={HELP.customerAddress}>
+                  <Input id="customer-address-input" value={input.customerAddress ?? ""} onChange={(e) => { const v = e.target.value; const p = prefFromAddress(v); setInput((prev) => ({ ...prev, customerAddress: v, ...(p ? { pref: p } : {}) })); }} placeholder="例: 東京都新宿区西新宿1-1-1 ○○ビル3F" />
+                </Field>
+                {(input.customerAddress ?? "").trim() && (prefFromAddress(input.customerAddress) ? <p className="text-[11px] text-ehc-300 mt-1">住所から「{prefFromAddress(input.customerAddress)}」と判定し、地域制度に反映しました。</p> : <p className="text-[11px] text-amber-500 mt-1">都道府県を判定できません。所在地欄で選択してください。</p>)}
+              </div>
+              <Field label="ご担当者名" help={HELP.customerContact}><Input value={input.customerContact} onChange={(e) => set("customerContact", e.target.value)} placeholder="例: 田中" /></Field>
+              <Field label="EHC担当" help={HELP.ehcStaff}><Input value={input.ehcStaff} onChange={(e) => set("ehcStaff", e.target.value)} placeholder="例: 桝口" /></Field>
+            </div>
+            <div className="mt-4 rounded-xl border border-cobalt-500/30 bg-cobalt-500/10 p-4 text-[11px] text-slate-300 leading-relaxed">
+              <p><strong className="text-white">取得目的：</strong>入力情報と診断結果を、宛名入りPDFの作成・送付、相談への回答、EHCおよび施工連携先PNでの顧客対応・診断履歴の管理に使用します。</p>
+              <p className="mt-1"><strong className="text-white">送信範囲：</strong>PDF出力だけでは自動送信しません。出力後に「相談記録として送信」を選んだ場合のみ、EHC・PNへ送信し管理記録へ追加します。</p>
+              <p className="mt-1"><strong className="text-white">注意：</strong>制度の採択・受給・補助額、削減効果を保証するものではありません。</p>
+              <label className="mt-3 flex items-start gap-2.5 cursor-pointer text-sm text-slate-100">
+                <input type="checkbox" checked={privacyAgreed} onChange={(e) => setPrivacyAgreed(e.target.checked)} className="mt-0.5 w-5 h-5 accent-cobalt-500 flex-shrink-0" />
+                <span>上記の取得目的・利用範囲・送信条件を確認し、PDF作成と、私が送信を選んだ場合の相談記録への登録に同意します。</span>
+              </label>
+            </div>
+            <a href="mailto:info@ehcjpn.com?subject=EHC%20補助金診断の相談" className="mt-4 inline-flex items-center justify-center w-full rounded-xl border border-ehc-500/40 bg-ehc-500/10 px-4 py-3 text-sm font-bold text-ehc-200 hover:bg-ehc-500/20">入力せず、まずEHCへ相談する</a>
+          </Card>
+          </div>
+
           <div id="agree-section" className="no-print">
           <Card className={!agreed ? "border-2 border-amber-400/70 ring-2 ring-amber-400/20" : ""}>
             <label className="flex items-start gap-2.5 text-sm text-slate-200 cursor-pointer">
@@ -630,17 +630,17 @@ export function SubsidyMatcher() {
                 checked={agreed}
                 onChange={(e) => {
                   setAgreed(e.target.checked);
-                  if (e.target.checked) {
+                  if (e.target.checked && privacyAgreed) {
                     setTimeout(() => document.getElementById("customer-report")?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
                   }
                 }}
                 className="mt-0.5 w-5 h-5 accent-amber-400 flex-shrink-0"
               />
-              <span>上記の補助金情報が<strong className="text-white">あくまで目安</strong>であり、公募内容・締切は予告なく変更されるため、最新条件は公募要領／当社で要確認であることを理解しました。（お客様提案書の表示・PDF出力に同意します）</span>
+              <span>上記の補助金情報・実質負担・準備期間・「間に合うか」が<strong className="text-white">あくまで目安</strong>であり、採択・受給を保証せず、最新条件は公式の公募要領で確認する必要があることを理解しました。</span>
             </label>
           </Card>
           </div>
-          {agreed && (
+          {agreed && privacyAgreed && (
             <div id="customer-report" className="scroll-mt-4">
               <CustomerReport
                 input={input}
@@ -652,7 +652,7 @@ export function SubsidyMatcher() {
           )}
 
           {/* 同意するまで画面下に固定するバー（見落とし防止）。押すと同意→提案書表示へ */}
-          {!agreed && (
+          {(!agreed || !privacyAgreed) && (
             <div className="fixed bottom-0 left-0 right-0 z-40 no-print px-3 pb-3 pt-0 pointer-events-none">
               <div className="pointer-events-auto max-w-3xl mx-auto bg-night-800/95 backdrop-blur border-2 border-amber-400/80 shadow-lift rounded-2xl px-4 py-3 flex items-center gap-3">
                 <span className="relative flex h-3 w-3 flex-shrink-0">
@@ -660,20 +660,18 @@ export function SubsidyMatcher() {
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-400"></span>
                 </span>
                 <p className="text-[13px] text-slate-200 leading-snug flex-1">
-                  <strong className="text-white">あと1ステップ。</strong> 内容に同意すると<strong className="text-amber-300">お客様提案書（PDF出力可）</strong>が表示されます。
+                  <strong className="text-white">PDF診断書を希望する方へ。</strong> 利用目的と概算条件の2つを確認してください。
                 </p>
                 <button
                   onClick={() => {
-                    setAgreed(true);
-                    // 提案書本体（PDF出力ボタンがある場所）まで送る。result-section だと結果の先頭に戻ってしまい「PDFがどこにも無い」ように見える
                     setTimeout(() => {
-                      const el = document.getElementById("customer-report") ?? document.getElementById("result-section");
+                      const el = document.getElementById(!privacyAgreed ? "customer-info-section" : "agree-section");
                       el?.scrollIntoView({ behavior: "smooth", block: "start" });
                     }, 150);
                   }}
                   className="flex-shrink-0 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-night-900 font-bold text-sm px-4 py-2.5 rounded-xl shadow-card transition-all whitespace-nowrap"
                 >
-                  同意して提案書を表示
+                  同意内容を確認
                 </button>
               </div>
             </div>
@@ -777,14 +775,14 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
   const [screenOpen, setScreenOpen] = useState(false);
   const [screening, setScreening] = useState<ScreeningResult | null>(null);
 
-  // マッチ結果が変わったら、選択を最適補助金へ同期＆要件チェックを初期化（全クリア＝true）
+  // マッチ結果が変わったら、選択を最適補助金へ同期。要件は未確認(false)から始める。
   useEffect(() => {
     setSelectedId((prev) => (fundable.some((s) => s.id === prev) ? prev : bestId));
     setReqChecks((prev) => {
       const next = { ...prev };
       fundable.forEach((s) => {
         const n = splitRequirements(s.requirement).length;
-        if (!next[s.id] || next[s.id].length !== n) next[s.id] = Array(n).fill(true);
+        if (!next[s.id] || next[s.id].length !== n) next[s.id] = Array(n).fill(false);
       });
       return next;
     });
@@ -796,7 +794,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
     setScreening(null);
   }, [matchedKey]);
 
-  // ヒアリングAIから「補助金の該当もチェック」を選んだら、最有力補助金で自動的に該当チェックを開く
+  // ガイド診断から該当チェックを指定された場合は、最有力候補の個別要件を開く
   useEffect(() => {
     if (eligTrigger > 0 && bestId) {
       setWantSubsidy(true);
@@ -807,19 +805,22 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
   }, [eligTrigger]);
 
   const selected = fundable.find((s) => s.id === selectedId) || null;
-  // 要件チェックが全て満たされていれば「該当」。未初期化(undefined)や要件0件は該当扱い
-  const isEligible = (s: Subsidy) => (reqChecks[s.id] ?? []).every(Boolean);
-  // ②のリストは「該当するもの」だけ表示。ただし操作中(選択中)のものは消さない
-  const visibleFundable = fundable.filter((s) => isEligible(s) || s.id === selectedId);
-  const hiddenCount = fundable.length - visibleFundable.length;
+  // 候補は要件確認前にも比較できるよう全件を表示する
+  const visibleFundable = fundable;
   const selectedReqs = selected ? splitRequirements(selected.requirement) : [];
   const selectedChecks = (selected && reqChecks[selected.id]) || [];
   const allReqMet = selectedChecks.length > 0 && selectedChecks.every(Boolean);
+  const selectedScreeningOk = Boolean(
+    selected &&
+    screening &&
+    screening.verdictById[selected.id] === "yes" &&
+    screening.timingById[selected.id]?.key !== "closed"
+  );
   const selectedAmountManYen = selected ? subsidyAmountManYen(selected, input.invest) : 0;
   // 実際にROI・グラフへ反映する補助金額
-  const appliedSubsidyManYen = wantSubsidy && selected && allReqMet ? selectedAmountManYen : 0;
+  const appliedSubsidyManYen = wantSubsidy && selected && selectedScreeningOk && allReqMet ? selectedAmountManYen : 0;
   // 確定した補助金額・ご希望の補助金を親（提案書PDF）へ反映
-  const appliedSubsidyForReport = wantSubsidy && selected && allReqMet ? selected : null;
+  const appliedSubsidyForReport = wantSubsidy && selected && selectedScreeningOk && allReqMet ? selected : null;
   useEffect(() => {
     onApplied?.(appliedSubsidyManYen, appliedSubsidyForReport);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -938,8 +939,8 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
       <Card>
         <CardTitle icon={<Wallet className="w-5 h-5" />}>補助金プランを選ぶ</CardTitle>
         <p className="text-xs text-slate-400 -mt-1 mb-3">
-          ①希望の有無 → ②AI診断（該当可否＋公募時期）→ ③どの補助金 → ④要件クリア可否 の順に進みます。
-          切り替えると下のグラフ・実質負担額・回収年数、および「適用可能な補助金」が自動で連動します。
+          ①希望の有無 → ②ガイド式診断（該当可否＋公募時期）→ ③どの補助金 → ④要件クリア可否 の順に進みます。
+          切り替えると下のグラフ・実質負担額・回収年数、および「候補となる補助金」が自動で連動します。
         </p>
 
         {/* ① 希望しますか */}
@@ -962,9 +963,9 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
         {wantSubsidy ? (
           fundable.length ? (
             <>
-              {/* ② 全制度まとめてAI診断（可否＋公募時期） */}
+              {/* ② 全制度まとめてガイド式診断（可否＋公募時期） */}
               <div className="mb-4">
-                <div className="text-xs font-semibold text-slate-300 mb-1.5">② まず、補助金に該当するかAI診断します</div>
+                <div className="text-xs font-semibold text-slate-300 mb-1.5">② まず、補助金に該当するかガイド式で確認します</div>
                 {screening ? (
                   <div className="rounded-xl border border-white/10 bg-night-900 p-3">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -1003,7 +1004,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                       })}
                     </div>
                     <p className="text-[10px] text-slate-500 mt-2">
-                      導入予定時期のご回答：{screening.planHorizon}。詳細は下の「適用可能な補助金」でご確認ください。
+                      導入予定時期のご回答：{screening.planHorizon}。詳細は下の「候補となる補助金」でご確認ください。
                     </p>
                   </div>
                 ) : (
@@ -1011,15 +1012,15 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                     <p className="text-xs text-slate-300 leading-relaxed mb-2.5">
                       所在地・事業規模・対象設備は入力内容から判定済みです。
                       <strong className="text-ehc-300">共通の前提条件（発注前か・機種・書類・GビズID等）と公募時期</strong>
-                      をAIが5問で確認し、該当可否をまとめて判定します。
+                      を5問のガイドで確認し、該当見込みをまとめて判定します。
                     </p>
                     <button
                       type="button"
                       onClick={() => setScreenOpen(true)}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-xs font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors shadow-glow"
                     >
-                      <Bot className="w-4 h-4" />
-                      補助金に該当するかAI診断する
+                      <ClipboardCheck className="w-4 h-4" />
+                      補助金に該当するかガイド診断する
                     </button>
                   </div>
                 )}
@@ -1037,7 +1038,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                 />
               )}
 
-              {/* ③ どの補助金（②のAI診断を終えてから表示） */}
+              {/* ③ どの補助金（②のガイド診断を終えてから表示） */}
               <div className={`mb-4 ${screening ? "" : "hidden"}`}>
                 <div className="text-xs font-semibold text-slate-300 mb-1.5">③ どの補助金を希望しますか？</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1061,14 +1062,9 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                     );
                   })}
                 </div>
-                {hiddenCount > 0 && (
-                  <p className="text-[10px] text-slate-500 mt-1.5">
-                    ※ 要件を満たさない補助金 {hiddenCount} 件は非表示にしています（④のチェックを戻すと再表示されます）。
-                  </p>
-                )}
               </div>
 
-              {/* ④ 要件クリア可否（②のAI診断を終えてから表示） */}
+              {/* ④ 要件クリア可否（②のガイド診断を終えてから表示） */}
               {screening && selected && (
                 <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                   <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
@@ -1090,7 +1086,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                       <label key={i} className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={selectedChecks[i] ?? true}
+                          checked={selectedChecks[i] ?? false}
                           onChange={() => toggleReq(i)}
                           className="mt-0.5 w-4 h-4 accent-ehc-400 flex-shrink-0"
                         />
@@ -1101,9 +1097,11 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                   <div
                     className={`mt-3 rounded-lg px-3 py-2 text-xs font-semibold ${allReqMet ? "bg-ehc-500/15 border border-ehc-500/40 text-ehc-200" : "bg-amber-500/10 border border-amber-500/30 text-amber-300"}`}
                   >
-                    {allReqMet
-                      ? `全要件クリア → この補助金 ¥${(selectedAmountManYen * 10000).toLocaleString("ja-JP")} をグラフに反映中`
-                      : "未クリアの要件があります → 補助金なし（自己負担）で試算中。クリアできる場合はチェックを入れてください"}
+                    {allReqMet && selectedScreeningOk
+                      ? `共通診断と個別要件を確認済み → この補助金 ¥${(selectedAmountManYen * 10000).toLocaleString("ja-JP")} を概算として反映中`
+                      : allReqMet
+                      ? "個別要件はチェック済みですが、共通診断が「要確認／対象外」または受付終了のため、補助金は反映していません。"
+                      : "未確認の個別要件があります → 補助金なし（自己負担）で試算中。確認できた項目だけチェックしてください。"}
                   </div>
                   <p className="text-[10px] text-slate-500 mt-2">必要書類: {selected.docs}</p>
                 </div>
@@ -1247,12 +1245,12 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
       </Card>
 
       <Card>
-        <CardTitle icon={<Target className="w-5 h-5" />}>適用可能な補助金</CardTitle>
+        <CardTitle icon={<Target className="w-5 h-5" />}>候補となる補助金</CardTitle>
         {wantSubsidy && fundable.length > 0 && !screening ? (
-          /* 診断前は制度の詳細を出さない：まず該当可否と公募時期をAI診断してもらう */
+          /* 診断前は制度の詳細を出さない：まず該当見込みと公募時期をガイドで確認する */
           <div className="rounded-xl border border-ehc-500/30 bg-ehc-500/5 p-4">
             <p className="text-xs text-slate-300 leading-relaxed mb-3">
-              先に<strong className="text-ehc-300">「補助金に該当するかAI診断」</strong>（該当可否＋公募時期）を行ってください。
+              先に<strong className="text-ehc-300">「補助金に該当するかガイド診断」</strong>（該当見込み＋公募時期）を行ってください。
               診断が終わると、ここに<strong className="text-slate-200">該当する制度の要件・必要書類・申請時期</strong>が表示されます。
             </p>
             <button
@@ -1260,8 +1258,8 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
               onClick={() => setScreenOpen(true)}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-xs font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors shadow-glow"
             >
-              <Bot className="w-4 h-4" />
-              補助金に該当するかAI診断する
+              <ClipboardCheck className="w-4 h-4" />
+              補助金に該当するかガイド診断する
             </button>
             <p className="text-[10px] text-slate-500 mt-2">
               所要 約30秒・5問。回答内容はこの画面の試算にのみ使用します。
@@ -1279,7 +1277,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                   {s.name}
                 </h3>
                 <div className="text-xs text-slate-400 mb-2.5 flex flex-wrap gap-1.5">
-                  <span className={`px-2 py-0.5 rounded-md font-medium ${s.infoOnly ? "bg-amber-500/15 text-amber-300" : "bg-ehc-500/15 text-ehc-300"}`}>{s.infoOnly ? "情報提供（要確認）" : "適用可能"}</span>
+                  <span className={`px-2 py-0.5 rounded-md font-medium ${s.infoOnly ? "bg-amber-500/15 text-amber-300" : "bg-ehc-500/15 text-ehc-300"}`}>{s.infoOnly ? "情報提供（要確認）" : "候補（要件確認前）"}</span>
                   {verdict && (
                     <span
                       className={`px-2 py-0.5 rounded-md font-medium ${
@@ -1290,7 +1288,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                           : "bg-red-500/15 text-red-300"
                       }`}
                     >
-                      AI診断: {verdict === "yes" ? "該当見込み" : verdict === "maybe" ? "要確認" : "対象外の可能性"}
+                      ガイド診断: {verdict === "yes" ? "該当見込み" : verdict === "maybe" ? "要確認" : "対象外の可能性"}
                     </span>
                   )}
                   {timing && (
@@ -1320,7 +1318,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
       </Card>
 
       <Card>
-        <CardTitle icon={<Lightbulb className="w-5 h-5" />}>今やるべき5つの理由</CardTitle>
+        <CardTitle icon={<Lightbulb className="w-5 h-5" />}>更新を検討する理由</CardTitle>
         <ul className="space-y-2.5">
           {result.reasons.map((r, i) => (
             <li key={i} className="bg-gradient-to-r from-amber-500/10 to-night-900 border border-amber-500/20 px-4 py-3 rounded-xl text-sm text-slate-100 flex items-start gap-3">

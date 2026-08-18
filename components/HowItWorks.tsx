@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageCircle, ClipboardList, Calculator, FileText } from "lucide-react";
+import { ClipboardList, Calculator, FileText } from "lucide-react";
 
 /* 着地直後に「何を入れると、何が返ってくるか」を3秒で伝える常時表示バー。
    ツアーUI（コーチマーク）は文言が腐る・客先で毎回出る/一度も出ないのどちらかで事故るため採用しない。
@@ -11,23 +11,23 @@ const STEPS = [
     icon: ClipboardList,
     n: "1",
     title: "設備の情報を入れる",
-    body: "建物用途・台数・馬力だけでOK。分からない項目はAIが実勢値で補完します。",
+    body: "1画面1問のガイドに沿って回答。分からない項目だけAI目安を使えます。",
   },
   {
     icon: Calculator,
     n: "2",
-    title: "使える補助金と回収年数を自動判定",
-    body: "国・自治体の制度を横断で照合し、実質負担額と投資回収年数をその場で算出します。",
+    title: "候補制度と回収年数を照合",
+    body: "国・自治体の候補を横断照合。要件確認前は補助金0円で安全側に試算します。",
   },
   {
     icon: FileText,
     n: "3",
-    title: "お客様名入りの提案書を発行",
-    body: "そのまま印刷／PDF保存、またはメールで送付できます。",
+    title: "同意後に診断書PDFを発行",
+    body: "匿名結果を先に確認し、希望する場合だけ宛名入りPDF・相談へ進めます。",
   },
 ];
 
-// 画面内の別コンポーネント（HearingChat）へ「AIヒアリングを開け」と伝えるイベント名
+// 画面内のガイド診断コンポーネントを開くイベント名
 export const OPEN_HEARING_EVENT = "ehc:open-hearing";
 
 export function HowItWorks() {
@@ -41,10 +41,26 @@ export function HowItWorks() {
         このツールでできること
       </h2>
       <p className="text-xs text-slate-400 mb-4">
-        業務用空調の設備情報を入れるだけで、使える補助金・実質負担額・投資回収年数を出し、そのまま提案書にします。
+        業務用空調の設備情報から、補助金候補・実質負担・投資回収・申請準備を整理し、診断書にします。
       </p>
 
-      <ol className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent(OPEN_HEARING_EVENT))}
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 text-white font-bold text-sm shadow-glow hover:from-ehc-500 hover:to-ehc-400 transition-all active:scale-[0.98]"
+        >
+          <ClipboardList className="w-4 h-4" />
+          かんたんガイド診断を始める
+        </button>
+        <div className="flex items-center gap-3 text-[11px] text-slate-400">
+          <button type="button" onClick={() => scrollTo("sample-cases")} className="underline underline-offset-2 hover:text-slate-200">サンプルで試す</button>
+          <span className="text-slate-600">/</span>
+          <button type="button" onClick={() => scrollTo("project-info-section")} className="underline underline-offset-2 hover:text-slate-200">フォームに直接入力</button>
+        </div>
+      </div>
+
+      <ol className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {STEPS.map((s) => {
           const Icon = s.icon;
           return (
@@ -64,34 +80,6 @@ export function HowItWorks() {
           );
         })}
       </ol>
-
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <button
-          type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent(OPEN_HEARING_EVENT))}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 text-white font-bold text-sm shadow-glow hover:from-ehc-500 hover:to-ehc-400 transition-all active:scale-[0.98]"
-        >
-          <MessageCircle className="w-4 h-4" />
-          AIに聞きながら入力（最短30秒）
-        </button>
-        <div className="flex items-center gap-3 text-[11px] text-slate-400">
-          <button
-            type="button"
-            onClick={() => scrollTo("sample-cases")}
-            className="underline underline-offset-2 hover:text-slate-200"
-          >
-            サンプルで試す
-          </button>
-          <span className="text-slate-600">/</span>
-          <button
-            type="button"
-            onClick={() => scrollTo("project-info-section")}
-            className="underline underline-offset-2 hover:text-slate-200"
-          >
-            フォームに直接入力
-          </button>
-        </div>
-      </div>
     </section>
   );
 }

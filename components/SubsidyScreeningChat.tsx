@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useEffect } from "react";
 import { Subsidy, MatchInput } from "@/lib/types";
-import { Bot, X, Check, CheckCircle2, AlertTriangle, XCircle, CalendarClock } from "lucide-react";
+import { ClipboardCheck, X, Check, CheckCircle2, AlertTriangle, XCircle, CalendarClock } from "lucide-react";
 
 /* ------------------------------------------------------------------
    全制度 一括スクリーニング
@@ -220,10 +220,10 @@ export function SubsidyScreeningChat({
         {/* ヘッダー */}
         <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/10 bg-night-900/80">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ehc-500 to-ehc-700 flex items-center justify-center flex-shrink-0">
-            <Bot className="w-4 h-4 text-white" />
+            <ClipboardCheck className="w-4 h-4 text-white" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold text-white truncate">補助金 該当診断 AI</div>
+            <div className="text-sm font-bold text-white truncate">補助金 該当診断ガイド</div>
             <div className="text-[11px] text-slate-400 truncate">
               {input.pref}・候補 {candidates.length} 制度をまとめて判定します
             </div>
@@ -337,7 +337,7 @@ export function SubsidyScreeningChat({
               className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-sm font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors"
             >
               <Check className="w-4 h-4" />
-              診断結果を反映して、適用可能な補助金を見る
+              診断結果を反映して、候補となる補助金を見る
             </button>
           )}
         </div>
@@ -369,7 +369,7 @@ function Bubble({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex gap-2">
       <div className="w-6 h-6 rounded-full bg-ehc-600/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-        <Bot className="w-3.5 h-3.5 text-ehc-200" />
+        <ClipboardCheck className="w-3.5 h-3.5 text-ehc-200" />
       </div>
       <div className="text-xs text-slate-200 leading-relaxed bg-white/5 border border-white/10 rounded-xl rounded-tl-sm px-3 py-2 max-w-[85%]">
         {children}

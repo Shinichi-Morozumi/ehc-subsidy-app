@@ -37,6 +37,8 @@ export interface Subsidy {
   applyOpen?: string;   // 公募開始日(ISO yyyy-mm-dd)。判明している回のみ
   applyClose?: string;  // 申請締切日(ISO)。判明している回のみ
   scheduleNote?: string; // 次回公募の見込み等の注記
+  useOfFunds?: string; // この制度で想定する主な使い道（対象経費は公募要領で最終確認）
+  nextCheck?: string; // 申請前に次に確認する事項
 }
 
 export interface Vendor {
@@ -85,5 +87,6 @@ export interface MatchInput {
   customerPhone: string;
   customerAddress: string;
   ehcStaff: string;
+  customerKind?: "company" | "individual"; // 診断書の宛名区分（個人は個人事業主向け）
   interest?: InterestType; // AIヒアリング冒頭で選ばれたご関心（任意）
 }

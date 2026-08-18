@@ -20,7 +20,7 @@ import { REGULATION, freonLawOutlook } from "@/lib/regulations";
 const TAB_HINTS: Record<string, { label: string; hint: string }> = {
   match: {
     label: "空調更新＋補助金マッチング",
-    hint: "設備の情報から使える補助金を自動診断し、実質負担額とROIを試算します。入力して「即答」を押すと、そのまま下に申請〜入金・工事の導入ロードマップまで表示されます。",
+    hint: "1画面1問のガイドから補助金候補を照合し、実質負担額とROIを安全側に試算します。結果には期限・準備量・次の確認事項まで表示します。",
   },
   dropin: {
     label: "ドロップイン",
@@ -72,7 +72,7 @@ export default function Page() {
             パッケージ・マルチ／炭化水素冷媒ドロップイン更新に特化。
           </p>
           <div className="mt-7 flex flex-wrap items-center gap-2 text-[11px]">
-            <span className="px-3 py-1 rounded-full border border-white/15 text-slate-300">補助金 最大3億円</span>
+            <span className="px-3 py-1 rounded-full border border-white/15 text-slate-300">制度上限 最大3億円</span>
             <span className="px-3 py-1 rounded-full border border-white/15 text-slate-300">高効率機更新 −20〜40%</span>
             <span className="px-3 py-1 rounded-full border border-white/15 text-slate-300">ドロップイン −{DROPIN_REDUCTION_LABEL}</span>
             <span className="px-3 py-1 rounded-full border border-ehc-400/40 text-ehc-200 bg-ehc-600/10">施工実績 22業種</span>

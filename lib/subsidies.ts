@@ -1,7 +1,7 @@
 import { Subsidy } from "./types";
 
 // 補助金データの確認日（注記・鮮度表示に使用）。データ更新時はここも更新。
-export const SUBSIDY_DATA_ASOF = "2026年7月26日";
+export const SUBSIDY_DATA_ASOF = "2026年8月18日";
 
 export const SUBSIDIES: Subsidy[] = [
   {
@@ -26,6 +26,8 @@ export const SUBSIDIES: Subsidy[] = [
     adoptionRate: "非公表（省エネ量・費用対効果で審査。要件充足で採択可能性）",
     difficulty: "高",
     difficultyNote: "省エネ計算書・事業計画・補助事業ポータル登録が必須。審査型で書類量が多い",
+    useOfFunds: "SIIが指定する高効率空調の設備費（対象設備・対象経費は公募要領と型番リストで確認）",
+    nextCheck: "第3次公募の日程、導入機器がSIIの指定設備か、省エネ量要件、交付決定前に未発注かを確認",
   },
   {
     id: "sii_gx",
@@ -35,7 +37,7 @@ export const SUBSIDIES: Subsidy[] = [
     name: "SII GX設備単位型（メーカー強化枠／トップ性能枠）",
     org: "一般社団法人 環境共創イニシアチブ",
     period: "令和7年度補正：1次・2次とも終了（2次〜2026/7/9）／3次 日程未定",
-    rate: "メーカー強化枠：上限3億円 / トップ性能枠：更新1/2・新設1/5",
+    rate: "メーカー強化枠：1/3以内／トップ性能枠：更新1/2以内・新設1/5以内",
     max: "3億円",
     target: ["ac", "multi"],
     biz: ["business"],
@@ -44,20 +46,24 @@ export const SUBSIDIES: Subsidy[] = [
     requirement: "省エネ要件 10%/1kl/1kl千万円のいずれか達成。トップランナー水準機器",
     docs: "SII事業計画書・型番リスト・省エネ計算書",
     url: "https://syouenehojyokin.sii.or.jp/",
-    rateNum: 0.5,
+    // どの区分に該当するか未確認の段階では、メーカー強化枠の1/3を安全側の概算に使う
+    rateNum: 0.33,
     capManYen: 30000,
     adoptionRate: "非公表（トップランナー水準機器で要件充足が前提）",
     difficulty: "高",
     difficultyNote: "トップランナー水準機器＋省エネ要件(10%/1kl等)の立証が必要",
+    useOfFunds: "SIIが指定する高性能な空調設備の設備費（申請区分・対象型番により補助率が異なる）",
+    nextCheck: "メーカー強化枠／トップ性能枠のどちらか、指定型番、省エネ要件、第3次公募日程を確認",
   },
   {
     id: "kanagawa",
     applyOpen: "2026-06-01",
     applyClose: "2026-11-30",
-    scheduleNote: "先着順・予算到達で終了（前年度は10/10到達で早期終了。早めの申請推奨）",
+    closed: true,
+    scheduleNote: "県の公式発表で予算額に達したため受付終了。次年度公募は未発表",
     name: "神奈川県 中小企業省エネルギー設備導入費等補助金",
     org: "神奈川県",
-    period: "2026/6/1〜11/30必着（先着順・予算到達で終了）",
+    period: "2026/6/1受付開始後、予算額到達により受付終了（当初予定は11/30まで）",
     rate: "1/3",
     max: "500万円（再エネ認定で600万円）",
     target: ["ac", "multi"],
@@ -66,15 +72,18 @@ export const SUBSIDIES: Subsidy[] = [
     pref: ["神奈川県"],
     requirement: "CO2削減量 3t/年以上。県内事業所。エアコン・LED・ボイラー等が対象",
     docs: "事業計画書・省エネ計算書・見積書・現況写真",
-    url: "https://www.pref.kanagawa.jp/",
+    url: "https://www.pref.kanagawa.jp/docs/ap4/cnt/f7226/shouenesetubihojokin.html",
     rateNum: 0.33,
     capManYen: 500,
     adoptionRate: "先着順・予算枠方式（要件充足かつ枠内なら採択。前年度は早期終了）",
     difficulty: "中",
     difficultyNote: "CO2削減計算と見積が必要だが自治体先着型で審査は比較的シンプル。早期の枠確保がカギ",
+    useOfFunds: "県内事業所の高効率空調など、省エネ設備の設備費・工事費（対象範囲は要領で確認）",
+    nextCheck: "次年度公募の有無、県内事業所、年間CO2削減3t以上、発注前であることを確認",
   },
   {
     id: "hotel_sustainability",
+    closed: true,
     scheduleNote: "令和7年度は終了（追加公募なし）。令和8年度公募は未発表・ウォッチ中",
     name: "宿泊施設サステナビリティ強化支援事業",
     org: "観光庁",
@@ -93,6 +102,8 @@ export const SUBSIDIES: Subsidy[] = [
     adoptionRate: "約91%（令和7年度実績・要件充足前提）",
     difficulty: "中",
     difficultyNote: "旅館業許可・高付加価値経営旅館の登録が前提だが、採択率が高く要件を満たせば通りやすい",
+    useOfFunds: "宿泊施設の空調更新など、サステナビリティ向上に資する設備導入費",
+    nextCheck: "令和8年度公募の有無、旅館業許可、高付加価値経営旅館等の登録状況を確認",
   },
   {
     id: "osaka",
@@ -117,15 +128,17 @@ export const SUBSIDIES: Subsidy[] = [
     adoptionRate: "先着順・予算枠方式（R8は申請1,201件→交付決定220件・7/2時点）",
     difficulty: "中",
     difficultyNote: "脱炭素経営宣言の登録＋書類。先着型で審査自体は要件確認中心",
+    useOfFunds: "府内事業所の高効率空調機の設備費・導入費",
+    nextCheck: "次年度公募の有無、脱炭素経営宣言、府内事業所、未発注かを確認",
   },
   {
     id: "tokyo_zeroemi",
-    applyOpen: "2026-07-31",
-    applyClose: "2026-08-14",
-    scheduleNote: "令和8年度は全6回。第1回(4/21〜5/8)・第2回(6/15〜6/26)は終了。次回=第3回 7/31〜8/14、以降 第4回 9/16〜10/2・第5回 11/9〜11/20・第6回 R9/1/18〜1/29。予算超過時は先着でなく抽選",
+    applyOpen: "2026-09-16",
+    applyClose: "2026-10-02",
+    scheduleNote: "第3回は8/14で終了。次回第4回は9/16〜10/2、第5回11/9〜11/20、第6回2027/1/18〜1/29。予算超過時は先着順ではなく抽選",
     name: "東京都 ゼロエミッション化に向けた省エネ設備導入・運用改善支援事業",
     org: "東京都地球温暖化防止活動推進センター（クール・ネット東京）",
-    period: "令和8年度：全6回の交付申請回で公募（次回=第3回 2026/7/31〜8/14。高効率空調・変圧器・LED等）",
+    period: "令和8年度：第4回 2026/9/16〜10/2（以降、第5回11/9〜11/20、第6回2027/1/18〜1/29）",
     rate: "2/3（省エネ診断受診）※28t-CO2以上削減の区分は3/4",
     max: "2,500万円（診断受診2/3）／1,000万円（自己作成2/3）※28t-CO2以上削減の3/4区分は最大4,500万円。本ツールは安全側に 2/3・上限2,500万円 で試算",
     target: ["ac", "multi"],
@@ -140,6 +153,8 @@ export const SUBSIDIES: Subsidy[] = [
     adoptionRate: "予算枠方式（要件充足で交付。回次ごとの予算枠あり・早めの申請推奨）",
     difficulty: "中",
     difficultyNote: "省エネ診断の受診または自己作成の省エネ計画が必要。補助率2/3と高い分、書類はやや多め",
+    useOfFunds: "都内中小規模事業所の高効率空調など、省エネ設備の設備費・工事費",
+    nextCheck: "省エネ診断受診区分か自己計画区分か、CO2削減要件、対象事業所、第4回に必要書類が揃うかを確認",
   },
   {
     id: "saitama",
@@ -168,11 +183,12 @@ export const SUBSIDIES: Subsidy[] = [
   },
   {
     id: "chiba",
+    closed: true,
     applyClose: "2026-10-07",
-    scheduleNote: "令和8年度：設備導入は10/7締切（診断のみは12/11）。実績報告は令和9年1/29まで",
+    scheduleNote: "県の公式発表で予算額に達したため、設備導入の申請は2026/8/14に受付終了。省エネ診断費のみの申請は12/11まで",
     name: "千葉県 業務用設備等脱炭素化促進事業補助金",
     org: "千葉県",
-    period: "令和8年度：設備導入 交付申請〜2026/10/7（省エネ診断あり）",
+    period: "令和8年度：設備導入は予算額到達により2026/8/14受付終了（診断費のみは12/11まで）",
     rate: "1/2（省エネ診断あり）／1/4（簡易自己診断）",
     max: "1,000万円（省エネ診断あり）",
     target: ["ac", "multi"],
@@ -184,15 +200,17 @@ export const SUBSIDIES: Subsidy[] = [
     url: "https://www.pref.chiba.lg.jp/ontai/hojo/r8jigyousyahojo.html",
     rateNum: 0.5,
     capManYen: 1000,
-    adoptionRate: "予算枠方式（省エネ診断に基づく要件充足で交付。締切10/7）",
+    adoptionRate: "予算枠方式（2026/8/14に予算到達で設備導入申請を終了）",
     difficulty: "高",
     difficultyNote: "省エネ診断の受診が前提（補助率1/2）。簡易自己診断なら手間は減るが補助率1/4に低下",
+    useOfFunds: "県内中小事業者の高効率空調など、脱炭素設備の設備費・工事費",
+    nextCheck: "次年度公募の有無、省エネ診断区分、県内事業所、対象設備を確認",
   },
   {
     id: "jizokuka",
     applyOpen: "2026-11-05",
     applyClose: "2026-12-15",
-    name: "小規模事業者持続化補助金（一般型・通常枠）",
+    name: "小規模事業者持続化補助金 第20回（一般型・通常枠）",
     org: "全国商工会連合会 / 日本商工会議所（中小企業庁）",
     period: "令和8年度：受付 2026/11/5〜12/15（電子申請のみ・GビズIDプライム必須）",
     rate: "2/3（赤字賃上げは3/4）",
@@ -210,6 +228,8 @@ export const SUBSIDIES: Subsidy[] = [
     adoptionRate: "約48%（第18回 48.1%／通常枠・年度回次で変動）",
     difficulty: "中",
     difficultyNote: "商工会・商工会議所の支援を受け経営計画を作成。GビズID・電子申請。空調単純更新は対象外の点に注意",
+    useOfFunds: "販路開拓・業務効率化の事業計画に必要な機械装置等費。空調の単純更新・修繕は対象外",
+    nextCheck: "小規模事業者の従業員要件、販路開拓との関連、GビズID、商工会・商工会議所の様式4発行期限を確認",
   },
 ];
 
@@ -219,8 +239,7 @@ export const SUBSIDIES: Subsidy[] = [
      顧客前の説明で誤解を招く状態だった（SIIの設備単位型は1/3、GX設備単位型が1/2）。 */
 export const SUBSIDY_RATE_PRESETS: { key: string; label: string; rate: number }[] = [
   { key: "none", label: "補助金なし", rate: 0 },
-  { key: "two_thirds", label: "2/3（東京ゼロエミ・持続化）", rate: 0.667 },
-  { key: "half", label: "1/2（GX設備単位型・大阪/千葉ほか）", rate: 0.5 },
-  { key: "third", label: "1/3（SII 設備単位型・神奈川）", rate: 0.33 },
+  { key: "two_thirds", label: "2/3（東京ゼロエミ等・制度確認後）", rate: 0.667 },
+  { key: "half", label: "1/2（GXトップ性能枠・大阪/千葉ほか）", rate: 0.5 },
+  { key: "third", label: "1/3（SII 設備単位型・GXメーカー強化枠・神奈川）", rate: 0.33 },
 ];
-export const DEFAULT_SUBSIDY_RATE_KEY = "third"; // 最も件数の多い設備単位型(1/3)を既定にする

@@ -10,6 +10,7 @@ import { AchievementsSection } from "./AchievementsSection";
 import { Printer, FileText, Handshake, Calendar, LineChart, Award, ClipboardList, Mail } from "lucide-react";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
 import { QRCodeSVG } from "qrcode.react";
+import { DiagnosisSummary } from "./DiagnosisSummary";
 
 // ── 提案書の送付フロー（将来実装メモ）─────────────────────────
 // 現状: 画面で「印刷 / PDF保存」して手動共有。
@@ -47,8 +48,8 @@ export function CustomerReport({
   });
   const proposalNo = `EHC-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
 
-  // 表示する補助金額: プランナーで確定した額があればそれを、なければ自動計算の最有力額を使う
-  const displaySubsidyManYen = appliedSubsidyManYen ?? result.bestSubsidyManYen;
+  // 補助金は共通診断＋個別要件を確認した後だけ反映する。未確認時は0円。
+  const displaySubsidyManYen = appliedSubsidyManYen ?? 0;
   const displaySubsidyYen = Math.round(displaySubsidyManYen * 10000);
   const rewardYen = Math.round(displaySubsidyManYen * 10000 * 0.1);
   const industryLabel = (INDUSTRY_PROFILES[input.building] ?? INDUSTRY_PROFILES.other).label;
@@ -57,7 +58,7 @@ export function CustomerReport({
 
   // 会社名・メール・電話・住所を必須にする
   const requiredFields = [
-    { val: input.customerCompany, id: "customer-company-input", label: "会社名" },
+    { val: input.customerCompany, id: "customer-company-input", label: input.customerKind === "individual" ? "お名前または屋号" : "会社名" },
     { val: input.customerEmail, id: "customer-email-input", label: "メールアドレス" },
     { val: input.customerPhone, id: "customer-phone-input", label: "電話番号" },
     { val: input.customerAddress, id: "customer-address-input", label: "住所" },
@@ -68,7 +69,7 @@ export function CustomerReport({
   const missingLabels = missingFields.map((f) => f.label).join("・");
   // 未入力のままPDFボタンを押したときに出すライトボックス（モーダル）の表示制御
   const [showReqModal, setShowReqModal] = useState(false);
-  // 印刷/PDF後の「EHC・PNへ自動送信」確認パネルの表示制御と送信状態
+  // 印刷/PDF後の「相談記録として送信」確認パネルの表示制御と送信状態
   const [showSend, setShowSend] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -111,12 +112,11 @@ export function CustomerReport({
       return;
     }
     setShowReqModal(false);
-    // 印刷/PDF保存が終わったら、確認を挟まずEHC（+PN cc）へPDF添付で即自動送信する
+    // 印刷/PDF保存後に送信パネルを表示する。ユーザーが明示選択するまで外部送信しない。
     const onAfterPrint = () => {
       window.removeEventListener("afterprint", onAfterPrint);
       setSendResult(null);
-      setShowSend(true); // 送信状況（送信中／結果）を表示
-      void handleAutoSend(); // 確認なしで即送信
+      setShowSend(true);
     };
     window.addEventListener("afterprint", onAfterPrint);
     window.print();
@@ -153,7 +153,7 @@ export function CustomerReport({
       pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH);
       heightLeft -= pageH;
     }
-    return { base64: pdf.output("datauristring"), filename: `提案書_${proposalNo}.pdf` };
+    return { base64: pdf.output("datauristring"), filename: `補助金省エネ診断書_${proposalNo}.pdf` };
   };
 
   // 確認パネルの「送信する」= PDF生成 → /api/send-proposal で EHC(+PN cc) へ自動送信
@@ -168,7 +168,7 @@ export function CustomerReport({
         body: JSON.stringify({
           pdfBase64: base64,
           filename,
-          subject: `【提案書 ${proposalNo}】現地調査・お見積りのご依頼（${input.customerCompany || "御社名"}）`,
+          subject: `【診断書 ${proposalNo}】補助金・空調更新のご相談（${input.customerCompany || "お客様"}）`,
           text: inquiryBody,
           replyTo: input.customerEmail || undefined,
           // Notionアタックリスト自動追記用の構造化リード（送信APIが best-effort で追記）
@@ -184,7 +184,7 @@ export function CustomerReport({
             wishSubsidy: appliedSubsidy ? appliedSubsidy.name : null,
             proposalNo,
             sentDate: new Date().toISOString().slice(0, 10),
-            memo: `${industryLabel} / 投資${input.invest}万円 / ご関心:${interestLabel ?? "-"} / EHC担当:${input.ehcStaff || "-"}`,
+            memo: `${industryLabel} / 投資${input.invest}万円 / ご関心:${interestLabel ?? "-"} / EHC担当:${input.ehcStaff || "-"} / 個人情報利用同意:画面で取得済み`,
           },
         }),
       });
@@ -228,9 +228,9 @@ export function CustomerReport({
         .join("\n")
     : "・条件に該当する補助金は現時点で見当たりません（個別ヒアリングにてご相談）。";
   const reasonsText = result.reasons.map((r, i) => `${i + 1}. ${r}`).join("\n");
-  const inquiryBody = `EHC 補助金・空調更新のご提案（印刷物と同一内容）です。お電話でのご案内にそのままご利用ください。
+  const inquiryBody = `EHC 補助金・空調更新の診断結果（印刷物と同一内容）です。お電話でのご案内にそのままご利用ください。
 
-■ 提案書番号: ${proposalNo}
+■ 診断書番号: ${proposalNo}
 ■ 発行日: ${today}
 
 【お客様情報】
@@ -256,7 +256,7 @@ CO₂削減/年: ${result.co2ReductionTon} t
 
 【3. ご希望の補助金】${chosenSubsidyName ?? "（未確定 / 最有力で試算中）"}
 
-【4. 適用可能な補助金制度】
+【4. 候補となる補助金制度】
 ${subsidyListText}
 
 【5. 今、更新をご検討いただきたい理由】
@@ -275,12 +275,12 @@ ${result.ehcPlan}
 
   // 保存(PDF)後もお問い合わせが届くよう、宛先(EHC)＋cc(PN)・件名・本文（会社情報/台数/試算）を仕込んだmailtoリンク
   const inquiryMailto = `mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent(
-    `【提案書 ${proposalNo}】現地調査・お見積りのご依頼（${input.customerCompany || "御社名"}）`
+    `【診断書 ${proposalNo}】補助金・空調更新のご相談（${input.customerCompany || "お客様"}）`
   )}&body=${encodeURIComponent(inquiryBody)}`;
 
   // QRコード用は本文を含めない短いmailto（本文入りだとQRの容量上限を超えてクラッシュするため）。
   const inquiryMailtoShort = `mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent(
-    `【提案書 ${proposalNo}】現地調査・お見積りのご依頼（${input.customerCompany || "御社名"}）`
+    `【診断書 ${proposalNo}】補助金・空調更新のご相談（${input.customerCompany || "お客様"}）`
   )}`;
 
   return (
@@ -305,7 +305,7 @@ ${result.ehcPlan}
                   PDF出力まであと1ステップ
                 </h3>
                 <p className="text-[12px] text-amber-800 mt-0.5">
-                  提案書PDFのお名前・宛先の記載に必要な項目が未入力です。
+                  診断書PDFのお名前・宛先の記載に必要な項目が未入力です。
                 </p>
               </div>
             </div>
@@ -347,7 +347,7 @@ ${result.ehcPlan}
       )}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5 no-print">
         <CardTitle icon={<FileText className="w-5 h-5" />} className="border-b-0 pb-0 mb-0">
-          お客様向け提案書
+          お客様向け補助金・省エネ診断書
         </CardTitle>
         <div className="flex flex-col items-end gap-1.5">
           <button
@@ -384,12 +384,12 @@ ${result.ehcPlan}
                   {sending ? (
                     <>
                       <span className="inline-block w-3 h-3 border-2 border-ehc-300 border-t-ehc-700 rounded-full animate-spin" />
-                      EHC（info@ehcjpn.com）と PN へ PDF添付で自動送信中…
+                      EHC（info@ehcjpn.com）と PN へ PDF添付で送信中…
                     </>
                   ) : sendResult ? (
-                    sendResult.ok ? "送信が完了しました。" : "自動送信に失敗しました。"
+                    sendResult.ok ? "送信と相談記録への登録が完了しました。" : "送信に失敗しました。"
                   ) : (
-                    "EHC と PN へ自動送信します…"
+                    "PDFを相談記録としてEHC・PNへ送信しますか？"
                   )}
                 </p>
                 {!sending && (
@@ -401,6 +401,14 @@ ${result.ehcPlan}
                   </button>
                 )}
               </div>
+              {!sending && !sendResult && (
+                <button
+                  onClick={handleAutoSend}
+                  className="w-full px-3 py-2 rounded-md text-[12px] font-semibold text-white bg-gradient-to-r from-ehc-700 to-ehc-600 hover:from-ehc-800 hover:to-ehc-700"
+                >
+                  相談記録として送信する
+                </button>
+              )}
               {!sending && sendResult && !sendResult.ok && (
                 <button
                   onClick={handleAutoSend}
@@ -441,9 +449,9 @@ ${result.ehcPlan}
           ))}
         </div>
         <div className="text-center border-b-2 border-ehc-700 pb-4 mb-5">
-          <div className="text-xs text-slate-500 mb-1">業務用空調 更新工事 ご提案書</div>
+          <div className="text-xs text-slate-500 mb-1">業務用空調 補助金・省エネ診断書</div>
           <h1 className="text-2xl font-bold text-ehc-900 mb-2">
-            {input.customerCompany || "お客様"} 御中
+            {input.customerCompany || "お客様"} {input.customerKind === "individual" ? "様" : "御中"}
           </h1>
           <div className="flex items-center justify-center gap-3 text-xs text-slate-600 flex-wrap">
             <span className="flex items-center gap-1">
@@ -451,7 +459,7 @@ ${result.ehcPlan}
               {today}
             </span>
             {input.customerContact && <span>ご担当: {input.customerContact} 様</span>}
-            <span className="text-slate-400">提案書番号: {proposalNo}</span>
+            <span className="text-slate-400">診断書番号: {proposalNo}</span>
           </div>
           {(input.customerAddress || input.customerPhone || input.customerEmail) && (
             <div className="flex items-center justify-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500 flex-wrap mt-1.5">
@@ -504,6 +512,14 @@ ${result.ehcPlan}
           </p>
         </section>
 
+        <DiagnosisSummary
+          input={input}
+          result={result}
+          appliedSubsidyManYen={displaySubsidyManYen}
+          appliedSubsidy={appliedSubsidy}
+          printable
+        />
+
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
             2. ご提案サマリー
@@ -551,7 +567,7 @@ ${result.ehcPlan}
 
         <section className="mb-5">
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
-            4. 適用可能な補助金制度
+            4. 候補となる補助金制度
           </h2>
           {result.matched.length ? (
             <ul className="space-y-2">
@@ -654,7 +670,7 @@ ${result.ehcPlan}
               <a href={inquiryMailto} className="font-semibold text-ehc-800 underline">
                 info@ehcjpn.com
               </a>
-              （件名に提案書番号 <strong>{proposalNo}</strong> をご記載ください）
+              （件名に診断書番号 <strong>{proposalNo}</strong> をご記載ください）
             </div>
             <div className="text-slate-500 text-[10px] mt-1">
               右のQRコードをスマホのカメラで読み取ると、宛先・件名入りのお問い合わせメールがそのまま開きます。
@@ -673,17 +689,17 @@ ${result.ehcPlan}
               {input.ehcStaff && <div className="text-slate-700 mt-1">担当: {input.ehcStaff}</div>}
             </div>
             <div className="text-right text-slate-500 text-[11px]">
-              本提案書は試算値に基づくものであり、実際の補助金採択・補助額・電気代削減効果を保証するものではありません。
+              本診断書は試算値に基づくものであり、実際の補助金採択・補助額・電気代削減効果を保証するものではありません。
             </div>
           </div>
           {/* 無断利用に関する法的注意（著作権法・不正競争防止法に基づく警告） */}
           <div className="mt-3 border border-slate-300 rounded-md p-3 bg-slate-50 text-[10px] text-slate-600 leading-relaxed">
-            <strong className="text-slate-800">【本提案書の取り扱いについて】</strong>
+            <strong className="text-slate-800">【本診断書の取り扱いについて】</strong>
             <br />
-            本提案書および記載内容（試算結果・提案プラン・施工実績データ・価格情報等）に関する著作権その他一切の権利は、株式会社EHCソリューションズに帰属し、著作権法により保護されています。
-            当社の書面による事前承諾なく、本提案書の全部または一部を複製・転載・改変・撮影・第三者への開示もしくは提供（相見積り取得を目的とした他社への提示を含む）することを固く禁じます。
+            本診断書および記載内容（試算結果・提案プラン・施工実績データ・価格情報等）に関する著作権その他一切の権利は、株式会社EHCソリューションズに帰属し、著作権法により保護されています。
+            当社の書面による事前承諾なく、本診断書の全部または一部を複製・転載・改変・撮影・第三者への開示もしくは提供（相見積り取得を目的とした他社への提示を含む）することを固く禁じます。
             これらに違反した場合、著作権法に基づく差止請求・損害賠償請求、および不正競争防止法（営業秘密の不正使用）に基づく法的措置の対象となることがあります。
-            本提案書は宛先のお客様に限りご利用いただけます（提案書番号 {proposalNo} にて交付先を管理しています）。
+            本診断書は宛先のお客様に限りご利用いただけます（診断書番号 {proposalNo} にて交付先を管理しています）。
             <br />
             © {now.getFullYear()} EHC Solutions Co., Ltd. All Rights Reserved.
           </div>
