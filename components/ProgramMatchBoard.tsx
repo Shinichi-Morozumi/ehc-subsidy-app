@@ -3,7 +3,7 @@
 import { SUBSIDIES } from "@/lib/subsidies";
 import { MatchInput, Subsidy } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
-import { AlertCircle, CalendarClock, CheckCircle2, ExternalLink, HelpCircle, XCircle } from "lucide-react";
+import { AlertCircle, CalendarClock, CheckCircle2, ExternalLink, HelpCircle, WalletCards, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export type ProgramBucket = "A" | "B" | "C";
@@ -118,6 +118,21 @@ export function ProgramMatchBoard({ input, result, printable = false }: { input:
   useEffect(() => { let active = true; loadMonitor().then((data) => { if (active) setMonitor(data); }); return () => { active = false; }; }, []);
   const monitorStates = Object.fromEntries((monitor?.sources ?? []).map((s) => [s.id, s]));
   const assessments = assessPrograms(input, result, monitorStates);
+  const active = assessments.filter((a) => a.bucket === "A");
+  const conditional = assessments.filter((a) => a.bucket === "B");
+  const conclusion = active.length
+    ? { label: "高い", reason: active[0].reason, tone: "border-ehc-500/50 bg-ehc-500/10 text-ehc-200" }
+    : conditional.length
+      ? { label: "条件確認が必要", reason: conditional[0].reason, tone: "border-amber-500/50 bg-amber-500/10 text-amber-200" }
+      : { label: "今回は対象外", reason: assessments[0]?.reason ?? "現在の入力条件で候補を確認できませんでした。", tone: "border-white/15 bg-white/[0.03] text-slate-300" };
+  const simulationCandidate = [...active, ...conditional]
+    .filter((a) => !a.subsidy.infoOnly && a.subsidy.programCategory === "equipment" && a.potentialManYen > 0)
+    .sort((a, b) => b.potentialManYen - a.potentialManYen)[0];
+  const potential = simulationCandidate?.potentialManYen ?? 0;
+  const annualManYen = result.saveYenPerYear / 10000;
+  const recoveryWithout = annualManYen > 0 ? input.invest / annualManYen : null;
+  const recoveryWith = annualManYen > 0 ? Math.max(0, input.invest - potential) / annualManYen : null;
+  const deadlineItems = [...active, ...conditional].slice(0, 3);
   const shell = printable ? "border-slate-200 bg-white text-slate-800" : "border-white/10 bg-night-900 text-slate-200";
   return (
     <section className={`rounded-2xl border p-4 md:p-6 ${shell}`}>
@@ -126,16 +141,44 @@ export function ProgramMatchBoard({ input, result, printable = false }: { input:
         <div><h2 className={`font-bold ${printable ? "text-slate-900" : "text-white"}`}>制度マッチング結果</h2><p className={`text-[11px] mt-1 ${printable ? "text-slate-600" : "text-slate-400"}`}>資格確定や採択見込みではありません。公式情報と不足条件を確認したうえで申請可否を判断します。{monitor ? ` 公式ページ更新確認：${new Date(monitor.checkedAt).toLocaleString("ja-JP")}` : " 公式ページの更新有無を確認中です。"}</p></div>
       </div>
       <div className="space-y-4">
-        {BUCKETS.map((group) => {
-          const items = assessments.filter((a) => a.bucket === group.key);
-          const Icon = group.icon;
-          const content = <div className="space-y-3 mt-3">{items.length ? items.map((a) => <ProgramCard key={a.subsidy.id} assessment={a} printable={printable} />) : <p className={`rounded-xl border p-4 text-xs ${printable ? "border-slate-200 text-slate-600" : "border-white/10 text-slate-400"}`}>該当する制度はありません。</p>}</div>;
-          if (group.key === "C" && !printable) return <details key={group.key} className="rounded-xl border border-white/10 p-3"><summary className="cursor-pointer list-none flex items-center gap-2"><Icon className="w-4 h-4 text-slate-400" /><strong className="text-sm text-slate-200">C｜{group.title}</strong><span className="ml-auto text-[11px] text-slate-500">{items.length}件・開いて確認</span></summary>{content}</details>;
-          return <div key={group.key}><div className={`rounded-xl border px-3 py-2.5 flex items-start gap-2 ${printable ? "border-slate-200 bg-slate-50 text-slate-800" : group.tone}`}><Icon className="w-4 h-4 mt-0.5 flex-shrink-0" /><div><h3 className="text-sm font-bold">{group.key}｜{group.title} <span className="font-normal text-[11px]">（{items.length}件）</span></h3><p className="text-[10px] opacity-80 mt-0.5">{group.note}</p></div></div>{content}</div>;
-        })}
+        <div className={`rounded-2xl border p-4 ${printable ? "border-slate-200 bg-slate-50 text-slate-900" : conclusion.tone}`}>
+          <p className="text-[11px] opacity-80">1｜結論</p>
+          <h3 className="mt-1 text-lg md:text-xl font-black">補助金を使える可能性：{conclusion.label}</h3>
+          <p className="mt-2 text-xs leading-relaxed">{conclusion.reason}</p>
+        </div>
+
+        <div className={`rounded-2xl border p-4 ${printable ? "border-slate-200" : "border-white/10 bg-white/[0.02]"}`}>
+          <div className="flex items-center gap-2 mb-3"><WalletCards className="w-4 h-4 text-cobalt-400" /><h3 className={`text-sm font-bold ${printable ? "text-slate-900" : "text-white"}`}>2｜金額比較</h3></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <MoneyPanel title="補助金なし" invest={input.invest} subsidy={0} annualYen={result.saveYenPerYear} recovery={recoveryWithout} printable={printable} />
+            <MoneyPanel title="採択された場合の概算" invest={input.invest} subsidy={potential} annualYen={result.saveYenPerYear} recovery={recoveryWith} printable={printable} accent candidateName={simulationCandidate?.subsidy.name} />
+          </div>
+          <p className={`mt-3 text-[10px] leading-relaxed ${printable ? "text-slate-600" : "text-slate-500"}`}>※右側は「{simulationCandidate?.subsidy.name ?? "対象制度"}」の補助率・上限を仮置きした比較です。対象経費、申請区分、審査結果により補助額は変わり、採択・受給を保証しません。未確認情報は確定額として扱いません。</p>
+        </div>
+
+        <div className={`rounded-2xl border p-4 ${printable ? "border-slate-200" : "border-white/10 bg-white/[0.02]"}`}>
+          <div className="flex items-center gap-2 mb-3"><CalendarClock className="w-4 h-4 text-amber-400" /><h3 className={`text-sm font-bold ${printable ? "text-slate-900" : "text-white"}`}>3｜期限</h3></div>
+          <div className="space-y-2">{deadlineItems.length ? deadlineItems.map((a) => <div key={a.subsidy.id} className={`rounded-xl border p-3 text-xs ${printable ? "border-slate-200" : "border-white/10"}`}><div className="flex flex-wrap items-center gap-2"><strong>{a.subsidy.name}</strong><span className="rounded-full border border-amber-500/30 px-2 py-0.5 text-[10px] text-amber-500">{statusLabel(a.subsidy)}</span></div><p className="mt-1.5 leading-relaxed">{a.timing}</p></div>) : <p className="text-xs text-slate-500">受付中の候補はありません。次回公募の公式発表待ちです。</p>}</div>
+        </div>
+
+        <details open={printable} className={`rounded-2xl border p-4 ${printable ? "border-slate-200" : "border-white/10 bg-white/[0.02]"}`}>
+          <summary className="cursor-pointer list-none flex items-center gap-2"><HelpCircle className="w-4 h-4 text-cobalt-400" /><strong className={`text-sm ${printable ? "text-slate-900" : "text-white"}`}>4｜制度の詳細・不足情報</strong><span className="ml-auto text-[10px] text-slate-500">開いて確認</span></summary>
+          <div className="space-y-4 mt-4">{BUCKETS.map((group) => { const items = assessments.filter((a) => a.bucket === group.key); const Icon = group.icon; return <div key={group.key}><div className={`rounded-xl border px-3 py-2.5 flex items-start gap-2 ${printable ? "border-slate-200 bg-slate-50 text-slate-800" : group.tone}`}><Icon className="w-4 h-4 mt-0.5" /><div><h3 className="text-sm font-bold">{group.key}｜{group.title}（{items.length}件）</h3><p className="text-[10px] opacity-80">{group.note}</p></div></div><div className="space-y-3 mt-3">{items.length ? items.map((a) => <ProgramCard key={a.subsidy.id} assessment={a} printable={printable} />) : <p className="text-xs text-slate-500">該当なし</p>}</div></div>; })}</div>
+        </details>
       </div>
     </section>
   );
+}
+
+function statusLabel(s: Subsidy) {
+  if (s.status === "open") return "受付中";
+  if (s.status === "upcoming") return "受付予定";
+  if (s.status === "closed") return "受付終了";
+  return "次回公募・受付時期を確認";
+}
+
+function MoneyPanel({ title, invest, subsidy, annualYen, recovery, printable, accent = false, candidateName }: { title: string; invest: number; subsidy: number; annualYen: number; recovery: number | null; printable: boolean; accent?: boolean; candidateName?: string }) {
+  return <div className={`rounded-xl border p-4 ${printable ? "border-slate-200 bg-white" : accent ? "border-ehc-500/40 bg-ehc-500/10" : "border-white/10 bg-white/[0.025]"}`}><h4 className={`font-bold ${printable ? "text-slate-900" : "text-white"}`}>{title}</h4>{candidateName ? <p className="mt-0.5 text-[10px] text-slate-500 line-clamp-2">{candidateName}</p> : null}<dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs"><dt className="text-slate-500">総費用</dt><dd className="text-right font-bold">{invest.toLocaleString("ja-JP")}万円</dd><dt className="text-slate-500">想定補助額</dt><dd className="text-right font-bold">{subsidy.toLocaleString("ja-JP")}万円</dd><dt className="text-slate-500">実質負担</dt><dd className={`text-right font-black ${accent ? "text-ehc-400" : ""}`}>{Math.max(0, invest - subsidy).toLocaleString("ja-JP")}万円</dd><dt className="text-slate-500">年間削減見込み</dt><dd className="text-right font-bold">{Math.round(annualYen / 10000).toLocaleString("ja-JP")}万円/年</dd><dt className="text-slate-500">回収目安</dt><dd className="text-right font-bold">{recovery == null ? "算定不可" : `約${recovery.toFixed(1)}年`}</dd></dl></div>;
 }
 
 function ProgramCard({ assessment: a, printable }: { assessment: ProgramAssessment; printable: boolean }) {
@@ -148,6 +191,7 @@ function ProgramCard({ assessment: a, printable }: { assessment: ProgramAssessme
         <div><dt className="font-bold inline">候補理由：</dt><dd className="inline">{a.reason}</dd></div>
         <div><dt className="font-bold inline">期限・間に合う目安：</dt><dd className="inline">{a.timing}</dd></div>
         <div><dt className="font-bold inline">補助率・上限：</dt><dd className="inline">{s.rate}／{s.max}</dd></div>
+        <div><dt className="font-bold inline">対象条件：</dt><dd className="inline">{s.requirement}</dd></div>
         <div><dt className="font-bold inline">今回の概算：</dt><dd className="inline">{s.infoOnly ? "設備費の概算には含めません" : `補助額 最大約${amount.toLocaleString("ja-JP")}万円、実質負担 約${a.outOfPocketManYen.toLocaleString("ja-JP")}万円`}</dd></div>
         <div><dt className="font-bold inline">不足情報：</dt><dd className="inline">{a.missing.length ? a.missing.join("／") : "現時点なし（申請時の最終確認は必要）"}</dd></div>
         <div><dt className="font-bold inline">次の一手：</dt><dd className="inline">{a.nextAction}</dd></div>

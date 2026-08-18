@@ -23,6 +23,7 @@ import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
 import { estimateInvestManYenFromGroups, estimateAnnualKwhFromGroups, kwhPerHpYear, siiBuildingUse, DEFAULT_HP_WHEN_UNKNOWN, CO2_TON_PER_KWH, MACHINE, WORK, COST_CLASS, SITE_ACCESS, DEFAULT_KG_PER_UNIT, PRICING_SOURCE } from "@/lib/pricing";
 import { ProgramMatchBoard } from "./ProgramMatchBoard";
+import { UpdateEstimator } from "./UpdateEstimator";
 
 let GID = 0;
 const newGroup = (over: Partial<EquipGroup> = {}): EquipGroup => ({
@@ -557,6 +558,9 @@ export function SubsidyMatcher() {
       {result && (
         <div id="result-section" className="space-y-5">
           <ProgramMatchBoard input={input} result={result} />
+          <div className="no-print">
+            <UpdateEstimator />
+          </div>
           <details className="no-print rounded-2xl border border-white/10 bg-night-900 p-4">
             <summary className="cursor-pointer list-none flex items-center gap-2 text-sm font-bold text-slate-200">
               <LineChartIcon className="w-4 h-4 text-cobalt-300" />
