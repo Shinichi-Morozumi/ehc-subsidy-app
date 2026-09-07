@@ -14,6 +14,8 @@ import {
 import {
   ELECTRIC_PRICE_YEN_PER_KWH, AGE_DEGRADATION_PER_YEAR,
   OLD_EQUIPMENT_REPAIR_MANYEN_PER_YEAR, ROI_CHART_YEARS,
+  ELECTRIC_PRICE_ASOF, ELECTRIC_PRICE_SOURCE,
+  ELECTRIC_CONTRACT_LABEL, ELECTRIC_PRICE_DEFAULT_CONTRACT,
 } from "@/lib/pricing";
 
 interface RoiChartProps {
@@ -24,14 +26,22 @@ interface RoiChartProps {
   reductionRate?: number;
   /** 電力単価(円/kWh)。未指定時は lib/pricing.ts の共通定数（マッチング試算と同一）を使う */
   electricPrice?: number;
+  /** 老朽機を使い続けた場合の年間修理・メンテ増分(万円/年)。
+      保守契約額・修理履歴で実額が判明した案件でのみ渡す。
+      未指定なら 0（出典の無い金額で「何もしない」を不利に見せない）。 */
+  repairCostManYenPerYear?: number;
 }
 
-export function RoiChart({ invest, bestSubsidyManYen, saveYenPerYear, kwhPerYear, reductionRate = 0.3, electricPrice }: RoiChartProps) {
+export function RoiChart({ invest, bestSubsidyManYen, saveYenPerYear, kwhPerYear, reductionRate = 0.3, electricPrice, repairCostManYenPerYear }: RoiChartProps) {
   const ELECTRIC_PRICE = electricPrice && electricPrice > 0 ? electricPrice : ELECTRIC_PRICE_YEN_PER_KWH;
+  const priceIsDefault = !(electricPrice && electricPrice > 0);
   // 経年劣化率・修理費は lib/pricing.ts の共通定数を参照
   // （ドロップイン診断ウィザードと別々に0.02を持っていたため、片方だけ直すとタブ間で数字がズレていた）
   const OLD_EQUIPMENT_DEGRADATION_PER_YEAR = AGE_DEGRADATION_PER_YEAR;
-  const REPAIR_COST_PER_YEAR = OLD_EQUIPMENT_REPAIR_MANYEN_PER_YEAR;
+  const REPAIR_COST_PER_YEAR =
+    repairCostManYenPerYear && repairCostManYenPerYear > 0
+      ? repairCostManYenPerYear
+      : OLD_EQUIPMENT_REPAIR_MANYEN_PER_YEAR;
   // 業種別の想定削減率を反映（更新後の電力＝旧×(1−削減率)）。未指定時は従来通り30%。
   const newPowerFactor = Math.max(0, Math.min(1, 1 - reductionRate));
 
@@ -59,6 +69,7 @@ export function RoiChart({ invest, bestSubsidyManYen, saveYenPerYear, kwhPerYear
   const formatYen = (val: number) => `¥${(val * 10000).toLocaleString("ja-JP")}`;
 
   return (
+    <div className="w-full">
     <div className="w-full h-72 md:h-80">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
@@ -103,6 +114,20 @@ export function RoiChart({ invest, bestSubsidyManYen, saveYenPerYear, kwhPerYear
           />
         </LineChart>
       </ResponsiveContainer>
+    </div>
+      {/* 2026-08-24 監査: 計算に使った前提と出典を、グラフと同じ画面に必ず出す。
+          前提が見えないグラフは、後から「その単価はどこから来たのか」と問われた時に守れない。 */}
+      <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+        電力単価 {ELECTRIC_PRICE.toLocaleString("ja-JP")}円/kWh
+        {priceIsDefault ? `（既定・${ELECTRIC_CONTRACT_LABEL[ELECTRIC_PRICE_DEFAULT_CONTRACT]}の実勢＋再エネ賦課金／${ELECTRIC_PRICE_ASOF}）` : "（入力値）"}
+        ／経年劣化 年{Math.round(AGE_DEGRADATION_PER_YEAR * 1000) / 10}%
+        ／修理・メンテ増分{" "}
+        {REPAIR_COST_PER_YEAR > 0
+          ? `${REPAIR_COST_PER_YEAR.toLocaleString("ja-JP")}万円/年（入力値）`
+          : "未計上（保守契約額が判明するまで加算しません）"}
+        。
+        {priceIsDefault && <>出典: {ELECTRIC_PRICE_SOURCE}。実際の電気料金明細の単価で上書きしてください。</>}
+      </p>
     </div>
   );
 }

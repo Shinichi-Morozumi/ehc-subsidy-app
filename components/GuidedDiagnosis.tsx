@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { DesiredTiming, EntityType, MatchInput, SizeType, UpdatePlan } from "@/lib/types";
 import { OPEN_HEARING_EVENT } from "./HowItWorks";
 import { ArrowLeft, Check, ClipboardList, Sparkles, X } from "lucide-react";
+import { useModalA11y } from "./ui/useModalA11y";
 
 const PREFS = [
   "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県", "茨城県", "栃木県", "群馬県",
@@ -43,22 +44,34 @@ export function GuidedDiagnosis({ input, setInput, onComplete }: {
   };
   const finish = () => { setOpen(false); window.setTimeout(() => onComplete(false), 0); };
 
+  /* 2026-08-24 監査での修正: role="dialog" は付いていたが、Escape で閉じられず、
+     Tab がモーダルの外（背後のフォーム）へ抜けていた。開閉フラグで持つ画面なので
+     enabled に open を渡し、閉じている間は body のスクロール固定をしない。 */
+  const panelRef = useModalA11y(() => setOpen(false), open);
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print" role="dialog" aria-modal="true" aria-label="3分で補助金・助成金診断">
-      <div className="absolute inset-0 bg-black/75" onClick={() => setOpen(false)} />
-      <div className="relative w-full sm:max-w-xl min-h-[72vh] sm:min-h-0 sm:h-[620px] max-h-[92vh] rounded-t-3xl sm:rounded-3xl border border-white/15 bg-night-900 shadow-lift overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 no-print">
+      <div className="absolute inset-0 bg-black/75" onClick={() => setOpen(false)} aria-hidden="true" />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="guided-diagnosis-title"
+        tabIndex={-1}
+        className="relative w-full sm:max-w-xl min-h-[72vh] sm:min-h-0 sm:h-[620px] max-h-[92vh] rounded-t-3xl sm:rounded-3xl border border-white/15 bg-night-900 shadow-lift overflow-hidden flex flex-col focus:outline-none"
+      >
         <header className="px-5 py-4 border-b border-white/10 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-ehc-600 flex items-center justify-center"><ClipboardList className="w-5 h-5 text-white" /></div>
-          <div className="flex-1"><h2 className="text-sm font-bold text-white">3分で制度マッチング</h2><p className="text-[11px] text-slate-400">期限に関わる質問から確認。空調仕様は後で補完できます</p></div>
-          <button type="button" onClick={() => setOpen(false)} aria-label="閉じる" className="p-2 text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+          <div className="w-9 h-9 rounded-xl bg-ehc-600 flex items-center justify-center"><ClipboardList className="w-5 h-5 text-white" aria-hidden="true" /></div>
+          <div className="flex-1"><h2 id="guided-diagnosis-title" className="text-sm font-bold text-white">3分で制度マッチング</h2><p className="text-xs text-slate-400">期限に関わる質問から確認。空調仕様は後で補完できます</p></div>
+          <button type="button" onClick={() => setOpen(false)} aria-label="閉じる" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-2 text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
         </header>
-        <div className="px-5 pt-4"><div className="flex items-center justify-between text-[11px] text-slate-400 mb-2"><span>質問 {step + 1} / {TOTAL_STEPS}</span><span>{Math.round(((step + 1) / TOTAL_STEPS) * 100)}%</span></div><div className="h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-gradient-to-r from-ehc-600 to-ehc-400 transition-all" style={{ width: `${((step + 1) / TOTAL_STEPS) * 100}%` }} /></div></div>
+        <div className="px-5 pt-4"><div className="flex items-center justify-between text-xs text-slate-400 mb-2"><span>質問 {step + 1} / {TOTAL_STEPS}</span><span>{Math.round(((step + 1) / TOTAL_STEPS) * 100)}%</span></div><div className="h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-gradient-to-r from-ehc-600 to-ehc-400 transition-all" style={{ width: `${((step + 1) / TOTAL_STEPS) * 100}%` }} /></div></div>
         <main className="flex-1 overflow-y-auto px-5 py-6">
           {assist ? <div className="mb-4 rounded-xl border border-cobalt-500/30 bg-cobalt-500/10 p-3 text-xs text-cobalt-100 flex items-start gap-2"><Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" /> {assist}</div> : null}
           <Question step={step} input={input} choose={choose} next={next} update={update} useAssist={useAssist} finish={finish} />
         </main>
-        <footer className="px-5 py-3 border-t border-white/10 flex items-center justify-between"><button type="button" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-white disabled:opacity-30"><ArrowLeft className="w-4 h-4" /> 戻る</button><button type="button" onClick={() => setOpen(false)} className="text-[11px] text-slate-500 hover:text-slate-300">保存して閉じる</button></footer>
+        <footer className="px-5 py-3 border-t border-white/10 flex items-center justify-between"><button type="button" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="min-h-[44px] inline-flex items-center gap-1 text-xs text-slate-400 hover:text-white disabled:opacity-30"><ArrowLeft className="w-4 h-4" /> 戻る</button><button type="button" onClick={() => setOpen(false)} className="min-h-[44px] inline-flex items-center text-xs text-slate-500 hover:text-slate-300">保存して閉じる</button></footer>
       </div>
     </div>
   );

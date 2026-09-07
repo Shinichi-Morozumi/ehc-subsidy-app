@@ -53,7 +53,7 @@ export function HowItWorks() {
           <ClipboardList className="w-4 h-4" />
           3分で診断を始める
         </button>
-        <button type="button" onClick={() => scrollTo("project-info-section")} className="text-[11px] text-slate-400 underline underline-offset-2 hover:text-slate-200">詳しい設備情報を直接入力する</button>
+        <button type="button" onClick={() => scrollTo("project-info-section")} className="min-h-[44px] inline-flex items-center text-xs text-slate-400 underline underline-offset-2 hover:text-slate-200">詳しい設備情報を直接入力する</button>
       </div>
 
       <ol className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -65,13 +65,13 @@ export function HowItWorks() {
               className="relative rounded-xl border border-white/10 bg-white/[0.03] p-4"
             >
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-ehc-500 to-ehc-700 text-white text-[11px] font-black flex-shrink-0">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-ehc-500 to-ehc-700 text-white text-xs font-black flex-shrink-0">
                   {s.n}
                 </span>
                 <Icon className="w-4 h-4 text-ehc-300 flex-shrink-0" />
                 <span className="text-[13px] font-bold text-white leading-tight">{s.title}</span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">{s.body}</p>
+              <p className="text-xs text-slate-400 leading-relaxed">{s.body}</p>
             </li>
           );
         })}

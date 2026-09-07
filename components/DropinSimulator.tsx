@@ -159,11 +159,22 @@ export function DropinSimulator() {
         </Field>
         <Field label="電力単価(円/kWh)">
           <Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
-          <p className="text-[9px] text-slate-500 mt-1 leading-tight">※基本料金＋従量で変動。大手電力(東電/関電/中電/九電/東北電/北電)HPの従量単価が目安</p>
+          <p className="text-xs text-slate-500 mt-1 leading-tight">※基本料金＋従量で変動。大手電力(東電/関電/中電/九電/東北電/北電)HPの従量単価が目安</p>
         </Field>
         <Field label={`想定削減率: ${Math.round(rate * 100)}%`}>
-          <input type="range" min={Math.round(DROPIN_REDUCTION.min * 100)} max={Math.round(DROPIN_REDUCTION.max * 100)} value={Math.round(rate * 100)} onChange={(e) => setRate(Number(e.target.value) / 100)} className="w-full accent-ehc-400" />
-          <p className="text-[9px] text-slate-500 mt-1 leading-tight">※冷媒×業種の加重平均から自動提案（手動調整可）</p>
+          {/* 2026-08-24 監査での修正: 生の input のため Field の項目名が伝わらない。
+              スライダーは現在値も読めないと操作できないので aria-valuetext も付ける。 */}
+          <input
+            type="range"
+            aria-label="想定削減率(%)"
+            aria-valuetext={`${Math.round(rate * 100)}パーセント`}
+            min={Math.round(DROPIN_REDUCTION.min * 100)}
+            max={Math.round(DROPIN_REDUCTION.max * 100)}
+            value={Math.round(rate * 100)}
+            onChange={(e) => setRate(Number(e.target.value) / 100)}
+            className="min-h-[44px] w-full accent-ehc-400"
+          />
+          <p className="text-xs text-slate-500 mt-1 leading-tight">※冷媒×業種の加重平均から自動提案（手動調整可）</p>
         </Field>
         <Field label="高所作業車(日)" help={`¥${SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日で実費計上します`}>
           <Input type="number" value={aerialDays} onChange={(e) => setAerialDays(Number(e.target.value))} placeholder="0" />
@@ -172,7 +183,7 @@ export function DropinSimulator() {
           <Input type="number" value={floor} onChange={(e) => setFloor(Number(e.target.value))} placeholder="1" />
         </Field>
       </div>
-      <p className="text-[10px] text-slate-400 mb-4 leading-relaxed">
+      <p className="text-xs text-slate-400 mb-4 leading-relaxed">
         高所作業車は<strong className="text-slate-200">¥{SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日</strong>で独立計上（諸経費・現場経費の算定対象外）。
         {scaffoldRequired ? (
           <span className="text-amber-300 font-semibold"> ／ {floor}階＝足場が必要な想定です（足場費用は現地条件で変動するため本概算に含みません。現地調査で確定）。</span>
@@ -186,9 +197,9 @@ export function DropinSimulator() {
         {groups.map((g, i) => (
           <div key={g.id} className="bg-night-900/60 border border-white/10 rounded-xl p-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-semibold text-ehc-300">設備グループ {i + 1}</span>
+              <span className="text-xs font-semibold text-ehc-300">設備グループ {i + 1}</span>
               {multi && (
-                <button onClick={() => removeGroup(g.id)} className="text-slate-400 hover:text-rose-300 inline-flex items-center gap-0.5 text-[10px]">
+                <button onClick={() => removeGroup(g.id)} className="min-h-[44px] text-slate-400 hover:text-rose-300 inline-flex items-center gap-0.5 text-xs">
                   <Trash2 className="w-3 h-3" />削除
                 </button>
               )}
@@ -213,10 +224,10 @@ export function DropinSimulator() {
               </Field>
               <Field label="追加充填量(kg/系統)">
                 <Input type="number" step="0.1" value={g.extraKg} onChange={(e) => updateGroup(g.id, { extraKg: Number(e.target.value) })} placeholder="0" />
-                <p className="text-[9px] text-slate-500 mt-1 leading-tight">※点検表の追加充填量。実冷媒量が銘板より多い場合に入力</p>
+                <p className="text-xs text-slate-500 mt-1 leading-tight">※点検表の追加充填量。実冷媒量が銘板より多い場合に入力</p>
               </Field>
             </div>
-            <p className="text-[9px] text-slate-500 mt-1.5 leading-tight">
+            <p className="text-xs text-slate-500 mt-1.5 leading-tight">
               {KG_PRESETS[g.machineType].equip === "multi"
                 ? `ビル用マルチ: 初期充填を×${DROPIN.multiChargeFactor}で計算します（桝口さん基準）`
                 : `パッケージ: 配管長${DROPIN.packageNoExtraChargePipeM}m以内なら追加充填は不要（桝口さん基準）`}
@@ -224,23 +235,23 @@ export function DropinSimulator() {
           </div>
         ))}
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <button onClick={addGroup} className="border border-dashed border-ehc-500/40 text-ehc-300 rounded-lg px-3 py-2 text-xs font-semibold inline-flex items-center gap-1.5 hover:bg-ehc-500/10 transition-colors">
+          <button onClick={addGroup} className="min-h-[44px] border border-dashed border-ehc-500/40 text-ehc-300 rounded-lg px-3 py-2 text-xs font-semibold inline-flex items-center gap-1.5 hover:bg-ehc-500/10 transition-colors">
             <Plus className="w-3.5 h-3.5" />設備グループを追加
           </button>
-          <span className="text-[11px] text-slate-400">合計 {groups.length} グループ・{sysTotal} 系統</span>
+          <span className="text-xs text-slate-400">合計 {groups.length} グループ・{sysTotal} 系統</span>
         </div>
       </div>
 
       {/* ガス代金＋工事費用の自動概算（PN実勢単価・グループ合算） */}
       <div className="bg-night-900/60 border border-white/10 rounded-xl p-3 mb-4">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-300"><Calculator className="w-3.5 h-3.5 text-ehc-300" />ガス代金＋工事費用 自動概算（{PRICING_SOURCE}）</div>
-          <div className="text-[10px] text-slate-400">
+          <div className="flex items-center gap-1.5 text-xs text-slate-300"><Calculator className="w-3.5 h-3.5 text-ehc-300" />ガス代金＋工事費用 自動概算（{PRICING_SOURCE}）</div>
+          <div className="text-xs text-slate-400">
             回収冷媒 計{est.kg}kg{est.extraKg > 0 ? `（うち追加充填 ${est.extraKg}kg）` : ""} → HC充填 約{est.hcKg}kg
             {hasMultiGroup ? `・マルチは×${DROPIN.multiChargeFactor}` : ""}{multi ? `・${groups.length}グループ合算` : ""}
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 text-[10px] mb-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 text-xs mb-2">
           <div><div className="text-slate-500">HCガス代金({est.hcKg}kg)</div><div className="text-ehc-300 font-semibold">{yenJP(est.hcGas)}</div></div>
           <div><div className="text-slate-500">作業費{multi ? "（系統別単価）" : ""}</div><div className="text-slate-200">{yenJP(est.work)}</div></div>
           <div><div className="text-slate-500">フロン破壊(¥3,000/kg)</div><div className="text-slate-200">{yenJP(est.gas)}</div></div>
@@ -250,41 +261,42 @@ export function DropinSimulator() {
           <div><div className="text-slate-500">高所作業車({aerialDays}日)</div><div className={aerial > 0 ? "text-slate-200" : "text-slate-500"}>{yenJP(aerial)}</div></div>
           <div><div className="text-slate-500">概算合計(税抜)</div><div className="text-ehc-300 font-bold">{yenJP(autoCost)}</div></div>
         </div>
-        <p className="text-[9px] text-slate-500 mb-2 leading-tight">
+        <p className="text-xs text-slate-500 mb-2 leading-tight">
           ※現場経費＝旅費交通費・安全対策費・法定福利費・保険費用（桝口さん内訳）。諸経費{Math.round(DROPIN.overheadRate * 100)}%＋現場経費{Math.round(DROPIN.siteExpenseRate * 100)}%＝工事小計の{Math.round((DROPIN.overheadRate + DROPIN.siteExpenseRate) * 100)}%。
         </p>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] text-slate-400">手動上書き(万円):</span>
+          <span className="text-xs text-slate-400">手動上書き(万円):</span>
           <input
+            aria-label="工事費の手動上書き(万円)"
             type="number"
             placeholder={String(Math.round(autoCost / 10000))}
             value={manualCost ?? ""}
             onChange={(e) => setManualCost(e.target.value === "" ? null : Number(e.target.value))}
-            className="w-24 bg-night-900 border border-white/15 rounded px-2 py-1 text-xs text-slate-100"
+            className="min-h-[44px] w-24 bg-night-900 border border-white/15 rounded px-2 py-1 text-xs text-slate-100"
           />
           {manualCost != null && (
-            <button onClick={() => setManualCost(null)} className="text-[10px] text-ehc-300 underline">自動に戻す</button>
+            <button type="button" onClick={() => setManualCost(null)} className="min-h-[44px] inline-flex items-center text-xs text-ehc-300 underline">自動に戻す</button>
           )}
-          <span className="text-[10px] text-slate-500">採用投資額（ガス代金＋工事費用）: {yenJP(costYen)}（税込 {yenJP(costTaxIn)}）</span>
-          <span className="text-[10px] text-slate-500">※実勢±20%程度のレンジあり</span>
+          <span className="text-xs text-slate-500">採用投資額（ガス代金＋工事費用）: {yenJP(costYen)}（税込 {yenJP(costTaxIn)}）</span>
+          <span className="text-xs text-slate-500">※実勢±20%程度のレンジあり</span>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-gradient-to-br from-ehc-500/10 to-night-900 border border-ehc-500/30 rounded-xl p-3">
-          <div className="text-[11px] text-ehc-300 mb-1">年間電力削減</div>
+          <div className="text-xs text-ehc-300 mb-1">年間電力削減</div>
           <div className="text-xl font-bold text-ehc-300">{saveKwh.toLocaleString("ja-JP")}<span className="text-xs ml-1">kWh</span></div>
         </div>
         <div className="bg-gradient-to-br from-amber-500/10 to-night-900 border border-amber-500/30 rounded-xl p-3">
-          <div className="text-[11px] text-amber-300 mb-1">年間電気代削減</div>
+          <div className="text-xs text-amber-300 mb-1">年間電気代削減</div>
           <div className="text-xl font-bold text-amber-300">{yenJP(saveYen)}</div>
         </div>
         <div className="bg-gradient-to-br from-sky-500/10 to-night-900 border border-sky-500/30 rounded-xl p-3">
-          <div className="text-[11px] text-sky-300 mb-1">CO₂削減</div>
+          <div className="text-xs text-sky-300 mb-1">CO₂削減</div>
           <div className="text-xl font-bold text-sky-300">{co2}<span className="text-xs ml-1">t/年</span></div>
         </div>
         <div className="bg-gradient-to-br from-violet-500/10 to-night-900 border border-violet-500/30 rounded-xl p-3">
-          <div className="text-[11px] text-violet-300 mb-1">投資回収（税込）</div>
+          <div className="text-xs text-violet-300 mb-1">投資回収（税込）</div>
           <div className="text-xl font-bold text-violet-300">{payback ? `${payback}年` : "—"}</div>
         </div>
       </div>
@@ -295,22 +307,22 @@ export function DropinSimulator() {
           <span className="text-slate-300">{verdict.advice}</span>
           {(verdict.tone === "warn" || verdict.tone === "weak") && switchTab && (
             <button onClick={() => switchTab("match")}
-              className="underline font-semibold inline-flex items-center gap-0.5 hover:opacity-80">
+              className="min-h-[44px] underline font-semibold inline-flex items-center gap-0.5 hover:opacity-80">
               補助金マッチングで診断<ArrowRight className="w-3 h-3" />
             </button>
           )}
-          <span className="text-[10px] text-slate-500 ml-auto">目安: 系統あたり月電気代1万円以上≒3年以内回収</span>
+          <span className="text-xs text-slate-500 ml-auto">目安: 系統あたり月電気代1万円以上≒3年以内回収</span>
         </div>
       )}
 
       {/* アクション: 条件付きで相談メール・印刷/PDF */}
       <div className="mt-3 flex flex-wrap gap-2 no-print">
         <a href={mailHref}
-          className="bg-ehc-500/15 text-ehc-300 border border-ehc-500/40 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-ehc-500/25 transition-colors">
+          className="min-h-[44px] bg-ehc-500/15 text-ehc-300 border border-ehc-500/40 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-ehc-500/25 transition-colors">
           <Mail className="w-3.5 h-3.5" />この条件で相談メール
         </a>
         <button onClick={printQuote}
-          className="bg-white/5 text-slate-300 border border-white/15 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-white/10 transition-colors">
+          className="min-h-[44px] bg-white/5 text-slate-300 border border-white/15 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-white/10 transition-colors">
           <Printer className="w-3.5 h-3.5" />簡易見積を印刷 / PDF
         </button>
       </div>
@@ -321,16 +333,16 @@ export function DropinSimulator() {
           <div className="flex items-baseline justify-between border-b-2 border-emerald-700 pb-2 mb-4">
             <div>
               <div className="text-lg font-bold">ドロップイン 簡易お見積り（概算）</div>
-              <div className="text-[11px] text-slate-600">炭化水素冷媒（HyChill）置換による省エネ効果と概算費用</div>
+              <div className="text-xs text-slate-600">炭化水素冷媒（HyChill）置換による省エネ効果と概算費用</div>
             </div>
-            <div className="text-right text-[11px] text-slate-600">
+            <div className="text-right text-xs text-slate-600">
               <div className="font-bold text-slate-900">株式会社EHCソリューションズ</div>
               <div>発行日: {new Date().toLocaleDateString("ja-JP")}</div>
             </div>
           </div>
 
           <div className="text-xs font-bold mb-1">■ 試算条件</div>
-          <table className="w-full text-[11px] border border-slate-300 mb-3">
+          <table className="w-full text-xs border border-slate-300 mb-3">
             <tbody>
               <tr className="border-b border-slate-200">
                 <td className="p-1.5 bg-slate-100 w-36 font-semibold">業種（稼働）</td><td className="p-1.5">{INDUSTRY[industry].label}</td>
@@ -350,7 +362,7 @@ export function DropinSimulator() {
           </table>
 
           <div className="text-xs font-bold mb-1">■ 対象設備（{groups.length}グループ）</div>
-          <table className="w-full text-[11px] border border-slate-300 mb-4">
+          <table className="w-full text-xs border border-slate-300 mb-4">
             <thead>
               <tr className="bg-slate-100 border-b border-slate-300">
                 <th className="p-1.5 text-left font-semibold">#</th>
@@ -374,7 +386,7 @@ export function DropinSimulator() {
           </table>
 
           <div className="text-xs font-bold mb-1">■ 概算費用内訳（ガス代金＋工事費用・全グループ合算）</div>
-          <table className="w-full text-[11px] border border-slate-300 mb-4">
+          <table className="w-full text-xs border border-slate-300 mb-4">
             <tbody>
               <tr className="border-b border-slate-200"><td className="p-1.5 bg-slate-100 font-semibold">HCガス代金（約{est.hcKg}kg）</td><td className="p-1.5 text-right">{yenJP(est.hcGas)}</td></tr>
               <tr className="border-b border-slate-200"><td className="p-1.5 bg-slate-100 font-semibold">作業費（回収・真空引き・フラッシュ・充填）</td><td className="p-1.5 text-right">{yenJP(est.work)}</td></tr>
@@ -391,7 +403,7 @@ export function DropinSimulator() {
           </table>
 
           <div className="text-xs font-bold mb-1">■ 期待効果（年間）</div>
-          <table className="w-full text-[11px] border border-slate-300 mb-4">
+          <table className="w-full text-xs border border-slate-300 mb-4">
             <tbody>
               <tr>
                 <td className="p-1.5 bg-slate-100 font-semibold w-1/4">電力削減</td><td className="p-1.5">{saveKwh.toLocaleString("ja-JP")} kWh</td>
@@ -404,7 +416,7 @@ export function DropinSimulator() {
             </tbody>
           </table>
 
-          <div className="text-[10px] text-slate-600 leading-relaxed">
+          <div className="text-xs text-slate-600 leading-relaxed">
             ※本書は概算（目安）です。実際の効果・費用は機種・稼働・現地条件により±20%程度変動します。正式なお見積りは現地確認のうえご提示します。<br />
             ※ドロップイン対象は業務用パッケージ（4馬力以上）のみ。ルームエアコン/小型パッケージ/冷凍冷蔵機器は対象外です。<br />
             ※ドロップイン工事は省エネ補助金の対象外です（補助金で更新した機器にはドロップインを施工できません）。<br />
@@ -413,7 +425,7 @@ export function DropinSimulator() {
             ※{scaffoldRequired ? `設置${floor}階のため足場が必要な想定ですが、` : "足場が必要な現場では、"}足場費用は現地条件で大きく変動するため本概算に含みません（現地調査で確定）。<br />
             ※単価出典: {PRICING_SOURCE}。都内物流倉庫の厨房系統で消費電力 実測−33%（30日計測・2026年）を確認済み。
           </div>
-          <div className="mt-3 pt-2 border-t border-slate-300 text-[10px] text-slate-600 flex justify-between">
+          <div className="mt-3 pt-2 border-t border-slate-300 text-xs text-slate-600 flex justify-between">
             <span>お問い合わせ: info@ehcjpn.com</span>
             <span>© 2026 株式会社EHCソリューションズ</span>
           </div>

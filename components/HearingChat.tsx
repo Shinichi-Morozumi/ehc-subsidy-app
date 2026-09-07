@@ -673,7 +673,7 @@ export function HearingChat({
           </span>
           <span className="text-left leading-tight">
             <span className="block text-[13px] font-black">AIで入力</span>
-            <span className="block text-[10px] text-white/80">会話でかんたん・最短30秒</span>
+            <span className="block text-xs text-white/80">会話でかんたん・最短30秒</span>
           </span>
         </button>
       )}
@@ -689,7 +689,7 @@ export function HearingChat({
             <span className="flex-1 min-w-0">
               <span className="flex items-center gap-1.5">
                 <span className="text-[14px] font-black text-white">AIヒアリング</span>
-                <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-night-900 text-[9px] font-black">最短30秒</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-night-900 text-xs font-black">最短30秒</span>
               </span>
               <span className="block text-[10.5px] text-slate-300">会話で答えるだけ・AIが概算補完</span>
             </span>
@@ -698,7 +698,7 @@ export function HearingChat({
                 type="button"
                 onClick={restart}
                 aria-label="担当モードの選択に戻る"
-                className="flex items-center gap-1 px-2 h-8 rounded-lg text-[11px] text-slate-300 hover:text-white border border-white/15 hover:bg-white/10 flex-shrink-0"
+                className="min-h-[44px] flex items-center gap-1 px-2 h-8 rounded-lg text-xs text-slate-300 hover:text-white border border-white/15 hover:bg-white/10 flex-shrink-0"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> 戻る
               </button>
@@ -707,7 +707,7 @@ export function HearingChat({
               type="button"
               onClick={() => setOpen(false)}
               aria-label="閉じる"
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 flex-shrink-0"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 flex-shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
@@ -722,14 +722,14 @@ export function HearingChat({
                 <button
                   type="button"
                   onClick={() => start("sales")}
-                  className="px-4 py-2.5 rounded-xl bg-cobalt-600 hover:bg-cobalt-500 text-white text-sm font-semibold"
+                  className="min-h-[44px] inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-cobalt-600 hover:bg-cobalt-500 text-white text-sm font-semibold"
                 >
                   営業担当として入力
                 </button>
                 <button
                   type="button"
                   onClick={() => start("customer")}
-                  className="px-4 py-2.5 rounded-xl bg-ehc-600 hover:bg-ehc-500 text-white text-sm font-semibold"
+                  className="min-h-[44px] inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-ehc-600 hover:bg-ehc-500 text-white text-sm font-semibold"
                 >
                   お客様として入力
                 </button>
@@ -772,7 +772,7 @@ export function HearingChat({
                             </li>
                           ))}
                         </ul>
-                        <p className="text-[11px] text-slate-400 mb-3">
+                        <p className="text-xs text-slate-400 mb-3">
                           ※ 補助金額・回収年数はこれらの数値に基づく<strong className="text-slate-300">目安</strong>です。正確な金額が分かる場合は、下の入力フォームでいつでも修正できます。
                         </p>
                       </>
@@ -785,12 +785,12 @@ export function HearingChat({
                       <div className="mb-3 rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
                         <p className="text-[10.5px] text-slate-400 mb-0.5">ご関心</p>
                         <p className="text-[12px] font-bold text-ehc-200 mb-1">{INTEREST_LABELS[interest]}</p>
-                        {nextByInterest && <p className="text-[11px] text-slate-300 leading-relaxed">{nextByInterest.lead}</p>}
+                        {nextByInterest && <p className="text-xs text-slate-300 leading-relaxed">{nextByInterest.lead}</p>}
                       </div>
                     )}
                     <div className="mb-3 rounded-lg border border-cobalt-500/30 bg-cobalt-600/10 px-3 py-2.5">
                       <p className="text-[12px] text-slate-200 font-semibold mb-0.5">続けて、補助金の該当もチェックしますか？</p>
-                      <p className="text-[11px] text-slate-400">「はい」を選ぶと、提案書作成後に最有力の補助金について要件を1問ずつ確認し、結果を要件チェック（実質負担額・回収年数）に自動反映します。</p>
+                      <p className="text-xs text-slate-400">「はい」を選ぶと、提案書作成後に最有力の補助金について要件を1問ずつ確認し、結果を要件チェック（実質負担額・回収年数）に自動反映します。</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -799,7 +799,7 @@ export function HearingChat({
                           onComplete(true);
                           setOpen(false);
                         }}
-                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-ehc-500 to-ehc-600 hover:from-ehc-400 hover:to-ehc-500 text-white text-sm font-bold"
+                        className="min-h-[44px] flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-ehc-500 to-ehc-600 hover:from-ehc-400 hover:to-ehc-500 text-white text-sm font-bold"
                       >
                         <Sparkles className="w-4 h-4" /> 提案書＋補助金の該当チェック
                       </button>
@@ -809,7 +809,7 @@ export function HearingChat({
                           onComplete(false);
                           setOpen(false);
                         }}
-                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-ehc-500/40 text-ehc-200 hover:bg-ehc-500/10 text-sm font-bold"
+                        className="min-h-[44px] flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-ehc-500/40 text-ehc-200 hover:bg-ehc-500/10 text-sm font-bold"
                       >
                         提案書のみ作成
                       </button>
@@ -828,7 +828,7 @@ export function HearingChat({
                               else window.scrollTo({ top: 0, behavior: "smooth" });
                             }, 80);
                           }}
-                          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-cobalt-400/50 text-cobalt-100 bg-cobalt-600/15 hover:bg-cobalt-600/30 text-sm font-bold"
+                          className="min-h-[44px] flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-cobalt-400/50 text-cobalt-100 bg-cobalt-600/15 hover:bg-cobalt-600/30 text-sm font-bold"
                         >
                           {nextByInterest.label}
                         </button>
@@ -842,7 +842,7 @@ export function HearingChat({
                             80
                           );
                         }}
-                        className="px-3 py-2.5 rounded-xl border border-white/15 text-slate-300 hover:bg-white/5 text-sm"
+                        className="min-h-[44px] inline-flex items-center justify-center px-3 py-2.5 rounded-xl border border-white/15 text-slate-300 hover:bg-white/5 text-sm"
                       >
                         フォームで確認・修正
                       </button>
@@ -850,14 +850,14 @@ export function HearingChat({
                         type="button"
                         onClick={goBack}
                         disabled={history.length === 0}
-                        className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-white/15 text-slate-300 hover:bg-white/5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="min-h-[44px] flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-white/15 text-slate-300 hover:bg-white/5 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <CornerUpLeft className="w-3.5 h-3.5" /> 1つ戻る
                       </button>
                       <button
                         type="button"
                         onClick={restart}
-                        className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-white/15 text-slate-400 hover:bg-white/5 text-sm"
+                        className="min-h-[44px] flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-white/15 text-slate-400 hover:bg-white/5 text-sm"
                       >
                         <RotateCcw className="w-3.5 h-3.5" /> 最初から
                       </button>
@@ -876,7 +876,7 @@ export function HearingChat({
                           key={c.value}
                           type="button"
                           onClick={() => answer(c.value, c.display ?? c.label, false)}
-                          className="px-3 py-1.5 rounded-full text-[12px] border border-cobalt-500/40 text-cobalt-100 bg-cobalt-600/10 hover:bg-cobalt-600/25"
+                          className="min-h-[44px] inline-flex items-center justify-center px-3 py-1.5 rounded-full text-[12px] border border-cobalt-500/40 text-cobalt-100 bg-cobalt-600/10 hover:bg-cobalt-600/25"
                         >
                           {c.label}
                         </button>
@@ -887,6 +887,7 @@ export function HearingChat({
                   {activeFree !== "none" && (
                     <div className="flex items-center gap-2">
                       <input
+                        aria-label={activePlaceholder ?? "回答を入力"}
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                         onKeyDown={(e) => {
@@ -899,7 +900,7 @@ export function HearingChat({
                         inputMode={activeFree === "number" ? "numeric" : activeFree === "tel" ? "tel" : "text"}
                         type={activeFree === "email" ? "email" : activeFree === "tel" ? "tel" : "text"}
                         placeholder={activePlaceholder ?? "入力してEnterまたはSend"}
-                        className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-night-900 border border-white/15 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-cobalt-500"
+                        className="min-h-[44px] flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-night-900 border border-white/15 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-cobalt-500"
                       />
                       <button
                         type="button"
@@ -918,7 +919,7 @@ export function HearingChat({
                         <button
                           type="button"
                           onClick={() => answer(UNKNOWN, "わからない", true)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] border border-amber-400/40 text-amber-300 bg-amber-400/5 hover:bg-amber-400/15"
+                          className="min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] border border-amber-400/40 text-amber-300 bg-amber-400/5 hover:bg-amber-400/15"
                         >
                           <Wand2 className="w-3.5 h-3.5" /> わからない / おまかせ
                         </button>
@@ -927,13 +928,13 @@ export function HearingChat({
                         <button
                           type="button"
                           onClick={goBack}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] border border-white/15 text-slate-300 hover:bg-white/10"
+                          className="min-h-[44px] flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] border border-white/15 text-slate-300 hover:bg-white/10"
                         >
                           <CornerUpLeft className="w-3.5 h-3.5" /> 1つ戻る
                         </button>
                       )}
                     </div>
-                    <span className="text-[10px] text-slate-500 flex-shrink-0">
+                    <span className="text-xs text-slate-500 flex-shrink-0">
                       {giRef.current > 0 && <span className="mr-1.5 text-cobalt-300">設備{giRef.current + 1}系統目</span>}
                       {idx + 1} / {STEPS.length}
                     </span>

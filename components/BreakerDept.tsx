@@ -68,7 +68,7 @@ export function BreakerDept() {
                     <div className="font-bold text-sm mb-1 text-amber-300 flex items-center gap-2">
                       {m.title}
                       {m.highlight && (
-                        <span className="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-[10px]">
+                        <span className="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-xs">
                           {m.highlight}
                         </span>
                       )}
@@ -113,7 +113,7 @@ export function BreakerDept() {
             <div key={i} className="bg-night-900 border border-white/10 rounded-lg p-3 hover:border-amber-400/50 hover:bg-amber-500/10 transition-colors">
               <div className="text-2xl mb-1.5">{t.icon}</div>
               <div className="text-sm font-bold text-white mb-0.5">{t.biz}</div>
-              <div className="text-[11px] text-slate-500">契約容量目安: {t.typical}</div>
+              <div className="text-xs text-slate-500">契約容量目安: {t.typical}</div>
               <div className="mt-1.5 text-xs font-bold text-amber-300">基本料金 {t.reduce} 削減</div>
             </div>
           ))}
@@ -126,12 +126,12 @@ export function BreakerDept() {
           <div className="bg-gradient-to-br from-amber-500/10 to-amber-500/10 border border-amber-500/30 rounded-xl p-4">
             <div className="text-xs text-amber-300 mb-1">累計導入実績</div>
             <div className="text-3xl font-bold text-amber-300">3,000<span className="text-base ml-1">台 以上</span></div>
-            <div className="text-[10px] text-amber-300 mt-1">大手コンビニ・GS・福祉施設等</div>
+            <div className="text-xs text-amber-300 mt-1">大手コンビニ・GS・福祉施設等</div>
           </div>
           <div className="bg-gradient-to-br from-amber-500/10 to-amber-500/10 border border-amber-500/30 rounded-xl p-4">
             <div className="text-xs text-amber-300 mb-1">耐久年数 / 無事故実績</div>
             <div className="text-3xl font-bold text-amber-300">15<span className="text-base ml-1">年 / 約30年</span></div>
-            <div className="text-[10px] text-amber-300 mt-1">PSE認定・経産省認可済み</div>
+            <div className="text-xs text-amber-300 mt-1">PSE認定・経産省認可済み</div>
           </div>
         </div>
         <div className="bg-night-900 border border-white/10 rounded-lg p-3 text-xs space-y-2">
@@ -152,22 +152,22 @@ export function BreakerDept() {
             <div className="text-xs text-slate-500 mb-1">事例1: 大手コンビニチェーン S（関東地区）</div>
             <div className="grid grid-cols-3 gap-2 text-center mt-3">
               <div>
-                <div className="text-[10px] text-slate-500">導入前</div>
+                <div className="text-xs text-slate-500">導入前</div>
                 <div className="text-lg font-bold text-slate-300">38kW</div>
-                <div className="text-[10px] text-slate-500">40,504円/月</div>
+                <div className="text-xs text-slate-500">40,504円/月</div>
               </div>
               <div>
-                <div className="text-[10px] text-amber-600">→</div>
+                <div className="text-xs text-amber-600">→</div>
                 <div className="text-lg font-bold text-amber-600">↓</div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500">導入後</div>
+                <div className="text-xs text-slate-500">導入後</div>
                 <div className="text-lg font-bold text-ehc-300">21kW</div>
-                <div className="text-[10px] text-slate-500">22,384円/月</div>
+                <div className="text-xs text-slate-500">22,384円/月</div>
               </div>
             </div>
             <div className="mt-3 bg-ehc-500/10 border border-ehc-500/30 rounded p-2 text-center">
-              <div className="text-[10px] text-ehc-300">削減効果</div>
+              <div className="text-xs text-ehc-300">削減効果</div>
               <div className="text-lg font-bold text-ehc-300">月18,120円 / <span className="text-amber-300">年217,440円</span></div>
             </div>
           </div>
@@ -175,22 +175,22 @@ export function BreakerDept() {
             <div className="text-xs text-slate-500 mb-1">事例2: ガソリンスタンド（九州地区）</div>
             <div className="grid grid-cols-3 gap-2 text-center mt-3">
               <div>
-                <div className="text-[10px] text-slate-500">導入前</div>
+                <div className="text-xs text-slate-500">導入前</div>
                 <div className="text-lg font-bold text-slate-300">28kW</div>
-                <div className="text-[10px] text-slate-500">31,416円/月</div>
+                <div className="text-xs text-slate-500">31,416円/月</div>
               </div>
               <div>
-                <div className="text-[10px] text-amber-600">→</div>
+                <div className="text-xs text-amber-600">→</div>
                 <div className="text-lg font-bold text-amber-600">↓</div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500">導入後</div>
+                <div className="text-xs text-slate-500">導入後</div>
                 <div className="text-lg font-bold text-ehc-300">7kW</div>
-                <div className="text-[10px] text-slate-500">7,854円/月</div>
+                <div className="text-xs text-slate-500">7,854円/月</div>
               </div>
             </div>
             <div className="mt-3 bg-ehc-500/10 border border-ehc-500/30 rounded p-2 text-center">
-              <div className="text-[10px] text-ehc-300">削減効果</div>
+              <div className="text-xs text-ehc-300">削減効果</div>
               <div className="text-lg font-bold text-ehc-300">月23,562円 / <span className="text-amber-300">年283,824円</span></div>
             </div>
           </div>
@@ -210,22 +210,22 @@ export function BreakerDept() {
             <div className="text-xs text-slate-500 mb-1">事例3: カナタスタイル合同会社（富山・高圧業務用）</div>
             <div className="grid grid-cols-3 gap-2 text-center mt-3">
               <div>
-                <div className="text-[10px] text-slate-500">契約電力</div>
+                <div className="text-xs text-slate-500">契約電力</div>
                 <div className="text-lg font-bold text-slate-300">150kW</div>
-                <div className="text-[10px] text-slate-500">年1,551万円</div>
+                <div className="text-xs text-slate-500">年1,551万円</div>
               </div>
               <div>
-                <div className="text-[10px] text-amber-600">→</div>
+                <div className="text-xs text-amber-600">→</div>
                 <div className="text-lg font-bold text-amber-600">↓</div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500">適正化後</div>
+                <div className="text-xs text-slate-500">適正化後</div>
                 <div className="text-lg font-bold text-ehc-300">110kW</div>
-                <div className="text-[10px] text-slate-500">年1,435万円</div>
+                <div className="text-xs text-slate-500">年1,435万円</div>
               </div>
             </div>
             <div className="mt-3 bg-ehc-500/10 border border-ehc-500/30 rounded p-2 text-center">
-              <div className="text-[10px] text-ehc-300">年間削減効果</div>
+              <div className="text-xs text-ehc-300">年間削減効果</div>
               <div className="text-lg font-bold text-ehc-300">年 <span className="text-amber-300">約116万円</span></div>
             </div>
           </div>
@@ -233,27 +233,27 @@ export function BreakerDept() {
             <div className="text-xs text-slate-500 mb-1">事例4: 医療法人社団晃進会 たま日吉台病院（川崎・業務用電力）</div>
             <div className="grid grid-cols-3 gap-2 text-center mt-3">
               <div>
-                <div className="text-[10px] text-slate-500">契約電力</div>
+                <div className="text-xs text-slate-500">契約電力</div>
                 <div className="text-lg font-bold text-slate-300">191kW</div>
-                <div className="text-[10px] text-slate-500">年1,600万円</div>
+                <div className="text-xs text-slate-500">年1,600万円</div>
               </div>
               <div>
-                <div className="text-[10px] text-amber-600">→</div>
+                <div className="text-xs text-amber-600">→</div>
                 <div className="text-lg font-bold text-amber-600">↓</div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-500">適正化後</div>
+                <div className="text-xs text-slate-500">適正化後</div>
                 <div className="text-lg font-bold text-ehc-300">160kW</div>
-                <div className="text-[10px] text-slate-500">年1,449万円</div>
+                <div className="text-xs text-slate-500">年1,449万円</div>
               </div>
             </div>
             <div className="mt-3 bg-ehc-500/10 border border-ehc-500/30 rounded p-2 text-center">
-              <div className="text-[10px] text-ehc-300">年間削減効果</div>
+              <div className="text-xs text-ehc-300">年間削減効果</div>
               <div className="text-lg font-bold text-ehc-300">年 <span className="text-amber-300">約151万円</span></div>
             </div>
           </div>
         </div>
-        <div className="mt-3 text-[10px] text-slate-500">
+        <div className="mt-3 text-xs text-slate-500">
           ※ 電気料金明細（ピーク3ヶ月分）を基に削減シミュレーションを実施。削減できない場合は導入見送り（リスクフリー）。
         </div>
       </Card>

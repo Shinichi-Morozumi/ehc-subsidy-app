@@ -69,7 +69,7 @@ export function NextSteps() {
         いますぐ無料の現地調査を依頼する
         <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
       </a>
-      <p className="no-print text-[11px] text-slate-400 text-center -mt-3 mb-5">
+      <p className="no-print text-xs text-slate-400 text-center -mt-3 mb-5">
         費用・キャンセル料は一切かかりません。メールが立ち上がります（宛先: info@ehcjpn.com）
       </p>
 
@@ -87,7 +87,7 @@ export function NextSteps() {
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-white mb-1">{step.title}</div>
                 <p className="text-xs text-slate-300 leading-relaxed mb-1.5">{step.body}</p>
-                <div className="text-[11px] text-ehc-300 font-medium">
+                <div className="text-xs text-ehc-300 font-medium">
                   ✓ 成果物: {step.deliverable}
                 </div>
               </div>
@@ -98,7 +98,7 @@ export function NextSteps() {
       <div className="mt-5 rounded-2xl p-5 flex items-center justify-between flex-wrap gap-4 bg-gradient-to-br from-ehc-600 to-ehc-800 ring-1 ring-ehc-400/40 shadow-[0_18px_50px_-12px_rgba(0,166,81,0.55)]">
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2 py-0.5 rounded-full bg-amber-400 text-night-900 text-[10px] font-black tracking-wide">無料</span>
+            <span className="px-2 py-0.5 rounded-full bg-amber-400 text-night-900 text-xs font-black tracking-wide">無料</span>
             <span className="text-base font-black text-white">まずは無料の現地調査から</span>
           </div>
           <div className="text-xs text-emerald-100">EHC担当者がご訪問し、最適プランをご提案します（費用・キャンセル料はかかりません）</div>

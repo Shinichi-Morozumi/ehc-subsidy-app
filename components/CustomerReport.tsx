@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { MatchInput, Subsidy, INTEREST_LABELS } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
@@ -9,9 +9,12 @@ import { NextSteps } from "./NextSteps";
 import { AchievementsSection } from "./AchievementsSection";
 import { Printer, FileText, Handshake, Calendar, LineChart, Award, ClipboardList, Mail } from "lucide-react";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
+import { PROVISIONAL_COEFFICIENT_NOTE } from "@/lib/coefficients";
 import { QRCodeSVG } from "qrcode.react";
 import { DiagnosisSummary } from "./DiagnosisSummary";
 import { ProgramMatchBoard } from "./ProgramMatchBoard";
+import { issueDocumentNumber, documentFileName } from "@/lib/docNumber";
+import { useModalA11y } from "./ui/useModalA11y";
 
 // ── 提案書の送付フロー（将来実装メモ）─────────────────────────
 // 現状: 画面で「印刷 / PDF保存」して手動共有。
@@ -47,7 +50,12 @@ export function CustomerReport({
     month: "long",
     day: "numeric",
   });
-  const proposalNo = `EHC-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  /* 2026-08-24 監査での修正:
+       以前は `EHC-${年}${月}${日}` と日付だけで、同日発行の診断書は
+       顧客が違っても番号もPDFファイル名も同一だった。
+     useState の初期化関数で1回だけ発行し、再レンダーで番号が変わらないようにする
+     （毎レンダーで new Date() すると、印刷前後で番号が変わってしまう）。 */
+  const [proposalNo] = useState(() => issueDocumentNumber());
 
   // 補助金は共通診断＋個別要件を確認した後だけ反映する。未確認時は0円。
   const displaySubsidyManYen = appliedSubsidyManYen ?? 0;
@@ -77,15 +85,10 @@ export function CustomerReport({
   // PDF化する提案書本体（この要素をそのままキャプチャして添付）
   const reportRef = useRef<HTMLDivElement>(null);
 
-  // ライトボックスは Esc でも閉じられるようにする
-  useEffect(() => {
-    if (!showReqModal) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setShowReqModal(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [showReqModal]);
+  /* 2026-08-24 監査での修正: Escape で閉じる処理だけは書かれていたが、
+     Tab が背後のフォームまで抜ける・背後がスクロールする・閉じてもフォーカスが
+     PDFボタンに戻らない、が残っていた。他のモーダルと同じフックに寄せる。 */
+  const reqModalRef = useModalA11y(() => setShowReqModal(false), showReqModal && !customerReady);
 
   // 未入力の必須欄まで画面を送ってフォーカス＆ハイライトする（PDFボタン／案内パネル／モーダルから呼ぶ）
   const goToFirstMissing = () => {
@@ -154,7 +157,7 @@ export function CustomerReport({
       pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH);
       heightLeft -= pageH;
     }
-    return { base64: pdf.output("datauristring"), filename: `補助金省エネ診断書_${proposalNo}.pdf` };
+    return { base64: pdf.output("datauristring"), filename: documentFileName(proposalNo) };
   };
 
   // 確認パネルの「送信する」= PDF生成 → /api/send-proposal で EHC(+PN cc) へ自動送信
@@ -191,7 +194,18 @@ export function CustomerReport({
       });
       const data = await res.json().catch(() => ({ ok: false, error: "応答の解析に失敗しました。" }));
       if (res.ok && data.ok) {
-        setSendResult({ ok: true, msg: "送信しました。EHC（info@ehcjpn.com）とPNにPDF付きで届きます。" });
+        /* 2026-08-24 監査での修正:
+           以前は Notion（社内アタックリスト）への追記が失敗しても、
+           常に「送信しました」とだけ表示していた。メールは届くがリード情報だけが消え、
+           営業側は追記されていないことに気づけない状態だった。
+           サーバが leadPersisted:false を返したら、その旨を必ず画面に出す。 */
+        setSendResult({
+          ok: true,
+          msg:
+            data.leadPersisted === false
+              ? "送信しました。EHC（info@ehcjpn.com）とPNにPDF付きで届きます。※社内リストへの自動登録は失敗しました。担当者へ診断書番号をお伝えください。"
+              : "送信しました。EHC（info@ehcjpn.com）とPNにPDF付きで届きます。",
+        });
       } else {
         setSendResult({
           ok: false,
@@ -227,7 +241,18 @@ export function CustomerReport({
             }`
         )
         .join("\n")
-    : "・条件に該当する補助金は現時点で見当たりません（個別ヒアリングにてご相談）。";
+    : "・現時点の情報だけで適格性が確定した制度はありません（下記の確認事項をご確認ください）。";
+  // 判定不能の制度は「該当なし」ではないので、メール本文にも不足情報つきで載せる
+  const pendingListText = result.needsCheck.length
+    ? "\n\n【ご確認いただければ候補になりうる制度】\n" +
+      result.needsCheck
+        .map((s) => {
+          const miss = (result.eligibility[s.id]?.missing ?? []).map((m) => `    - ${m}`).join("\n");
+          return `・${s.name}（主催: ${s.org} / 補助率: ${s.rate} / 上限: ${s.max}）\n${miss}`;
+        })
+        .join("\n") +
+      "\n※対象外が確定したという意味ではありません。判定に必要な情報が未取得のため、補助額は算定していません。"
+    : "";
   const reasonsText = result.reasons.map((r, i) => `${i + 1}. ${r}`).join("\n");
   const inquiryBody = `EHC 補助金・空調更新の診断結果（印刷物と同一内容）です。お電話でのご案内にそのままご利用ください。
 
@@ -248,9 +273,9 @@ ${groupsText}
 年間電力使用量: ${result.totalKwh.toLocaleString("ja-JP")} kWh（${input.kwhMode === "measured" ? "実測" : "自動按分"}）
 今回更新分の設備投資概算: ${input.invest.toLocaleString("ja-JP")} 万円
 
-【2. ご提案サマリー】（全体の実効削減率 約${(result.effectiveReductionRate * 100).toFixed(0)}%）
+【2. ご提案サマリー】（全体の実効削減率 約${(result.effectiveReductionRate * 100).toFixed(0)}%${result.coefficientAudit.allSourced ? "" : "・暫定値"}）${result.coefficientAudit.allSourced ? "" : `\n※${PROVISIONAL_COEFFICIENT_NOTE}`}
 想定補助金額: ¥${displaySubsidyYen.toLocaleString("ja-JP")}
-損益分岐(回収): ${result.yearsToRecover !== null ? `${result.yearsToRecover}年` : "—"}
+回収年数(補助金適用前・税抜): ${result.yearsToRecover !== null ? `${result.yearsToRecover}年` : "—"}
 年間電気代削減: ¥${result.saveYenPerYear.toLocaleString("ja-JP")}
 15年累計削減: ¥${result.total15YearsYen.toLocaleString("ja-JP")}
 CO₂削減/年: ${result.co2ReductionTon} t
@@ -258,7 +283,7 @@ CO₂削減/年: ${result.co2ReductionTon} t
 【3. ご希望の補助金】${chosenSubsidyName ?? "（未確定 / 最有力で試算中）"}
 
 【4. 候補となる補助金制度】
-${subsidyListText}
+${subsidyListText}${pendingListText}
 
 【5. 今、更新をご検討いただきたい理由】
 ${reasonsText}
@@ -296,7 +321,9 @@ ${result.ehcPlan}
           onClick={() => setShowReqModal(false)}
         >
           <div
-            className="w-full max-w-md bg-white rounded-2xl shadow-lift border border-ehc-200 overflow-hidden"
+            ref={reqModalRef}
+            tabIndex={-1}
+            className="w-full max-w-md bg-white rounded-2xl shadow-lift border border-ehc-200 overflow-hidden focus:outline-none"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-amber-50 border-b border-amber-200 px-5 py-3.5 flex items-start gap-2.5">
@@ -529,14 +556,28 @@ ${result.ehcPlan}
           <h2 className="text-sm font-bold text-ehc-800 border-l-4 border-ehc-600 pl-3 mb-3">
             2. ご提案サマリー
           </h2>
+          {/* 2026-08-27 監査での修正:
+                ここには「（出典: 資源エネルギー庁／業界資料／EHC施工実績）」と書かれていた。
+                客先に出す書面で、辿れない出典を出典として書いてはいけない。
+                読んだ人は確認済みの数字だと受け取るからである（大塚倉庫の「6658」と同じ経路）。
+                削減率の係数は現時点で一次資料を特定できていないので、暫定値と明記する。 */}
           <p className="text-[11px] text-slate-600 mb-2">
-            {industryLabel}は冷媒設備が電力の多くを占め、設置年・冷媒世代に応じた経年劣化（年約2%）も加味すると、
+            {industryLabel}は冷媒設備が電力の多くを占め、設置年・冷媒世代に応じた経年劣化も加味すると、
             高効率化＋経年回復で<strong className="text-ehc-700">全体の実効削減率 {(result.effectiveReductionRate * 100).toFixed(0)}%</strong>
-            （出典: 資源エネルギー庁／業界資料／EHC施工実績）で試算しています。
+            で試算しています。
           </p>
+          {!result.coefficientAudit.allSourced && (
+            <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mb-2">
+              <strong>削減率は暫定値です。</strong>{PROVISIONAL_COEFFICIENT_NOTE}
+            </p>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <SummaryCell label="想定補助金額" value={`¥${displaySubsidyYen.toLocaleString("ja-JP")}`} color="green" />
-            <SummaryCell label="損益分岐(回収)" value={result.yearsToRecover !== null ? `${result.yearsToRecover} 年` : "—"} color="amber" />
+            {/* 2026-08-24 監査での修正: 「損益分岐(回収)」とだけ書かれており、
+                補助金を引く前か後か、税抜か税込かが読み手に分からなかった。
+                実装は「税抜の工事費 ÷ 年間電気代削減額」＝補助金を引く前の値なので、
+                そのとおりにラベルへ明記する（数式は変えない）。 */}
+            <SummaryCell label="回収年数(補助金適用前・税抜)" value={result.yearsToRecover !== null ? `${result.yearsToRecover} 年` : "—"} color="amber" />
             <SummaryCell label="年間電気代削減" value={`¥${result.saveYenPerYear.toLocaleString("ja-JP")}`} color="blue" />
             <SummaryCell label="15年累計削減" value={`¥${result.total15YearsYen.toLocaleString("ja-JP")}`} color="purple" />
             <SummaryCell label="CO₂削減/年" value={`${result.co2ReductionTon} t`} color="green" />
@@ -597,7 +638,34 @@ ${result.ehcPlan}
               })}
             </ul>
           ) : (
-            <p className="text-xs text-slate-500">条件に該当する補助金が現在見当たりません。個別ヒアリングにてご相談ください。</p>
+            <p className="text-xs text-slate-500">現時点の情報だけで適格性が確定した制度はありません。下記の確認事項が埋まり次第、改めて判定いたします。</p>
+          )}
+
+          {/* 判定不能を「該当なし」として消さない。確認すれば候補になりうる制度を必ず載せる。 */}
+          {result.needsCheck.length > 0 && (
+            <div className="mt-3">
+              <div className="text-xs font-bold text-slate-700 mb-1.5">
+                ご確認いただければ候補になりうる制度（{result.needsCheck.length}件）
+              </div>
+              <ul className="space-y-2">
+                {result.needsCheck.map((s) => (
+                  <li key={s.id} className="text-xs border border-slate-200 border-dashed rounded-lg p-3 bg-slate-50">
+                    <div className="font-semibold text-slate-800 mb-1">○ {s.name}</div>
+                    <div className="text-slate-700 grid grid-cols-1 md:grid-cols-3 gap-1">
+                      <span>主催: {s.org}</span>
+                      <span>補助率: {s.rate}</span>
+                      <span>上限: {s.max}</span>
+                    </div>
+                    <ul className="text-slate-600 mt-1 list-disc list-inside">
+                      {(result.eligibility[s.id]?.missing ?? []).map((m) => <li key={m}>{m}</li>)}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-slate-500 mt-1.5">
+                対象外が確定したという意味ではありません。判定に必要な情報が未取得のため、補助額は算定していません。
+              </p>
+            </div>
           )}
         </section>
 

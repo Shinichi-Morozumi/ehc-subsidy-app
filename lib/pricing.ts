@@ -6,23 +6,109 @@ export const PRICING_SOURCE = "PN見積 全500件分析（第9-10期 / 2024-2025
 /* ───────── エネルギー換算の共通定数 ─────────
    ここが唯一の情報源。補助金マッチング／ROIチャート／ドロップイン各試算は必ずこれを参照する
    （以前は27円・0.000438が各コンポーネントに独立ハードコードされ、片方だけ直すと数字がズレていた）。 */
-export const ELECTRIC_PRICE_YEN_PER_KWH = 27;      // 円/kWh（既定・契約単価で上書き可）
+/* ───────── 電力単価（出典確定版・2026-08-24 監査） ─────────
+   従来 `= 27` とだけ書かれ、出典が無かった。27円/kWh は本来
+   「公益社団法人 全国家庭電気製品公正取引協議会」の“家庭用”目安単価で、
+   しかも 2022年7月22日に 31円/kWh へ改定されて既に廃止されている値である。
+   業務用空調の提案に家庭用の旧目安を当てるのは根拠として成立しないため、
+   実勢の電圧区分別単価に置き換え、出典を持たせた。
+
+   削減1kWhあたりで実際に回避できる費用は
+     従量料金（燃料費調整込みの実勢平均） ＋ 再エネ発電促進賦課金
+   である。賦課金は使用量に比例して課されるため、削減すれば同時に減る。
+   消費税は課税事業者の仕入税額控除を前提に除いている（投資額側は taxIncluded で税込換算）。
+
+   ① 電圧区分別 平均販売単価（2026年5月実績・税および再エネ賦課金を含まない）
+      出典: 一般社団法人エネルギー情報センター「新電力ネット」電気料金単価の推移
+            https://pps-net.org/unit （2026年8月20日更新／電力・ガス取引監視等委員会「電力取引報」より作成）
+      特別高圧 17.45 ／ 高圧 22.78 ／ 電灯(低圧) 27.85 ／ 動力(低圧) 34.42 円/kWh
+   ② 再エネ発電促進賦課金 4.18 円/kWh（2026年度・経済産業省 2026年3月19日公表、
+      2026年5月検針分〜2027年4月検針分に適用） */
+export const RENEWABLE_SURCHARGE_YEN_PER_KWH = 4.18;
+
+export type ElectricContract = "tokubetsu_kouatsu" | "kouatsu" | "teiatsu_dento" | "teiatsu_douryoku";
+
+/** 電圧区分別の従量単価（税抜・賦課金抜き）。回避可能費用は下の AVOIDED を使うこと。 */
+export const ELECTRIC_UNIT_PRICE_BY_CONTRACT: Record<ElectricContract, number> = {
+  tokubetsu_kouatsu: 17.45,
+  kouatsu: 22.78,
+  teiatsu_dento: 27.85,
+  teiatsu_douryoku: 34.42,
+};
+
+export const ELECTRIC_CONTRACT_LABEL: Record<ElectricContract, string> = {
+  tokubetsu_kouatsu: "特別高圧（契約2,000kW以上）",
+  kouatsu: "高圧（契約50〜2,000kW）",
+  teiatsu_dento: "低圧電灯（単相・50kW未満）",
+  teiatsu_douryoku: "低圧動力（三相200V・50kW未満）",
+};
+
+/** 1kWh削減したときに実際に回避できる費用（円/kWh）＝ 従量単価 ＋ 再エネ賦課金 */
+export function avoidedCostYenPerKwh(contract: ElectricContract): number {
+  return Math.round((ELECTRIC_UNIT_PRICE_BY_CONTRACT[contract] + RENEWABLE_SURCHARGE_YEN_PER_KWH) * 100) / 100;
+}
+
+/* 既定値は「高圧」。業務用空調の主要顧客層であり、かつ低圧より単価が低いため、
+   契約区分が未確認の段階では削減額を過大に見せない（安全側に外れる）。
+   22.78 + 4.18 = 26.96 ≒ 27.0 円/kWh。
+   結果として従来の 27 と同水準になるが、今回は根拠が確定している点が異なる。
+   実案件では必ず電気料金明細の実額（従量＋燃調＋賦課金）で上書きすること。 */
+export const ELECTRIC_PRICE_DEFAULT_CONTRACT: ElectricContract = "kouatsu";
+export const ELECTRIC_PRICE_YEN_PER_KWH = avoidedCostYenPerKwh(ELECTRIC_PRICE_DEFAULT_CONTRACT); // 26.96
+export const ELECTRIC_PRICE_ASOF = "2026年5月実績（賦課金は2026年度単価）";
+export const ELECTRIC_PRICE_SOURCE =
+  "電圧区分別平均販売単価: 新電力ネット（電力・ガス取引監視等委員会「電力取引報」より作成, 2026年8月20日更新） / 再エネ賦課金: 経済産業省 2026年度単価 4.18円/kWh";
+
 export const CO2_TON_PER_KWH = 0.000438;           // t-CO2/kWh（省エネ効果レポートと同一係数）
 export const CONSUMPTION_TAX_RATE = 0.1;           // 消費税率（投資額の税込換算に使用）
 // 税込換算（投資回収年数は税込ベースに統一する）
 export const taxIncluded = (yen: number) => Math.round(yen * (1 + CONSUMPTION_TAX_RATE));
 
+/* ───────── 補助額の丸め（唯一の計算口） ─────────
+   2026-08-24 監査での修正:
+     補助額を「投資額 × 補助率、上限で頭打ち」で出す計算が、
+     lib/match.ts と components/ProgramMatchBoard.tsx に別々に書かれていた。
+     しかも match.ts 側だけが千円未満切捨てを行っていたため、
+     同じ画面の「2｜金額比較」と「該当制度別シミュレーション」で
+     同一制度の補助額が数百円ずれるという、説明のつかない表示になっていた。
+     金額の計算はこの関数1本に集約する。
+
+   補助率は 1/3・1/2・2/3 のような分数で保持し、丸めは最後に一度だけ行う。
+   交付申請額は千円未満切捨てが原則。 */
+export const SUBSIDY_ROUND_UNIT_YEN = 1000;
+
+/** 補助額（万円）。investManYen: 投資額(万円) / rateNum: 補助率 / capManYen: 上限(万円) */
+export function subsidyAmountManYen(investManYen: number, rateNum: number, capManYen: number): number {
+  const rawYen = Math.min(investManYen * 10000 * rateNum, capManYen * 10000);
+  const yen = Math.floor(Math.max(0, rawYen) / SUBSIDY_ROUND_UNIT_YEN) * SUBSIDY_ROUND_UNIT_YEN;
+  return yen / 10000;
+}
+
 /* ───────── 経年劣化・維持費の共通定数 ─────────
-   エビデンス: 業務用空調は年約2%ずつ効率が低下する（資源エネルギー庁・業界資料）。
    AGE_DEGRADATION_PER_YEAR は「更新しなかった場合、今後1年ごとに電気代が何%増えるか」という
    “将来”の見込みで、ROIチャート／ドロップイン診断ウィザードの「何もしない」ラインに使う。
-   一方 lib/match.ts の getAgeDegradationRate() は「設置からの経過年数で “すでに” どれだけ悪化しているか」
-   という累積値（実測レンジ 10〜15年で20〜40% に合わせた非線形の階段）で、用途が異なる。
-   両者は同じ「年約2%」というエビデンスを出発点にしている。 */
+   一方 lib/coefficients.ts の AGE_DEGRADATION_TIERS は「設置からの経過年数で “すでに” どれだけ
+   悪化しているか」という累積値（非線形の階段）で、用途が異なる。
+
+   2026-08-27 監査での修正:
+     ここには「エビデンス: 業務用空調は年約2%ずつ効率が低下する（資源エネルギー庁・業界資料）」
+     と書いてあったが、どの資料の何ページかは辿れなかった。
+     「年約2%」も「10〜15年で20〜40%」も業界で広く引用される値ではあるが、
+     EHCとして提示できる原典を特定できていない以上、エビデンスと呼んではいけない。
+     lib/coefficients.ts と同じ扱い＝出典未確定の暫定値である。
+     出典が確定したら、この定数も coefficients.ts の VerifiedCoefficient 側へ移すこと。 */
+/** 出典未確定の暫定値。原典を特定するまで「エビデンスあり」として扱わないこと。 */
 export const AGE_DEGRADATION_PER_YEAR = 0.02;
 /* 老朽機を使い続けた場合の年間修理・メンテ増分（万円/年）。
-   ※PN見積の実績平均ではなく保守的な仮置き値。実案件では現地調査後の保守契約額で置き換える。 */
-export const OLD_EQUIPMENT_REPAIR_MANYEN_PER_YEAR = 15;
+   2026-08-24 監査での修正:
+     従来この値は 15 で、ROI比較チャートの「何もしない（旧機器維持）」線に
+     15万円 × 15年 ＝ 225万円 が自動的に上乗せされていた。
+     ところがこの 15 は PN見積の実績平均でも公表統計でもなく、コメント自身が
+     「保守的な仮置き値」と認めている出典の無い数字だった。
+     出典の無い数字で「何もしない」を不利に見せると、削減効果を水増ししたのと同じになる。
+     よって既定を 0 とし、保守契約額・修理履歴が判明した案件でのみ
+     RoiChart の repairCostManYenPerYear に実額を渡す運用に変更した。 */
+export const OLD_EQUIPMENT_REPAIR_MANYEN_PER_YEAR = 0;
 /* ROI比較チャートの表示年数。法定耐用年数15年に合わせている（regulations.ts の legalUsefulLifeYears と同値）。 */
 export const ROI_CHART_YEARS = 15;
 /* 撤去1台あたりの想定回収冷媒量(kg)。更新工事の破壊費計算の既定値。

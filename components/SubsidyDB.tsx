@@ -1,5 +1,5 @@
 import { Card, CardTitle } from "./ui/Card";
-import { SUBSIDIES, SUBSIDY_DATA_ASOF } from "@/lib/subsidies";
+import { getSubsidies, SUBSIDY_DATA_ASOF } from "@/lib/subsidies";
 import { Database, ExternalLink } from "lucide-react";
 import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { JGrantsLive } from "./JGrantsLive";
@@ -14,9 +14,9 @@ export function SubsidyDB() {
       <CardTitle icon={<Database className="w-5 h-5" />}>
         2026年度 業務用空調向け 補助金データベース
       </CardTitle>
-      <p className="text-[11px] text-slate-500 mb-3">データ確認日: {SUBSIDY_DATA_ASOF}（公募状況は変動します。申請前に必ず公式サイトでご確認ください）</p>
+      <p className="text-xs text-slate-500 mb-3">データ確認日: {SUBSIDY_DATA_ASOF}（公募状況は変動します。申請前に必ず公式サイトでご確認ください）</p>
       <div className="space-y-3">
-        {SUBSIDIES.map((s) => (
+        {getSubsidies().map((s) => (
           <div
             key={s.id}
             className={`border border-white/10 rounded-xl p-4 hover:shadow-card transition-shadow ${s.closed ? "bg-night-900 opacity-70" : "bg-gradient-to-br from-ehc-500/10 to-night-900"}`}
@@ -65,7 +65,7 @@ export function SubsidyDB() {
                   href={s.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-ehc-400 hover:text-ehc-300 inline-flex items-center gap-1 text-[11px] underline-offset-2 hover:underline"
+                  className="text-ehc-400 hover:text-ehc-300 inline-flex items-center gap-1 text-xs underline-offset-2 hover:underline"
                 >
                   {s.url} <ExternalLink className="w-3 h-3" />
                 </a>

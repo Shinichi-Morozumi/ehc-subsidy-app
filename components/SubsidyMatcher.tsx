@@ -21,7 +21,8 @@ import { useProject } from "./ProjectContext";
 import { RoadmapView } from "./RoadmapView";
 import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
-import { estimateInvestManYenFromGroups, estimateAnnualKwhFromGroups, kwhPerHpYear, siiBuildingUse, DEFAULT_HP_WHEN_UNKNOWN, CO2_TON_PER_KWH, MACHINE, WORK, COST_CLASS, SITE_ACCESS, DEFAULT_KG_PER_UNIT, PRICING_SOURCE } from "@/lib/pricing";
+import { PROVISIONAL_COEFFICIENT_NOTE } from "@/lib/coefficients";
+import { estimateInvestManYenFromGroups, estimateAnnualKwhFromGroups, kwhPerHpYear, siiBuildingUse, DEFAULT_HP_WHEN_UNKNOWN, CO2_TON_PER_KWH, MACHINE, WORK, COST_CLASS, SITE_ACCESS, DEFAULT_KG_PER_UNIT, PRICING_SOURCE, subsidyAmountManYen as subsidyAmountFromRate } from "@/lib/pricing";
 import { ProgramMatchBoard } from "./ProgramMatchBoard";
 import { UpdateEstimator } from "./UpdateEstimator";
 
@@ -98,7 +99,7 @@ const HELP = {
   pref: "都道府県別補助金（神奈川県・大阪府・東京都等）の適用判定に使用します。",
   building: "補助金の対象用途を判定。オフィス、店舗、飲食店、ホテル、医療施設など。",
   equip: "パッケージエアコン＝屋内機1台＋屋外機1台のセット。マルチエアコン＝1台の屋外機で複数室を冷暖房するビル用システム。",
-  years: "業務用空調の法定耐用年数は15年。10年を超えると効率が20〜40%低下し、補助金活用の絶好のタイミングです。",
+  years: "業務用空調の法定耐用年数は15年。10年を超えた機器は効率低下が大きくなり、更新と補助金活用の検討時期です（本ツールが見込む低下幅20〜40%は出典未確定の暫定値です）。",
   refri: "R22は既に製造禁止（修理部品入手困難）。R410Aは2025年で製造規制完了（修理コスト2-3倍）。R32が現行最有力。",
   kwh: "直近1年間の電力会社請求書の合計kWh。複数事業所がある場合は、空調を更新する事業所分のみで結構です。",
   invest: "今回の更新範囲（今回入れ替える設備）に限った、新空調機器の本体価格＋設置工事費の合計見積額。将来のフェーズ分や他の設備は含めません。参考：業務用パッケージ50〜150万円/台、ビル用マルチ500〜3,000万円。",
@@ -298,12 +299,20 @@ export function SubsidyMatcher() {
     <div className="space-y-5">
       {/* 画面下部は同意固定バー(bottom-0/z-40)が表示されるため、
           トーストはそれらより上（bottom-24）に出して重なりを避ける */}
+      {/* 2026-08-24 監査での修正: トーストも診断結果も aria-live が無く、
+          画面を見ていない人には「押したのに何も起きない」状態だった。
+          トーストは role="status"、診断完了は下の読み上げ専用領域で通知する。 */}
       {toast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-ehc-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lift flex items-center gap-2 no-print">
-          <CheckCircle2 className="w-4 h-4" />
+        <div role="status" aria-live="polite" className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-ehc-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-lift flex items-center gap-2 no-print">
+          <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
           {toast}
         </div>
       )}
+      <p role="status" aria-live="polite" className="sr-only">
+        {result
+          ? `診断が完了しました。適格性が確定した制度は ${result.matched.length} 件、確認すれば候補になりうる制度は ${result.needsCheck.length} 件です。結果は診断結果の見出し以降に表示しています。`
+          : ""}
+      </p>
       <div className="no-print">
       <GuidedDiagnosis input={input} setInput={setInput} onComplete={run} />
       </div>
@@ -314,7 +323,7 @@ export function SubsidyMatcher() {
       <summary className="cursor-pointer list-none flex items-center gap-2 text-sm font-bold text-slate-200">
         <Building2 className="w-4 h-4 text-cobalt-300" />
         詳しい設備情報を入力する（任意）
-        <span className="ml-auto text-[10px] font-normal text-slate-500">精度を上げたい方向け</span>
+        <span className="ml-auto text-xs font-normal text-slate-500">精度を上げたい方向け</span>
       </summary>
       <div className="mt-4">
       <Card>
@@ -359,11 +368,11 @@ export function SubsidyMatcher() {
             <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
               <Layers className="w-4 h-4 text-cobalt-300" /> 設備系統／同一仕様グループ
             </div>
-            <button onClick={addGroup} type="button" className="text-[11px] px-2.5 py-1 rounded-md border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-600/15 flex items-center gap-1">
+            <button onClick={addGroup} type="button" className="min-h-[44px] text-xs px-2.5 py-1 rounded-md border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-600/15 flex items-center gap-1">
               <Plus className="w-3.5 h-3.5" /> 別の系統・機種を追加
             </button>
           </div>
-          <details className="text-[10px] text-slate-400 bg-cobalt-600/10 border border-cobalt-500/30 rounded-lg p-2.5 mb-2 leading-relaxed">
+          <details className="text-xs text-slate-400 bg-cobalt-600/10 border border-cobalt-500/30 rounded-lg p-2.5 mb-2 leading-relaxed">
             <summary className="cursor-pointer font-bold text-cobalt-200">入力方法を見る｜年式・機器が系統ごとに違う場合</summary>
             <div className="mt-2 space-y-1.5">
               <p><strong className="text-slate-200">1行の単位：</strong>同じ系統、または型式・設置年・馬力が同じ機器だけをまとめます。どれかが違えば「別の系統・機種を追加」で行を分けます。</p>
@@ -396,7 +405,7 @@ export function SubsidyMatcher() {
                 key={m}
                 type="button"
                 onClick={() => set("kwhMode", m)}
-                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${input.kwhMode === m ? "bg-cobalt-600 text-white" : "text-slate-400 hover:text-white"}`}
+                className={`min-h-[44px] inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-md transition-colors ${input.kwhMode === m ? "bg-cobalt-600 text-white" : "text-slate-400 hover:text-white"}`}
               >
                 {label}
               </button>
@@ -410,13 +419,13 @@ export function SubsidyMatcher() {
                   type="button"
                   onClick={() => set("kwh", estimateAnnualKwhFromGroups(input.equipGroups, input.building))}
                   disabled={!input.equipGroups.some((g) => (g.units ?? 0) > 0)}
-                  className="whitespace-nowrap text-[11px] px-2.5 rounded-lg border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="min-h-[44px] whitespace-nowrap text-xs px-2.5 rounded-lg border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
                   title="電気代の請求書が手元にないときの目安値を、設備グループの馬力×台数から自動で入れます（SII省エネ量計算 指定計算より試算）"
                 >
                   一般値で自動計算
                 </button>
               </div>
-              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 <div className="rounded-lg border border-ehc-500/30 bg-ehc-500/10 px-3 py-2 text-slate-300">
                   <strong className="block text-ehc-200 mb-0.5">請求書・実測値がある</strong>
                   直近1年のkWhを手入力してください。こちらを優先します。
@@ -426,7 +435,7 @@ export function SubsidyMatcher() {
                   「一般値で自動計算」で設備情報から目安を入れられます。
                 </div>
               </div>
-              <details className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] text-slate-400">
+              <details className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-400">
                 <summary className="cursor-pointer font-semibold text-slate-300">自動計算の方法・根拠を見る</summary>
                 <div className="mt-2 space-y-1.5 leading-relaxed">
                   <p>入力値は各設備系統へ「台数×馬力」で按分します。馬力未入力の場合は台数で按分します。</p>
@@ -437,26 +446,27 @@ export function SubsidyMatcher() {
             </Field>
           ) : (
             <div className="space-y-2">
-              <div className="text-[11px] text-slate-400 bg-white/5 border border-white/10 rounded-lg p-2.5">
+              <div className="text-xs text-slate-400 bg-white/5 border border-white/10 rounded-lg p-2.5">
                 各設備グループのエニマス等デマンド実測値（kWh/年）を下の欄に入力してください。合計が年間総使用量になります。
               </div>
               <div className="space-y-1.5">
                 {input.equipGroups.map((g, i) => (
                   <div key={g.id} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-2.5 py-2">
-                    <div className="text-[11px] text-slate-300 flex-1 min-w-0 truncate">{groupLabel(g, i)}</div>
+                    <div className="text-xs text-slate-300 flex-1 min-w-0 truncate">{groupLabel(g, i)}</div>
                     <input
+                      aria-label={`${groupLabel(g, i)} の実測電力量(kWh/年)`}
                       type="number"
                       inputMode="numeric"
                       value={g.kwh ?? ""}
                       placeholder="実測kWh/年"
                       onChange={(e) => updateGroup(g.id, { kwh: e.target.value ? Number(e.target.value) : undefined })}
-                      className="w-40 px-2 py-1.5 border border-cobalt-500/40 rounded-md text-xs bg-night-800 text-white focus:outline-none focus:border-cobalt-500"
+                      className="min-h-[44px] w-40 px-2 py-1.5 border border-cobalt-500/40 rounded-md text-xs bg-night-800 text-white focus:outline-none focus:border-cobalt-500"
                     />
-                    <span className="text-[10px] text-slate-500 w-8">kWh</span>
+                    <span className="text-xs text-slate-500 w-8">kWh</span>
                   </div>
                 ))}
               </div>
-              <div className="text-[11px] text-slate-400 text-right pr-1">
+              <div className="text-xs text-slate-400 text-right pr-1">
                 合計:{" "}
                 <span className="text-cobalt-200 font-semibold">
                   {input.equipGroups.reduce((a, g) => a + (g.kwh || 0), 0).toLocaleString("ja-JP")}
@@ -475,17 +485,17 @@ export function SubsidyMatcher() {
                 type="button"
                 onClick={() => set("invest", estimateInvestManYenFromGroups(input.equipGroups))}
                 disabled={!input.equipGroups.some((g) => (g.units ?? 0) > 0)}
-                className="whitespace-nowrap text-[11px] px-2.5 rounded-lg border border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="min-h-[44px] whitespace-nowrap text-xs px-2.5 rounded-lg border border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
                 title="設備グループの馬力×台数から、PN実勢単価（機器費＋撤去・据付・配管・電気・産廃・諸経費）で総額を自動概算します"
               >
                 実勢で自動見積
               </button>
             </div>
-            <div className="mt-2 rounded-lg border border-ehc-500/30 bg-ehc-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-slate-300">
+            <div className="mt-2 rounded-lg border border-ehc-500/30 bg-ehc-500/10 px-3 py-2.5 text-xs leading-relaxed text-slate-300">
               <strong className="block text-ehc-200 mb-0.5">ここに入れる金額</strong>
               今回入れ替える設備だけの総額を<strong className="text-white">万円・税抜</strong>で入力します。正式見積があれば手入力、なければ「実勢で自動見積」を使います。
             </div>
-            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-slate-400">
                 <strong className="block text-slate-200 mb-0.5">この金額から計算</strong>
                 補助額・実質負担・回収年数・PDFへ共通反映
@@ -495,7 +505,7 @@ export function SubsidyMatcher() {
                 将来分・別棟・別会社分。正式見積がある場合は自動見積より優先
               </div>
             </div>
-            <details className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] text-slate-400">
+            <details className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-400">
               <summary className="cursor-pointer font-semibold text-slate-300">自動見積の内訳・単価根拠を見る</summary>
               <div className="mt-2 space-y-1.5 leading-relaxed">
                 <p>設備系統の馬力×台数から、機器費、撤去、据付、配管、電気、フロン回収・破壊、産廃、諸経費を積算します。明細は下の「更新工事 見積シミュレーター」で確認できます。</p>
@@ -505,20 +515,20 @@ export function SubsidyMatcher() {
                 <p>根拠：{PRICING_SOURCE}。工事明細の中央値と碓井さんの校正（2026-07）を反映し、機器費は下位25%水準の安全側です。標準グレード（{COST_CLASS.standard.label}・係数{COST_CLASS.standard.factor}）で計算します。</p>
               </div>
             </details>
-            <details className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-100/80">
+            <details className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100/80">
               <summary className="cursor-pointer font-semibold text-amber-200">自動見積に含まれない費用を見る</summary>
               <p className="mt-2 leading-relaxed">足場（{SITE_ACCESS.scaffoldFloorThreshold}階以上は原則必要）、高所作業車（{(SITE_ACCESS.aerialLiftPerDay / 10000).toFixed(0)}万円/日）、配管更新・リモコン・養生・夜間休日割増、アスベスト、電源増設、キュービクル等。現地調査で確定します。</p>
             </details>
             {estimateManYen != null && (
               estimateManYen === input.invest ? (
-                <div className="mt-1.5 text-[10px] text-ehc-300 bg-ehc-500/10 border border-ehc-500/30 rounded-lg px-2 py-1.5">
+                <div className="mt-1.5 text-xs text-ehc-300 bg-ehc-500/10 border border-ehc-500/30 rounded-lg px-2 py-1.5">
                   ✓ 下の見積シミュレーターの小計（{estimateManYen.toLocaleString("ja-JP")}万円・税抜）と一致しています。
                 </div>
               ) : (
                 <button
                   type="button"
                   onClick={() => set("invest", estimateManYen)}
-                  className="mt-1.5 w-full text-left text-[10px] text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-1.5 hover:bg-amber-500/20"
+                  className="min-h-[44px] mt-1.5 w-full text-left text-xs text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-1.5 hover:bg-amber-500/20"
                 >
                   ↑ 下の見積シミュレーターの小計は <strong>{estimateManYen.toLocaleString("ja-JP")}万円（税抜）</strong> です。クリックでこの欄に取り込む
                 </button>
@@ -526,7 +536,7 @@ export function SubsidyMatcher() {
             )}
           </Field>
           <div className="flex items-end">
-            <div className="text-[11px] text-slate-500 bg-white/5 border border-white/10 rounded-lg p-2.5 w-full">
+            <div className="text-xs text-slate-500 bg-white/5 border border-white/10 rounded-lg p-2.5 w-full">
               CO2削減量は削減kWhから自動計算されます（排出係数 {CO2_TON_PER_KWH} t-CO₂/kWh・省エネ効果レポートと同一係数）。神奈川県補助金の3t/年要件も自動判定。
             </div>
           </div>
@@ -545,28 +555,28 @@ export function SubsidyMatcher() {
         </Button>
         {hasRun && (
           <div className="mt-2 flex items-center justify-center gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5 text-[11px] text-cobalt-300">
+            <div className="flex items-center gap-1.5 text-xs text-cobalt-300">
               <span className="w-1.5 h-1.5 rounded-full bg-cobalt-400 animate-pulse" />
               ライブ更新中：各項目を変更すると結果・ROI・診断書が自動で再計算されます
             </div>
             <button
               type="button"
               onClick={copyShareLink}
-              className="text-[11px] px-2.5 py-1 rounded-md border border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10 flex items-center gap-1"
+              className="min-h-[44px] text-xs px-2.5 py-1 rounded-md border border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10 flex items-center gap-1"
             >
               <Link2 className="w-3.5 h-3.5" /> この診断の共有リンクをコピー
             </button>
             <button
               type="button"
               onClick={toggleQr}
-              className={`text-[11px] px-2.5 py-1 rounded-md border flex items-center gap-1 ${showQr ? "border-ehc-400 bg-ehc-500/15 text-ehc-200" : "border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10"}`}
+              className={`min-h-[44px] text-xs px-2.5 py-1 rounded-md border flex items-center gap-1 ${showQr ? "border-ehc-400 bg-ehc-500/15 text-ehc-200" : "border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10"}`}
             >
               <QrCode className="w-3.5 h-3.5" /> QRでスマホに送る
             </button>
             <button
               type="button"
               onClick={printReport}
-              className="text-[11px] px-2.5 py-1 rounded-md border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-600/15 flex items-center gap-1"
+              className="min-h-[44px] text-xs px-2.5 py-1 rounded-md border border-cobalt-500/40 text-cobalt-200 hover:bg-cobalt-600/15 flex items-center gap-1"
             >
               <Printer className="w-3.5 h-3.5" /> 診断書を印刷 / PDF
             </button>
@@ -577,7 +587,7 @@ export function SubsidyMatcher() {
             <div className="bg-white p-3 rounded-xl shadow-lift">
               <QRCodeSVG value={shareUrl} size={168} level="M" fgColor="#0a0a0a" bgColor="#ffffff" />
             </div>
-            <div className="text-[10px] text-slate-500 text-center">
+            <div className="text-xs text-slate-500 text-center">
               お客様のスマホカメラで読み取ると、この診断結果がそのまま開きます
               <br />（入力を変えた場合は一度閉じて再表示してください）
             </div>
@@ -595,7 +605,7 @@ export function SubsidyMatcher() {
               <ClipboardCheck className="w-5 h-5 text-ehc-300 mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <h3 className="text-sm font-bold text-white">該当条件診断</h3>
-                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                <p className="mt-1 text-xs leading-relaxed text-slate-400">
                   基本条件で絞った制度について、発注・着工前か、指定機器、必要書類、GビズIDなどを5問で確認します。
                   診断を通過した制度だけを下の補助率欄とシミュレーションに表示します。
                 </p>
@@ -613,16 +623,16 @@ export function SubsidyMatcher() {
                             ? "不足情報があるため、補助金はまだ自動反映しません"
                             : "現在の回答では対象外の可能性が高いため、補助金は反映しません"}
                       </div>
-                      <button type="button" onClick={() => setEligibilityScreenOpen(true)} className="text-[11px] text-ehc-300 underline underline-offset-2">診断をやり直す</button>
+                      <button type="button" onClick={() => setEligibilityScreenOpen(true)} className="min-h-[44px] inline-flex items-center text-xs text-ehc-300 underline underline-offset-2">診断をやり直す</button>
                     </div>
                     {eligibleSimulationPrograms.length > 0 && (
-                      <ul className="mt-2 space-y-1 text-[11px] text-slate-300">
+                      <ul className="mt-2 space-y-1 text-xs text-slate-300">
                         {eligibleSimulationPrograms.map((s) => <li key={s.id}>・{s.name}（{s.rate}）{s.verificationState === "verified" ? "" : "／公式情報の再確認が必要"}</li>)}
                       </ul>
                     )}
                   </div>
                 ) : (
-                  <button type="button" onClick={() => setEligibilityScreenOpen(true)} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 px-4 py-2.5 text-xs font-bold text-white shadow-glow hover:from-ehc-500 hover:to-ehc-400">
+                  <button type="button" onClick={() => setEligibilityScreenOpen(true)} className="mt-3 min-h-[44px] inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 px-4 py-2.5 text-xs font-bold text-white shadow-glow hover:from-ehc-500 hover:to-ehc-400">
                     <ClipboardCheck className="w-4 h-4" /> 該当するか5問で診断する
                   </button>
                 )}
@@ -650,7 +660,7 @@ export function SubsidyMatcher() {
             <summary className="cursor-pointer list-none flex items-center gap-2 text-sm font-bold text-slate-200">
               <LineChartIcon className="w-4 h-4 text-cobalt-300" />
               実質負担・ROI・設備診断を詳しく見る
-              <span className="ml-auto text-[10px] font-normal text-slate-500">制度確認の後に利用</span>
+              <span className="ml-auto text-xs font-normal text-slate-500">制度確認の後に利用</span>
             </summary>
             <div className="mt-4 space-y-5">
           <DiagnosisSummary
@@ -683,7 +693,7 @@ export function SubsidyMatcher() {
           <div className="no-print" id="customer-info-section">
           <Card className={!privacyAgreed ? "border-2 border-cobalt-400/50" : ""}>
             <CardTitle icon={<User className="w-5 h-5" />}>診断書PDF・相談（任意）</CardTitle>
-            <p className="text-[11px] text-slate-400 -mt-2 mb-4 leading-relaxed">
+            <p className="text-xs text-slate-400 -mt-2 mb-4 leading-relaxed">
               匿名の診断結果はここまでで確認できます。PDF診断書の作成・送付やEHCへの相談を希望する場合だけ入力してください。
               <strong className="text-amber-300">*</strong> はPDF作成に必要です。
             </p>
@@ -691,10 +701,10 @@ export function SubsidyMatcher() {
               <div className="text-xs font-semibold text-slate-300 mb-1.5">診断書の宛名</div>
               <div className="flex gap-1 p-1 bg-night-800 border border-white/10 rounded-lg w-fit">
                 {([ ["company", "法人・団体"], ["individual", "個人事業主"] ] as const).map(([kind, label]) => (
-                  <button key={kind} type="button" onClick={() => set("customerKind", kind)} className={`px-3 py-1.5 text-xs rounded-md ${input.customerKind === kind ? "bg-cobalt-600 text-white" : "text-slate-400"}`}>{label}</button>
+                  <button key={kind} type="button" onClick={() => set("customerKind", kind)} className={`min-h-[44px] inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-md ${input.customerKind === kind ? "bg-cobalt-600 text-white" : "text-slate-400"}`}>{label}</button>
                 ))}
               </div>
-              {input.customerKind === "individual" && <p className="text-[10px] text-amber-300 mt-1.5">個人事業主の事業用空調が対象です。家庭用空調は対象外です。</p>}
+              {input.customerKind === "individual" && <p className="text-xs text-amber-300 mt-1.5">個人事業主の事業用空調が対象です。家庭用空調は対象外です。</p>}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Field label={`${input.customerKind === "individual" ? "お名前または屋号" : "お客様会社名"} *`} help={HELP.customerCompany}>
@@ -710,16 +720,16 @@ export function SubsidyMatcher() {
                 <Field label="住所 *" help={HELP.customerAddress}>
                   <Input id="customer-address-input" value={input.customerAddress ?? ""} onChange={(e) => { const v = e.target.value; const p = prefFromAddress(v); setInput((prev) => ({ ...prev, customerAddress: v, ...(p ? { pref: p } : {}) })); }} placeholder="例: 東京都新宿区西新宿1-1-1 ○○ビル3F" />
                 </Field>
-                {(input.customerAddress ?? "").trim() && (prefFromAddress(input.customerAddress) ? <p className="text-[11px] text-ehc-300 mt-1">住所から「{prefFromAddress(input.customerAddress)}」と判定し、地域制度に反映しました。</p> : <p className="text-[11px] text-amber-500 mt-1">都道府県を判定できません。所在地欄で選択してください。</p>)}
+                {(input.customerAddress ?? "").trim() && (prefFromAddress(input.customerAddress) ? <p className="text-xs text-ehc-300 mt-1">住所から「{prefFromAddress(input.customerAddress)}」と判定し、地域制度に反映しました。</p> : <p className="text-xs text-amber-500 mt-1">都道府県を判定できません。所在地欄で選択してください。</p>)}
               </div>
               <Field label="ご担当者名" help={HELP.customerContact}><Input value={input.customerContact} onChange={(e) => set("customerContact", e.target.value)} placeholder="例: 田中" /></Field>
               <Field label="EHC担当" help={HELP.ehcStaff}><Input value={input.ehcStaff} onChange={(e) => set("ehcStaff", e.target.value)} placeholder="例: 桝口" /></Field>
             </div>
-            <div className="mt-4 rounded-xl border border-cobalt-500/30 bg-cobalt-500/10 p-4 text-[11px] text-slate-300 leading-relaxed">
+            <div className="mt-4 rounded-xl border border-cobalt-500/30 bg-cobalt-500/10 p-4 text-xs text-slate-300 leading-relaxed">
               <p><strong className="text-white">取得目的：</strong>入力情報と診断結果を、宛名入りPDFの作成・送付、相談への回答、EHCおよび施工連携先PNでの顧客対応・診断履歴の管理に使用します。</p>
               <p className="mt-1"><strong className="text-white">送信範囲：</strong>PDF出力だけでは自動送信しません。出力後に「相談記録として送信」を選んだ場合のみ、EHC・PNへ送信し管理記録へ追加します。</p>
               <p className="mt-1"><strong className="text-white">注意：</strong>制度の採択・受給・補助額、削減効果を保証するものではありません。</p>
-              <label className="mt-3 flex items-start gap-2.5 cursor-pointer text-sm text-slate-100">
+              <label className="mt-3 min-h-[44px] flex items-start gap-2.5 cursor-pointer text-sm text-slate-100">
                 <input type="checkbox" checked={privacyAgreed} onChange={(e) => setPrivacyAgreed(e.target.checked)} className="mt-0.5 w-5 h-5 accent-cobalt-500 flex-shrink-0" />
                 <span>上記の取得目的・利用範囲・送信条件を確認し、PDF作成と、私が送信を選んだ場合の相談記録への登録に同意します。</span>
               </label>
@@ -730,7 +740,7 @@ export function SubsidyMatcher() {
 
           <div id="agree-section" className="no-print">
           <Card className={!agreed ? "border-2 border-amber-400/70 ring-2 ring-amber-400/20" : ""}>
-            <label className="flex items-start gap-2.5 text-sm text-slate-200 cursor-pointer">
+            <label className="min-h-[44px] flex items-start gap-2.5 text-sm text-slate-200 cursor-pointer">
               <input
                 type="checkbox"
                 checked={agreed}
@@ -775,7 +785,7 @@ export function SubsidyMatcher() {
                       el?.scrollIntoView({ behavior: "smooth", block: "start" });
                     }, 150);
                   }}
-                  className="flex-shrink-0 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-night-900 font-bold text-sm px-4 py-2.5 rounded-xl shadow-card transition-all whitespace-nowrap"
+                  className="min-h-[44px] flex-shrink-0 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-night-900 font-bold text-sm px-4 py-2.5 rounded-xl shadow-card transition-all whitespace-nowrap"
                 >
                   同意内容を確認
                 </button>
@@ -802,42 +812,58 @@ function GroupRow({
   onChange: (p: Partial<EquipGroup>) => void;
   onRemove: () => void;
 }) {
-  const cls = "px-2 py-1.5 border border-white/15 rounded-md text-xs bg-night-800 text-white focus:outline-none focus:border-cobalt-500 w-full";
+  const cls = "min-h-[44px] px-2 py-1.5 border border-white/15 rounded-md text-xs bg-night-800 text-white focus:outline-none focus:border-cobalt-500 w-full";
   return (
     <div className="bg-white/5 border border-white/10 rounded-lg p-2.5">
-      <div className="mb-2 text-[10px] font-bold text-cobalt-200">系統・機種 {index + 1}</div>
+      <div className="mb-2 text-xs font-bold text-cobalt-200">系統・機種 {index + 1}</div>
       <div className="grid grid-cols-2 md:grid-cols-12 gap-2 items-end">
+        {/* 2026-08-24 監査での修正: 項目名の <label> が入力欄の「兄弟」で、
+            htmlFor も無かったため支援技術からは名前のない入力欄に見えていた。
+            <label> で入力欄を包み込む（暗黙の関連付け）方式に変える。
+            また同じ行が「系統・機種 1」「系統・機種 2」と複数並ぶので、
+            項目名だけでは何番目のものか分からない。aria-label に系統番号を足す。
+            見た目は変わらない。 */}
         <div className="md:col-span-3">
-          <label className="text-[10px] text-slate-500">冷媒</label>
-          <select className={cls} value={g.refri} onChange={(e) => onChange({ refri: e.target.value as RefriType })}>
-            <option value="r22">R22（最旧・製造禁止）</option>
-            <option value="r410a">R410A（1世代前）</option>
-            <option value="r32">R32（現行）</option>
-            <option value="unknown">不明</option>
-          </select>
+          <label className="block">
+            <span className="text-xs text-slate-500">冷媒</span>
+            <select aria-label={`系統・機種 ${index + 1} の冷媒`} className={cls} value={g.refri} onChange={(e) => onChange({ refri: e.target.value as RefriType })}>
+              <option value="r22">R22（最旧・製造禁止）</option>
+              <option value="r410a">R410A（1世代前）</option>
+              <option value="r32">R32（現行）</option>
+              <option value="unknown">不明</option>
+            </select>
+          </label>
         </div>
         <div className="md:col-span-3">
-          <label className="text-[10px] text-slate-500">種別</label>
-          <select className={cls} value={g.equip} onChange={(e) => onChange({ equip: e.target.value as EquipType })}>
-            <option value="ac">パッケージ</option>
-            <option value="multi">マルチ(ビル用)</option>
-          </select>
+          <label className="block">
+            <span className="text-xs text-slate-500">種別</span>
+            <select aria-label={`系統・機種 ${index + 1} の種別`} className={cls} value={g.equip} onChange={(e) => onChange({ equip: e.target.value as EquipType })}>
+              <option value="ac">パッケージ</option>
+              <option value="multi">マルチ(ビル用)</option>
+            </select>
+          </label>
         </div>
         <div className="md:col-span-2">
-          <label className="text-[10px] text-slate-500">設置年(西暦)</label>
-          <input type="number" className={cls} value={g.installYear} onChange={(e) => onChange({ installYear: Number(e.target.value) })} />
+          <label className="block">
+            <span className="text-xs text-slate-500">設置年(西暦)</span>
+            <input aria-label={`系統・機種 ${index + 1} の設置年(西暦)`} type="number" className={cls} value={g.installYear} onChange={(e) => onChange({ installYear: Number(e.target.value) })} />
+          </label>
         </div>
         <div className="md:col-span-1">
-          <label className="text-[10px] text-slate-500">台数</label>
-          <input type="number" className={cls} value={g.units} onChange={(e) => onChange({ units: Number(e.target.value) })} />
+          <label className="block">
+            <span className="text-xs text-slate-500">台数</span>
+            <input aria-label={`系統・機種 ${index + 1} の台数`} type="number" className={cls} value={g.units} onChange={(e) => onChange({ units: Number(e.target.value) })} />
+          </label>
         </div>
         <div className="md:col-span-2">
-          <label className="text-[10px] text-slate-500">馬力</label>
-          <input type="number" className={cls} value={g.hp ?? ""} placeholder="任意" onChange={(e) => onChange({ hp: e.target.value ? Number(e.target.value) : undefined })} />
+          <label className="block">
+            <span className="text-xs text-slate-500">馬力</span>
+            <input aria-label={`系統・機種 ${index + 1} の馬力（任意）`} type="number" className={cls} value={g.hp ?? ""} placeholder="任意" onChange={(e) => onChange({ hp: e.target.value ? Number(e.target.value) : undefined })} />
+          </label>
         </div>
         <div className="md:col-span-1 flex justify-end">
-          <button type="button" onClick={onRemove} disabled={!canRemove} className={`p-1.5 rounded-md ${canRemove ? "text-red-300 hover:bg-red-500/10" : "text-slate-600 cursor-not-allowed"}`} title="削除">
-            <Trash2 className="w-3.5 h-3.5" />
+          <button type="button" onClick={onRemove} disabled={!canRemove} aria-label={`系統・機種 ${index + 1} を削除`} className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 rounded-md ${canRemove ? "text-red-300 hover:bg-red-500/10" : "text-slate-600 cursor-not-allowed"}`} title="削除">
+            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -845,10 +871,15 @@ function GroupRow({
   );
 }
 
-// 補助金の想定交付額(万円)＝補助率×投資、上限でクリップ。情報提供のみ(infoOnly)は資金化しない
+/* 補助金の想定交付額(万円)。情報提供のみ(infoOnly)は資金化しない。
+   2026-08-24 監査での修正:
+     ここに `Math.min(invest * s.rateNum, s.capManYen)` という3つ目の実装があり、
+     千円未満切捨てをしていなかった。同じ制度の金額が
+     診断結果・制度マッチング・シミュレーションで別々の値になっていた原因。
+     計算は lib/pricing.ts の1本に統一する。 */
 function subsidyAmountManYen(s: Subsidy, invest: number): number {
   if (s.infoOnly) return 0;
-  return Math.min(invest * s.rateNum, s.capManYen);
+  return subsidyAmountFromRate(invest, s.rateNum, s.capManYen);
 }
 // 要件文（。区切り）をチェックリスト項目に分割
 function splitRequirements(req: string): string[] {
@@ -969,7 +1000,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
         <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-ehc-500/15 blur-3xl" />
         <div className="relative grid grid-cols-1 md:grid-cols-2 gap-5 items-center">
           <div>
-            <div className="text-[11px] tracking-widest text-ehc-300 font-semibold mb-1">補助金適用後の実質負担額</div>
+            <div className="text-xs tracking-widest text-ehc-300 font-semibold mb-1">補助金適用後の実質負担額</div>
             <div className="text-4xl md:text-5xl font-bold text-white tracking-tight">
               ¥{netInvestYen.toLocaleString("ja-JP")}
             </div>
@@ -985,12 +1016,12 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
             {appliedSubsidyManYen > 0 && selected ? (
               <div className="mt-2 inline-flex items-start gap-1.5 bg-ehc-500/15 border border-ehc-500/40 rounded-lg px-2.5 py-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-ehc-400 flex-shrink-0 mt-0.5" />
-                <span className="text-[11px] text-ehc-200 font-semibold leading-snug">
+                <span className="text-xs text-ehc-200 font-semibold leading-snug">
                   適用中の補助金：{selected.name}（補助率 {selected.rate}）
                 </span>
               </div>
             ) : (
-              <div className="mt-2 text-[11px] text-amber-300/90">
+              <div className="mt-2 text-xs text-amber-300/90">
                 {wantSubsidy
                   ? "補助金は未反映（下の「補助金プランを選ぶ」で補助金を選び、要件にチェックを入れてください）"
                   : "補助金なし（自己負担）で試算中"}
@@ -1000,17 +1031,17 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
           <div className="bg-white/5 border border-white/10 rounded-xl p-4">
             {appliedSubsidyManYen > 0 ? (
               <>
-                <div className="text-[11px] text-slate-400 mb-2">投資回収年数の比較</div>
+                <div className="text-xs text-slate-400 mb-2">投資回収年数の比較</div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <div>
-                    <div className="text-[10px] text-slate-500">補助金なし</div>
+                    <div className="text-xs text-slate-500">補助金なし</div>
                     <div className="text-xl font-bold text-slate-300 line-through decoration-red-400/60">
                       {yearsNoSubsidy !== null ? `${yearsNoSubsidy}年` : "—"}
                     </div>
                   </div>
                   <div className="text-ehc-400 text-xl font-bold">→</div>
                   <div>
-                    <div className="text-[10px] text-ehc-300">補助金あり</div>
+                    <div className="text-xs text-ehc-300">補助金あり</div>
                     <div className="text-3xl font-bold text-ehc-300">
                       {appliedYearsToRecover !== null ? `${appliedYearsToRecover}年` : "—"}
                     </div>
@@ -1024,17 +1055,17 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
               </>
             ) : (
               <>
-                <div className="text-[11px] text-slate-400 mb-2">
+                <div className="text-xs text-slate-400 mb-2">
                   投資回収年数{wantSubsidy ? "（補助金なしで試算中）" : "（自己負担）"}
                 </div>
                 <div className="flex items-baseline gap-2">
                   <div className="text-3xl font-bold text-slate-200">
                     {yearsNoSubsidy !== null ? `${yearsNoSubsidy}年` : "—"}
                   </div>
-                  <div className="text-[10px] text-slate-500">電気代削減で回収</div>
+                  <div className="text-xs text-slate-500">電気代削減で回収</div>
                 </div>
                 {wantSubsidy && (
-                  <div className="text-[10px] text-amber-300/90 mt-2">
+                  <div className="text-xs text-amber-300/90 mt-2">
                     補助金を反映すると回収年数が短縮されます（下で補助金を選択）
                   </div>
                 )}
@@ -1061,7 +1092,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                 key={String(v)}
                 type="button"
                 onClick={() => setWantSubsidy(v)}
-                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${wantSubsidy === v ? "bg-ehc-600 text-white" : "text-slate-400 hover:text-white"}`}
+                className={`min-h-[44px] inline-flex items-center justify-center px-3 py-1.5 text-xs rounded-md transition-colors ${wantSubsidy === v ? "bg-ehc-600 text-white" : "text-slate-400 hover:text-white"}`}
               >
                 {label}
               </button>
@@ -1096,7 +1127,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                       <button
                         type="button"
                         onClick={() => setScreenOpen(true)}
-                        className="text-[11px] text-ehc-300 hover:underline"
+                        className="min-h-[44px] inline-flex items-center text-xs text-ehc-300 hover:underline"
                       >
                         診断をやり直す
                       </button>
@@ -1105,14 +1136,14 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                       {result.matched.map((s) => {
                         const t = screening.timingById[s.id];
                         return (
-                          <div key={s.id} className="flex items-start justify-between gap-2 text-[11px]">
+                          <div key={s.id} className="flex items-start justify-between gap-2 text-xs">
                             <span className="text-slate-300 leading-snug">{s.name}</span>
                             <span className="text-slate-400 flex-shrink-0">{t ? t.label : "日程未定"}</span>
                           </div>
                         );
                       })}
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-2">
+                    <p className="text-xs text-slate-500 mt-2">
                       導入予定時期のご回答：{screening.planHorizon}。詳細は下の「候補となる補助金」でご確認ください。
                     </p>
                   </div>
@@ -1126,7 +1157,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                     <button
                       type="button"
                       onClick={() => setScreenOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-xs font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors shadow-glow"
+                      className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-xs font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors shadow-glow"
                     >
                       <ClipboardCheck className="w-4 h-4" />
                       補助金に該当するかガイド診断する
@@ -1165,7 +1196,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                           <div className="text-xs font-semibold text-slate-100 leading-snug">{s.name}</div>
                           {active && <CheckCircle2 className="w-4 h-4 text-ehc-400 flex-shrink-0" />}
                         </div>
-                        <div className="text-[10px] text-slate-500 mt-1">補助率 {s.rate} ／ 上限 {s.max}</div>
+                        <div className="text-xs text-slate-500 mt-1">補助率 {s.rate} ／ 上限 {s.max}</div>
                         <div className="text-sm font-bold text-ehc-300 mt-1">想定 ¥{(amt * 10000).toLocaleString("ja-JP")}</div>
                       </button>
                     );
@@ -1184,7 +1215,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                     <button
                       type="button"
                       onClick={() => setEligChatOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-[11px] font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors shadow-glow"
+                      className="min-h-[44px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-xs font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors shadow-glow"
                     >
                       <Bot className="w-3.5 h-3.5" />
                       チャットで該当を確認
@@ -1192,7 +1223,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                   </div>
                   <div className="space-y-1.5">
                     {selectedReqs.map((r, i) => (
-                      <label key={i} className="flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
+                      <label key={i} className="min-h-[44px] flex items-start gap-2 text-xs text-slate-200 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={selectedChecks[i] ?? false}
@@ -1212,7 +1243,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                       ? "個別要件はチェック済みですが、共通診断が「要確認／対象外」または受付終了のため、補助金は反映していません。"
                       : "未確認の個別要件があります → 補助金なし（自己負担）で試算中。確認できた項目だけチェックしてください。"}
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-2">必要書類: {selected.docs}</p>
+                  <p className="text-xs text-slate-500 mt-2">必要書類: {selected.docs}</p>
                 </div>
               )}
 
@@ -1282,7 +1313,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
               </tbody>
             </table>
           </div>
-          <div className="text-[10px] text-slate-500 mt-2">
+          <div className="text-xs text-slate-500 mt-2">
             損益分岐点 = {appliedYearsToRecover !== null ? `約${appliedYearsToRecover}年` : "—"}。純便益がプラスに転じる時点。電気単価27円/kWhで試算。
           </div>
         </div>
@@ -1302,7 +1333,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                 key={v}
                 type="button"
                 onClick={() => setView(v)}
-                className={`px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1 ${view === v ? "bg-cobalt-600 text-white" : "text-slate-400 hover:text-white"}`}
+                className={`min-h-[44px] px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1 ${view === v ? "bg-cobalt-600 text-white" : "text-slate-400 hover:text-white"}`}
               >
                 {v === "groups" && <Layers className="w-3.5 h-3.5" />}
                 {label}
@@ -1320,7 +1351,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
               kwhPerYear={totalKwhForChart}
               reductionRate={result.effectiveReductionRate}
             />
-            <div className="text-[11px] text-slate-400 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-3">
+            <div className="text-xs text-slate-400 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-3">
               <div className="bg-red-500/10 border border-red-500/20 rounded-md px-2 py-1.5">
                 <strong className="text-red-300">赤線:</strong> 何もしない（旧機器維持）
               </div>
@@ -1365,12 +1396,12 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
             <button
               type="button"
               onClick={() => setScreenOpen(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-xs font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors shadow-glow"
+              className="min-h-[44px] inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-xs font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors shadow-glow"
             >
               <ClipboardCheck className="w-4 h-4" />
               補助金に該当するかガイド診断する
             </button>
-            <p className="text-[10px] text-slate-500 mt-2">
+            <p className="text-xs text-slate-500 mt-2">
               所要 約30秒・5問。回答内容はこの画面の試算にのみ使用します。
             </p>
           </div>
@@ -1422,7 +1453,38 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
             })}
           </div>
         ) : (
-          <p className="text-sm text-slate-500">条件に合致する補助金が見つかりません。条件を変更してください。</p>
+          <p className="text-sm text-slate-500">
+            入力済みの条件だけで適格性が確定した制度はありません。下の「確認すれば候補になりうる制度」をご覧ください。
+          </p>
+        )}
+
+        {/* 判定不能（needs_check）を「該当なし」に混ぜない。
+            不足情報を出せば、あと一問で候補に戻る制度を落とさずに済む。 */}
+        {result.needsCheck.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <h3 className="text-sm font-semibold text-amber-300 mb-2">
+              確認すれば候補になりうる制度（{result.needsCheck.length}件）
+            </h3>
+            <div className="space-y-3">
+              {result.needsCheck.map((s) => (
+                <div key={s.id} className="border border-dashed border-amber-500/30 bg-amber-500/[0.06] rounded-xl p-4">
+                  <div className="text-sm font-semibold text-amber-200 mb-1.5">{s.name}</div>
+                  <div className="text-xs text-slate-400 mb-2 flex flex-wrap gap-1.5">
+                    <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">補助率: {s.rate}</span>
+                    <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">上限: {s.max}</span>
+                    <span className="bg-night-900 border border-white/10 px-2 py-0.5 rounded-md">期間: {s.period}</span>
+                  </div>
+                  <p className="text-xs text-white font-semibold mb-1">判定に不足している情報</p>
+                  <ul className="text-xs text-slate-300 list-disc pl-4 space-y-0.5">
+                    {(result.eligibility[s.id]?.missing ?? []).map((m) => <li key={m}>{m}</li>)}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-2">
+              対象外が確定したという意味ではありません。判定に必要な情報が未取得のため、補助額は「未算定」としています（0円ではありません）。
+            </p>
+          </div>
         )}
       </Card>
 
@@ -1461,7 +1523,7 @@ function RoiBox({
 }) {
   return (
     <div className={`bg-gradient-to-br ${ACCENT_COLORS[accent]} p-4 rounded-xl shadow-soft`}>
-      <div className="text-[11px] text-slate-400 font-medium mb-1">{label}</div>
+      <div className="text-xs text-slate-400 font-medium mb-1">{label}</div>
       <div className="text-2xl font-bold tracking-tight">{value}</div>
     </div>
   );
@@ -1478,6 +1540,7 @@ function IndustryBasis({ building, result }: { building: string; result: MatchRe
   const refriPct = Math.round(result.refriGenRate * 100);
   const equipPct = Math.round(result.equipBonusRate * 100);
   const effPct = Math.round(result.effectiveReductionRate * 100);
+  const audit = result.coefficientAudit;
   return (
     <div className="mt-4 bg-white/5 border border-white/10 rounded-xl p-4">
       <div className="text-xs font-semibold text-slate-300 mb-2.5 flex items-center gap-1.5">
@@ -1493,7 +1556,7 @@ function IndustryBasis({ building, result }: { building: string; result: MatchRe
           />
         ))}
       </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400 mb-3">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400 mb-3">
         {profile.electricBreakdown.map((b) => (
           <span key={b.category} className="inline-flex items-center gap-1">
             <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: b.color }} />
@@ -1504,31 +1567,53 @@ function IndustryBasis({ building, result }: { building: string; result: MatchRe
       {/* 削減率の内訳: 業種＋冷媒世代＋設備制御＋経年回復 = 実効 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-center mb-2.5">
         <div className="bg-night-900 border border-white/10 rounded-md p-2">
-          <div className="text-[10px] text-slate-500">業種・高効率化</div>
+          <div className="text-xs text-slate-500">業種・高効率化</div>
           <div className="text-sm font-bold text-slate-200">{basePct}%</div>
         </div>
         <div className="bg-night-900 border border-white/10 rounded-md p-2">
-          <div className="text-[10px] text-slate-500">冷媒世代</div>
+          <div className="text-xs text-slate-500">冷媒世代</div>
           <div className="text-sm font-bold text-ehc-300">+{refriPct}%</div>
         </div>
         <div className="bg-night-900 border border-white/10 rounded-md p-2">
-          <div className="text-[10px] text-slate-500">設備制御</div>
+          <div className="text-xs text-slate-500">設備制御</div>
           <div className="text-sm font-bold text-ehc-300">+{equipPct}%</div>
         </div>
         <div className="bg-night-900 border border-white/10 rounded-md p-2">
-          <div className="text-[10px] text-slate-500">経年劣化(加重平均)</div>
+          <div className="text-xs text-slate-500">経年劣化(加重平均)</div>
           <div className="text-sm font-bold text-amber-300">+{agePct}%</div>
         </div>
         <div className="bg-cobalt-600/15 border border-cobalt-500/40 rounded-md p-2">
-          <div className="text-[10px] text-cobalt-200">実効削減率</div>
+          <div className="text-xs text-cobalt-200">実効削減率</div>
           <div className="text-sm font-bold text-cobalt-200">{effPct}%</div>
         </div>
       </div>
-      <p className="text-[11px] text-slate-400 leading-relaxed">
+      <p className="text-xs text-slate-400 leading-relaxed">
         {profile.label}は冷媒設備（空調{ac ? `${ac.pct}%` : ""}{fridge ? `＋冷凍冷蔵${fridge.pct}%` : ""}）が電力の約{refrigerantPct}%。
-        高効率化{basePct}%に、冷媒世代差+{refriPct}%（R22/R410A→R32）・設備制御+{equipPct}%（マルチ部分負荷）・経年劣化回復+{agePct}%（設備グループの加重平均・年約2%）を合成し、
-        <strong className="text-cobalt-200">実効{effPct}%</strong>として試算（出典: 資源エネルギー庁／メーカー資料／業界資料「10〜15年で20〜40%低下」「R22機は最新比で消費電力大」／EHC施工実績）。設備グループ別の内訳は「設備グループ別」タブをご覧ください。
+        高効率化{basePct}%に、冷媒世代差+{refriPct}%（R22/R410A→R32）・設備制御+{equipPct}%（マルチ部分負荷）・経年劣化回復+{agePct}%（設備グループの加重平均）を合成し、
+        <strong className="text-cobalt-200">実効{effPct}%</strong>として試算。設備グループ別の内訳は「設備グループ別」タブをご覧ください。
       </p>
+      {/* 2026-08-27 監査での修正:
+            ここには以前「出典: 資源エネルギー庁／メーカー資料／業界資料『10〜15年で20〜40%低下』」と
+            書いてあったが、どの資料の何ページかを誰も辿れなかった。
+            出典らしき文言があるほうが、無いより危ない。読んだ人は確認済みだと思うからである。
+            実態は出典未確定なので、出典未確定と書き、何を取れば確定するかまで出す。 */}
+      {audit.provisional.length > 0 && (
+        <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+          <div className="text-xs font-semibold text-amber-200 flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            この削減率には出典未確定の暫定値が {audit.provisional.length} 項目含まれます
+          </div>
+          <p className="mt-1.5 text-xs text-amber-100/80 leading-relaxed">{PROVISIONAL_COEFFICIENT_NOTE}</p>
+          <ul className="mt-2 space-y-1 text-xs text-amber-100/70">
+            {audit.provisional.map((c) => (
+              <li key={c.label}>
+                <span className="font-semibold">{c.label} {Math.round(c.value * 100)}%</span>
+                <span className="opacity-80">（暫定値・{c.basis}）</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -1540,23 +1625,25 @@ function GroupCard({ g }: { g: GroupResult }) {
     <div className="bg-white/5 border border-white/10 rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${refriColor}`}>{g.refri.toUpperCase()}</span>
+          <span className={`text-xs px-2 py-0.5 rounded font-bold ${refriColor}`}>{g.refri.toUpperCase()}</span>
           <span className="text-xs text-slate-300">{g.equip === "multi" ? "マルチ" : "パッケージ"} ・ {g.units}台</span>
         </div>
-        <span className="text-[10px] text-slate-500">{g.installYear}年設置 / 築{g.age}年</span>
+        <span className="text-xs text-slate-500">{g.installYear}年設置 / 築{g.age}年</span>
       </div>
       <div className="flex items-end justify-between">
         <div>
-          <div className="text-[10px] text-slate-500">実効削減率</div>
+          <div className="text-xs text-slate-500">実効削減率</div>
           <div className="text-2xl font-bold text-cobalt-200">{Math.round(g.effectiveReductionRate * 100)}%</div>
+          {/* 2026-08-27 監査での追加: 出典未確定の係数を含む削減率は、数字の隣で暫定と分かるようにする */}
+          {g.ratesAreProvisional && <div className="text-xs text-amber-300">暫定値（出典確定前）</div>}
         </div>
         <div className="text-right">
-          <div className="text-[10px] text-slate-500">年間削減</div>
+          <div className="text-xs text-slate-500">年間削減</div>
           <div className="text-lg font-bold text-ehc-300">¥{g.saveYenPerYear.toLocaleString("ja-JP")}</div>
-          <div className="text-[10px] text-slate-500">{g.kwh.toLocaleString("ja-JP")} kWh/年</div>
+          <div className="text-xs text-slate-500">{g.kwh.toLocaleString("ja-JP")} kWh/年</div>
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap gap-1 text-[10px] text-slate-500">
+      <div className="mt-2 flex flex-wrap gap-1 text-xs text-slate-500">
         <span className="bg-night-900 border border-white/10 rounded px-1.5 py-0.5">冷媒世代 +{Math.round(g.refriGenRate * 100)}%</span>
         <span className="bg-night-900 border border-white/10 rounded px-1.5 py-0.5">経年 +{Math.round(g.ageDegradationRate * 100)}%</span>
         {g.equipBonusRate > 0 && <span className="bg-night-900 border border-white/10 rounded px-1.5 py-0.5">制御 +{Math.round(g.equipBonusRate * 100)}%</span>}

@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { Field, Select, Input } from "./ui/Field";
 import { Receipt, Link2, Link2Off, Lock, ArrowUp } from "lucide-react";
-import { estimateUpdateBreakdownGroups, MachineGrade, CostClass, COST_CLASS, SITE_ACCESS, PRICING_SOURCE, yenJP, DEFAULT_KG_PER_UNIT } from "@/lib/pricing";
+import { estimateUpdateBreakdownGroups, MachineGrade, CostClass, COST_CLASS, SITE_ACCESS, PRICING_SOURCE, yenJP, DEFAULT_KG_PER_UNIT, SUBSIDY_ROUND_UNIT_YEN } from "@/lib/pricing";
 import { useProject } from "./ProjectContext";
 import { Subsidy } from "@/lib/types";
 
@@ -96,17 +96,22 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
   const est = estimateUpdateBreakdownGroups(groups, {
     grade, costClass, systems, kg, aerialDays, floor, ancillary: ancillaryManYen * 10000,
   });
+  /* 2026-08-24 監査での修正: 交付申請額は千円未満切捨てが原則。
+     ここだけ切捨てが無く、制度マッチング側の金額と数百円ずれていた。
+     丸め単位は lib/pricing.ts の SUBSIDY_ROUND_UNIT_YEN に統一する。 */
+  const floorToUnit = (yen: number) =>
+    Math.floor(Math.max(0, yen) / SUBSIDY_ROUND_UNIT_YEN) * SUBSIDY_ROUND_UNIT_YEN;
   const rate = selectedRate.rate;
   const rawSubsidy = Math.round(est.subtotal * rate); // 税抜ベースで補助
   const capYen = capManYen > 0 ? capManYen * 10000 : Infinity;
-  const subsidy = Math.min(rawSubsidy, capYen);
+  const subsidy = floorToUnit(Math.min(rawSubsidy, capYen));
   const capped = rawSubsidy > capYen; // 上限に頭打ちされたか
   const netOut = est.total - subsidy; // 実質負担(税込−補助)
   const annualSavingsYen = result?.saveYenPerYear ?? 0;
   const scenarioRows = rateOptions.map((option) => {
     const optionRaw = Math.round(est.subtotal * option.rate);
     const optionCapYen = option.capManYen > 0 ? option.capManYen * 10000 : Infinity;
-    const optionSubsidy = Math.min(optionRaw, optionCapYen);
+    const optionSubsidy = floorToUnit(Math.min(optionRaw, optionCapYen));
     const optionNet = est.total - optionSubsidy;
     return {
       ...option,
@@ -146,7 +151,7 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
   return (
     <Card>
       <CardTitle icon={<Receipt className="w-5 h-5" />}>更新工事 見積シミュレーター（お客様提示用の明細）</CardTitle>
-      <p className="text-[11px] text-cobalt-200 bg-cobalt-600/10 border border-cobalt-500/30 rounded-lg px-3 py-2 mb-3">
+      <p className="text-xs text-cobalt-200 bg-cobalt-600/10 border border-cobalt-500/30 rounded-lg px-3 py-2 mb-3">
         上のロードマップ内「投資額の妥当性チェック」が<strong>レンジ（金額の桁が妥当か）</strong>の確認なのに対し、ここは<strong>明細（お客様にそのまま出せる内訳）</strong>を作る欄です。
       </p>
       <p className="text-xs text-slate-400 mb-3">
@@ -159,7 +164,7 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
 
       <details className="mb-3 rounded-xl border border-cobalt-500/30 bg-cobalt-600/10 px-3 py-2.5">
         <summary className="cursor-pointer text-xs font-bold text-cobalt-200">入力サポート｜系統ごとに機器・年式が違う場合</summary>
-        <div className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-300">
+        <div className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-300">
           <p>室外機の系統ごとに1行作り、同じ型式・年式・馬力の機器だけを同じ行にまとめます。機種や設置年が違う場合は行を分けてください。</p>
           <p><strong className="text-white">確認する場所：</strong>室外機側面の銘板で「型式・製造年・冷媒・能力」を確認します。分からない項目は不明のままでも仮診断できます。</p>
           <button type="button" onClick={() => {
@@ -168,14 +173,14 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
               details.open = true;
               details.scrollIntoView({ behavior: "smooth", block: "start" });
             }
-          }} className="mt-1 inline-flex rounded-lg border border-cobalt-500/40 px-3 py-1.5 text-[11px] font-bold text-cobalt-200 hover:bg-cobalt-500/10">
+          }} className="mt-1 min-h-[44px] inline-flex items-center justify-center rounded-lg border border-cobalt-500/40 px-3 py-1.5 text-xs font-bold text-cobalt-200 hover:bg-cobalt-500/10">
             系統別の設備情報を入力・修正する
           </button>
         </div>
       </details>
 
       {/* 連動ステータス */}
-      <div className={`flex flex-wrap items-center gap-2 mb-3 rounded-xl border px-3 py-2.5 text-[11px] ${useProjectGroups ? "border-ehc-500/30 bg-ehc-500/10" : "border-white/10 bg-white/5"}`}>
+      <div className={`flex flex-wrap items-center gap-2 mb-3 rounded-xl border px-3 py-2.5 text-xs ${useProjectGroups ? "border-ehc-500/30 bg-ehc-500/10" : "border-white/10 bg-white/5"}`}>
         {useProjectGroups ? (
           <>
             <Link2 className="w-4 h-4 text-ehc-300 shrink-0" />
@@ -187,7 +192,7 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
               （{projectGroups.length}系統・合計 {totalUnits}台）
             </span>
             <button type="button" onClick={() => setManual(true)}
-              className="ml-auto px-2 py-1 rounded-lg border border-white/15 text-slate-300 hover:bg-white/10">
+              className="ml-auto min-h-[44px] inline-flex items-center justify-center px-2 py-1 rounded-lg border border-white/15 text-slate-300 hover:bg-white/10">
               このカードだけ手入力にする
             </button>
           </>
@@ -199,7 +204,7 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
             </span>
             {hasProjectGroups && (
               <button type="button" onClick={() => { setManual(false); setSystemsOverride(null); }}
-                className="ml-auto px-2 py-1 rounded-lg border border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10">
+                className="ml-auto min-h-[44px] inline-flex items-center justify-center px-2 py-1 rounded-lg border border-ehc-500/40 text-ehc-300 hover:bg-ehc-500/10">
                 案件情報に連動させる
               </button>
             )}
@@ -208,7 +213,7 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
       </div>
 
       {useProjectGroups && noHpUnits > 0 && (
-        <div className="mb-4 text-[11px] text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">
+        <div className="mb-4 text-xs text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">
           馬力が未入力のグループが <strong>{noHpUnits}台</strong> あります。機器費は
           <strong> 最低単価 ¥250,000/台</strong> で計上されるため、実勢より安く出ます。
           上の設備グループで馬力を入れると正確になります（馬力の「空欄でOK」は電力按分の話で、金額には効きます）。
@@ -229,7 +234,7 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
         <Field label="冷媒系統数（入力行と連動）">
           <Input type="number" value={systems} onChange={(e) => setSystemsOverride(Number(e.target.value))} />
           {systemsOverride != null && (
-            <button type="button" onClick={() => setSystemsOverride(null)} className="text-[10px] text-ehc-300 hover:underline mt-0.5">
+            <button type="button" onClick={() => setSystemsOverride(null)} className="min-h-[44px] inline-flex items-center text-xs text-ehc-300 hover:underline mt-0.5">
               自動（{autoSystems}系統）に戻す
             </button>
           )}
@@ -255,11 +260,11 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
             {rateOptions.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
           </Select>
           {eligiblePrograms.length === 0 ? (
-            <div className="text-[10px] text-amber-300 mt-0.5">{diagnosisComplete ? "該当見込みの制度なし" : "上の該当条件診断後に制度を表示"}</div>
+            <div className="text-xs text-amber-300 mt-0.5">{diagnosisComplete ? "該当見込みの制度なし" : "上の該当条件診断後に制度を表示"}</div>
           ) : rateKeyOverride == null ? (
-            <div className="text-[10px] text-slate-500 mt-0.5">診断済み制度から選択できます</div>
+            <div className="text-xs text-slate-500 mt-0.5">診断済み制度から選択できます</div>
           ) : (
-            <button type="button" onClick={() => setRateKeyOverride(null)} className="text-[10px] text-ehc-300 hover:underline mt-0.5">
+            <button type="button" onClick={() => setRateKeyOverride(null)} className="min-h-[44px] inline-flex items-center text-xs text-ehc-300 hover:underline mt-0.5">
               補助金なしに戻す
             </button>
           )}
@@ -275,7 +280,7 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
         </Field>
       </div>
 
-      <p className="text-[11px] text-slate-400 mb-3">
+      <p className="text-xs text-slate-400 mb-3">
         高所作業車は<strong className="text-slate-200">¥{SITE_ACCESS.aerialLiftPerDay.toLocaleString()}/日</strong>で明細に独立計上。
         {est.scaffoldRequired ? (
           <span className="text-amber-300 font-semibold"> ／ {floor}階＝足場が必要な想定です（足場費用は現地条件で変動するため本概算に含みません。現地調査で確定）。</span>
@@ -288,9 +293,9 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
         <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
           <div>
             <h3 className="text-sm font-bold text-white">該当制度別シミュレーション</h3>
-            <p className="mt-1 text-[10px] text-slate-500">補助金なしと、該当条件診断を通過した制度を同じ工事条件で比較します。制度が複数ある場合はすべて表示します。</p>
+            <p className="mt-1 text-xs text-slate-500">補助金なしと、該当条件診断を通過した制度を同じ工事条件で比較します。制度が複数ある場合はすべて表示します。</p>
           </div>
-          <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] text-slate-400">{eligiblePrograms.length}制度</span>
+          <span className="rounded-full border border-white/10 px-2 py-1 text-xs text-slate-400">{eligiblePrograms.length}制度</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {scenarioRows.map((scenario) => {
@@ -306,13 +311,13 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
                 className={`rounded-xl border p-3 text-left transition-colors ${active ? "border-ehc-400 bg-ehc-500/10" : "border-white/10 bg-night-900 hover:border-ehc-500/35"}`}
               >
                 <div className="min-h-10 text-xs font-bold leading-snug text-slate-100">{scenario.label}</div>
-                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
                   <dt className="text-slate-500">総費用（税込）</dt><dd className="text-right font-semibold text-slate-200">{yenJP(est.total)}</dd>
                   <dt className="text-slate-500">想定補助額</dt><dd className="text-right font-semibold text-amber-300">{yenJP(scenario.subsidyYen)}</dd>
                   <dt className="text-slate-500">実質負担</dt><dd className="text-right font-bold text-ehc-300">{yenJP(scenario.netYen)}</dd>
                   <dt className="text-slate-500">回収目安</dt><dd className="text-right font-semibold text-slate-200">{scenario.recoveryYears == null ? "算定不可" : `約${scenario.recoveryYears.toFixed(1)}年`}</dd>
                 </dl>
-                {scenario.subsidy && <p className="mt-2 text-[10px] text-slate-500">上限 {scenario.subsidy.max}／{scenario.subsidy.verificationState === "verified" ? "" : "公式情報の再確認が必要／"}採択・受給を保証しません</p>}
+                {scenario.subsidy && <p className="mt-2 text-xs text-slate-500">上限 {scenario.subsidy.max}／{scenario.subsidy.verificationState === "verified" ? "" : "公式情報の再確認が必要／"}採択・受給を保証しません</p>}
               </button>
             );
           })}
@@ -320,8 +325,11 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
       </div>
 
       {/* 明細 */}
-      <div className="border border-white/10 rounded-xl overflow-hidden mb-4">
-        <table className="w-full text-[11px]">
+      {/* 2026-08-24 監査での修正: 親が overflow-hidden だったため、
+          この表（実測882px）がスマホ幅で右端から切れて金額列ごと読めなかった。
+          同じアプリ内の他の表は overflow-x-auto で横スクロールできる。揃える。 */}
+      <div className="border border-white/10 rounded-xl overflow-x-auto mb-4">
+        <table className="w-full text-xs">
           <thead className="bg-night-900/80 text-slate-400">
             <tr>
               <th className="text-left px-3 py-2 font-medium">項目</th>
@@ -353,7 +361,7 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
         </table>
       </div>
 
-      <div className="mb-4 text-[11px] text-slate-400 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5">
+      <div className="mb-4 text-xs text-slate-400 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5">
         この小計（税抜）＝<strong className="text-slate-200">{subtotalManYen.toLocaleString("ja-JP")}万円</strong>が、上の
         <strong className="text-ehc-300">「今回更新分の設備投資概算」</strong>に取り込める金額です。
         上の欄で「実勢で自動見積」を押した場合も<strong className="text-slate-200">同じ計算式</strong>を使うため、
@@ -363,13 +371,14 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
       {/* 補助金・実質負担 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-night-900 border border-white/10 rounded-xl p-3">
-          <div className="text-[11px] text-slate-400 mb-1">機器費 / 工事費</div>
+          <div className="text-xs text-slate-400 mb-1">機器費 / 工事費</div>
           <div className="text-sm font-semibold text-slate-200">{yenJP(est.machine)}<span className="text-slate-500"> / </span>{yenJP(est.work)}</div>
         </div>
         <div className="bg-night-900 border border-white/10 rounded-xl p-3">
-          <div className="text-[11px] text-slate-400 mb-1">補助上限（この制度の上限額）</div>
+          <div className="text-xs text-slate-400 mb-1">補助上限（この制度の上限額）</div>
           <div className="flex items-center gap-1">
             <input
+              aria-label="補助上限（この制度の上限額・万円）"
               type="text"
               inputMode="numeric"
               value={capManYen > 0 ? capManYen.toLocaleString("ja-JP") : ""}
@@ -377,17 +386,17 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
                 const digits = e.target.value.replace(/[^0-9]/g, "");
                 setCapOverride(digits === "" ? 0 : Number(digits));
               }}
-              className="w-full bg-night-900 border border-white/15 rounded px-2 py-1 text-sm text-slate-100 text-right tabular-nums"
+              className="min-h-[44px] w-full bg-night-900 border border-white/15 rounded px-2 py-1 text-sm text-slate-100 text-right tabular-nums"
               placeholder="上限なし"
             />
-            <span className="text-[11px] text-slate-400 shrink-0">万円</span>
+            <span className="text-xs text-slate-400 shrink-0">万円</span>
           </div>
           {capManYen > 0 && (
-            <div className="text-[11px] text-slate-300 mt-1 tabular-nums">＝ {okuLabel(capManYen)}</div>
+            <div className="text-xs text-slate-300 mt-1 tabular-nums">＝ {okuLabel(capManYen)}</div>
           )}
-          <div className="text-[10px] mt-1 leading-tight">
+          <div className="text-xs mt-1 leading-tight">
             {capOverride != null ? (
-              <button type="button" onClick={() => setCapOverride(null)} className="text-ehc-300 hover:underline">
+              <button type="button" onClick={() => setCapOverride(null)} className="min-h-[44px] inline-flex items-center text-ehc-300 hover:underline">
                 診断制度の上限に戻す
               </button>
             ) : (
@@ -396,9 +405,9 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
           </div>
         </div>
         <div className="bg-gradient-to-br from-amber-500/10 to-night-900 border border-amber-500/30 rounded-xl p-3">
-          <div className="text-[11px] text-amber-300 mb-1">補助金額（概算）</div>
+          <div className="text-xs text-amber-300 mb-1">補助金額（概算）</div>
           <div className="text-lg font-bold text-amber-300">{yenJP(subsidy)}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">
+          <div className="text-xs text-slate-400 mt-0.5">
             {capped ? (
               <span className="text-amber-200">上限で頭打ち（{yenJP(rawSubsidy)} → {yenJP(subsidy)}）</span>
             ) : (
@@ -407,11 +416,11 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
           </div>
         </div>
         <div className="bg-gradient-to-br from-ehc-500/10 to-night-900 border border-ehc-500/30 rounded-xl p-3">
-          <div className="text-[11px] text-ehc-300 mb-1">実質負担（税込−補助）</div>
+          <div className="text-xs text-ehc-300 mb-1">実質負担（税込−補助）</div>
           <div className="text-lg font-bold text-ehc-300">{yenJP(netOut)}</div>
         </div>
       </div>
-      <p className="mt-3 text-[10px] text-slate-500">
+      <p className="mt-3 text-xs text-slate-500">
         ※ 補助金額は小計(税抜)×補助率の概算。消費税は補助対象外が一般的。上限・対象経費は各制度の公募要領で要確認。
         補助率・上限は初期状態では反映しません。上の該当条件診断を通過した制度だけを比較表示しますが、採択・受給・補助額を保証するものではありません。
       </p>

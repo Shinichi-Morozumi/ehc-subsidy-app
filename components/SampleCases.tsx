@@ -36,7 +36,7 @@ export function SampleCases({ onPick, selectedId }: { onPick: (sample: SampleCas
             <div className={`text-xs font-semibold mb-0.5 ${selectedId === s.id ? "text-ehc-200" : "text-white group-hover:text-ehc-300"}`}>
               {s.label}
             </div>
-            <div className={`text-[10px] leading-tight ${selectedId === s.id ? "text-ehc-300/80" : "text-slate-500 group-hover:text-ehc-300"}`}>
+            <div className={`text-xs leading-tight ${selectedId === s.id ? "text-ehc-300/80" : "text-slate-500 group-hover:text-ehc-300"}`}>
               {s.subtitle}
             </div>
           </button>

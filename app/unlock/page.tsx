@@ -37,7 +37,7 @@ export default function UnlockPage() {
       <div className="w-full max-w-sm bg-night-900 border border-white/10 rounded-3xl p-8 shadow-lift">
         <div className="flex items-center gap-2 mb-6">
           <span className="w-6 h-6 rounded-full bg-gradient-to-br from-ehc-400 to-ehc-700" />
-          <span className="text-[11px] tracking-[0.25em] text-slate-300 font-medium uppercase">
+          <span className="text-xs tracking-[0.25em] text-slate-300 font-medium uppercase">
             EHC Solutions
           </span>
         </div>
@@ -50,7 +50,12 @@ export default function UnlockPage() {
           お渡ししている合言葉を入力してください（30日間有効）。
         </p>
         <form onSubmit={submit} className="space-y-3">
+          {/* 2026-08-24 監査での修正: placeholder は名前の代わりにならない（入力すると消える）。
+              aria-label を付け、エラーは aria-live で読み上げ・入力欄と関連付ける。 */}
           <input
+            aria-label="合言葉"
+            aria-invalid={error || undefined}
+            aria-describedby={error ? "unlock-error" : undefined}
             type="password"
             value={code}
             onChange={(e) => setCode(e.target.value)}
@@ -58,9 +63,14 @@ export default function UnlockPage() {
             autoFocus
             className="w-full px-4 py-3 bg-night-800 border border-white/15 rounded-xl text-sm text-white focus:outline-none focus:border-ehc-500"
           />
-          {error && (
-            <p className="text-xs text-red-300">合言葉が一致しません。もう一度お試しください。</p>
-          )}
+          <p
+            id="unlock-error"
+            role="alert"
+            aria-live="assertive"
+            className={error ? "text-xs text-red-300" : "sr-only"}
+          >
+            {error ? "合言葉が一致しません。もう一度お試しください。" : ""}
+          </p>
           <button
             type="submit"
             disabled={busy || !code}
@@ -70,7 +80,7 @@ export default function UnlockPage() {
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
-        <p className="text-[10px] text-slate-600 mt-6">
+        <p className="text-xs text-slate-600 mt-6">
           合言葉がご不明の場合は、EHC担当者までお問い合わせください。
         </p>
       </div>

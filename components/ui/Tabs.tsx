@@ -51,7 +51,7 @@ export function TabsList({ children, className }: { children: React.ReactNode; c
 export function TabGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="px-2 pb-1 text-[10px] font-bold tracking-[0.18em] text-slate-500 uppercase">
+      <div className="px-2 pb-1 text-xs font-bold tracking-[0.18em] text-slate-500 uppercase">
         {label}
       </div>
       <div className="flex flex-wrap gap-1">{children}</div>
@@ -78,7 +78,7 @@ export function TabsTrigger({
         onClick={() => ctx.setActive(value)}
         aria-label={hint ? `${typeof children === "string" ? children : ""}: ${hint}` : undefined}
         className={cn(
-          "px-4 py-2.5 text-sm cursor-pointer rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 w-full",
+          "min-h-[44px] px-4 py-2.5 text-sm cursor-pointer rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 w-full",
           isActive
             ? "bg-gradient-to-r from-ehc-600 to-ehc-500 text-white shadow-glow font-semibold"
             : "text-slate-400 hover:text-white hover:bg-white/5 font-medium"
@@ -113,7 +113,7 @@ export function TabHint({ hints }: { hints: Record<string, { label: string; hint
         <div>
           <div className="text-sm font-bold text-slate-100">
             {item.label}
-            <span className="ml-2 text-[10px] font-medium tracking-wider text-slate-500">このタブでできること</span>
+            <span className="ml-2 text-xs font-medium tracking-wider text-slate-500">このタブでできること</span>
           </div>
           <p className="mt-1 text-xs leading-relaxed text-slate-300">{item.hint}</p>
         </div>

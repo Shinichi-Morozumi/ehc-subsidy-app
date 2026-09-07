@@ -42,7 +42,7 @@ export function ReportTeaser() {
         </div>
         <div className="bg-white/95 rounded-xl p-4 text-white shadow-2xl rotate-1 hover:rotate-0 transition-transform">
           <div className="border-b border-white/10 pb-2 mb-3">
-            <div className="text-[10px] text-slate-500">【補助金・省エネ診断書】サンプル</div>
+            <div className="text-xs text-slate-500">【補助金・省エネ診断書】サンプル</div>
             <div className="text-sm font-bold text-ehc-300">XX商事 御中</div>
           </div>
           <div className="space-y-2 text-xs">
@@ -63,7 +63,7 @@ export function ReportTeaser() {
               <span className="font-bold text-violet-300">¥9,720,000</span>
             </div>
           </div>
-          <div className="mt-3 pt-2 border-t border-white/10 text-[10px] text-slate-500">
+          <div className="mt-3 pt-2 border-t border-white/10 text-xs text-slate-500">
             株式会社EHCソリューションズ
           </div>
         </div>

@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { Subsidy, MatchInput } from "@/lib/types";
 import { Bot, X, Check, HelpCircle, MinusCircle, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { useModalA11y } from "./ui/useModalA11y";
 
 type Answer = "yes" | "no" | "unknown";
 
@@ -84,6 +85,9 @@ export function SubsidyEligibilityChat({
   const [step, setStep] = useState<number>(0);
   const [helpOpen, setHelpOpen] = useState(false); // 「わからない」を押したときの補助選択肢
 
+  // Escape で閉じる / Tab をモーダル内に閉じ込める / 閉じたら元のボタンにフォーカスを戻す
+  const panelRef = useModalA11y(onClose);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -120,18 +124,26 @@ export function SubsidyEligibilityChat({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 no-print">
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
-      <div className="relative w-[min(560px,100%)] max-h-[85vh] flex flex-col rounded-2xl border-2 border-ehc-400/40 bg-gradient-to-br from-ehc-900/30 via-night-900 to-night-800 shadow-[0_24px_70px_-15px_rgba(0,0,0,0.85)] overflow-hidden">
+      {/* 2026-08-24 監査での修正: 背景は装飾。閉じる本来の手段は Escape。 */}
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} aria-hidden="true" />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="eligibility-chat-title"
+        tabIndex={-1}
+        className="relative w-[min(560px,100%)] max-h-[85vh] flex flex-col rounded-2xl border-2 border-ehc-400/40 bg-gradient-to-br from-ehc-900/30 via-night-900 to-night-800 shadow-[0_24px_70px_-15px_rgba(0,0,0,0.85)] overflow-hidden focus:outline-none"
+      >
         {/* ヘッダー */}
         <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/10 bg-night-900/80">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ehc-500 to-ehc-700 flex items-center justify-center flex-shrink-0">
-            <Bot className="w-4 h-4 text-white" />
+            <Bot className="w-4 h-4 text-white" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold text-white truncate">該当チェック AI</div>
-            <div className="text-[11px] text-slate-400 truncate">{subsidy.name}</div>
+            <div id="eligibility-chat-title" className="text-sm font-bold text-white truncate">該当チェック AI</div>
+            <div className="text-xs text-slate-400 truncate">{subsidy.name}</div>
           </div>
-          <button onClick={onClose} aria-label="閉じる" className="text-slate-400 hover:text-white p-1">
+          <button onClick={onClose} aria-label="閉じる" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -166,7 +178,7 @@ export function SubsidyEligibilityChat({
             return (
               <div key={i} className="space-y-1.5">
                 <Bubble>
-                  <span className="text-[11px] text-ehc-300 font-semibold">要件 {i + 1}/{reqs.length}</span>
+                  <span className="text-xs text-ehc-300 font-semibold">要件 {i + 1}/{reqs.length}</span>
                   <br />
                   {r}
                 </Bubble>
@@ -184,10 +196,10 @@ export function SubsidyEligibilityChat({
           {/* 現在の質問（未回答） */}
           {!done && reqs[step] && answers[step] === null && (
             <Bubble>
-              <span className="text-[11px] text-ehc-300 font-semibold">要件 {step + 1}/{reqs.length}</span>
+              <span className="text-xs text-ehc-300 font-semibold">要件 {step + 1}/{reqs.length}</span>
               <br />
               {reqs[step]}
-              <span className="block mt-1.5 text-[11px] text-slate-400 leading-relaxed border-l-2 border-ehc-500/30 pl-2">
+              <span className="block mt-1.5 text-xs text-slate-400 leading-relaxed border-l-2 border-ehc-500/30 pl-2">
                 ヒント：{reqHint(reqs[step])}
               </span>
             </Bubble>
@@ -201,7 +213,7 @@ export function SubsidyEligibilityChat({
                 {verdictView.title}
               </div>
               <p className="text-xs mt-1.5 leading-relaxed text-slate-200/90">{verdictView.note}</p>
-              <p className="text-[10px] text-slate-400 mt-2">
+              <p className="text-xs text-slate-400 mt-2">
                 ※ 最終的な採択可否は各補助金事務局の審査によります。本判定は目安です。
               </p>
             </div>
@@ -213,7 +225,7 @@ export function SubsidyEligibilityChat({
           {!done ? (
             helpOpen && reqs[step] ? (
               <div className="space-y-2">
-                <p className="text-[11px] text-slate-400">
+                <p className="text-xs text-slate-400">
                   近いものを選んでください。迷ったら一番下でOKです（EHCが確認します）。
                 </p>
                 <div className="grid grid-cols-1 gap-1.5">
@@ -221,7 +233,7 @@ export function SubsidyEligibilityChat({
                     <button
                       key={c.label}
                       onClick={() => answer(c.answer)}
-                      className={`w-full text-left px-3 py-2 rounded-xl border text-xs font-semibold transition-colors ${
+                      className={`min-h-[44px] flex items-center w-full text-left px-3 py-2 rounded-xl border text-xs font-semibold transition-colors ${
                         c.answer === "yes"
                           ? "border-ehc-500/40 text-ehc-200 hover:bg-ehc-500/15"
                           : c.answer === "no"
@@ -235,7 +247,7 @@ export function SubsidyEligibilityChat({
                 </div>
                 <button
                   onClick={() => setHelpOpen(false)}
-                  className="w-full text-center text-[11px] text-slate-500 hover:text-slate-300 mt-1"
+                  className="min-h-[44px] w-full text-center text-xs text-slate-500 hover:text-slate-300 mt-1"
                 >
                   ← はい／いいえに戻る
                 </button>
@@ -257,20 +269,20 @@ export function SubsidyEligibilityChat({
             <div className="flex gap-2">
               <button
                 onClick={applyResult}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-sm font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors"
+                className="min-h-[44px] flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-sm font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors"
               >
                 この結果を要件チェックに反映
               </button>
               <button
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-xl border border-white/15 text-slate-300 text-sm hover:bg-white/5"
+                className="min-h-[44px] px-4 py-2.5 rounded-xl border border-white/15 text-slate-300 text-sm hover:bg-white/5"
               >
                 閉じる
               </button>
             </div>
           )}
           {!done && (
-            <button onClick={onClose} className="w-full text-center text-[11px] text-slate-500 hover:text-slate-300 mt-2">
+            <button onClick={onClose} className="min-h-[44px] w-full text-center text-xs text-slate-500 hover:text-slate-300 mt-2">
               あとで確認する（閉じる）
             </button>
           )}

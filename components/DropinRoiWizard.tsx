@@ -135,10 +135,10 @@ export function DropinRoiWizard() {
         {STEP_LABELS.map((label, i) => (
           <div key={label} className="flex items-center gap-1.5 flex-1">
             <div className={`flex items-center gap-1.5 ${i <= step ? "text-ehc-300" : "text-slate-500"}`}>
-              <span className={`w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold border ${
+              <span className={`w-6 h-6 rounded-full grid place-items-center text-xs font-bold border ${
                 i < step ? "bg-ehc-500/20 border-ehc-500/50" : i === step ? "bg-ehc-500/30 border-ehc-400 text-white" : "border-white/15"
               }`}>{i + 1}</span>
-              <span className="text-[11px] font-medium hidden sm:inline">{label}</span>
+              <span className="text-xs font-medium hidden sm:inline">{label}</span>
             </div>
             {i < STEP_LABELS.length - 1 && <div className={`h-px flex-1 ${i < step ? "bg-ehc-500/50" : "bg-white/10"}`} />}
           </div>
@@ -160,7 +160,7 @@ export function DropinRoiWizard() {
       {step === 1 && (
         <div className="min-h-[120px]">
           <div className="text-sm font-bold text-slate-100 mb-1">② 対象の設備を入力してください</div>
-          <div className="text-[11px] text-slate-400 mb-3">
+          <div className="text-xs text-slate-400 mb-3">
             冷媒・機器タイプ・台数が違う設備は「＋ 設備グループを追加」で分けて入力できます。室外機の銘板やメンテ記録に冷媒（ガス）の記載があります。わからなければ「わからない」でOK。
           </div>
           <div className="max-w-2xl space-y-3">
@@ -170,7 +170,7 @@ export function DropinRoiWizard() {
                   <span className="text-xs font-bold text-ehc-300">設備グループ {i + 1}</span>
                   {groups.length > 1 && (
                     <button onClick={() => removeGroup(g.id)}
-                      className="text-rose-300 text-[11px] inline-flex items-center gap-1 hover:text-rose-200 transition-colors">
+                      className="min-h-[44px] text-rose-300 text-xs inline-flex items-center gap-1 hover:text-rose-200 transition-colors">
                       <Trash2 className="w-3.5 h-3.5" />削除
                     </button>
                   )}
@@ -196,17 +196,17 @@ export function DropinRoiWizard() {
               </div>
             ))}
             <button onClick={addGroup}
-              className="w-full border border-dashed border-ehc-500/40 text-ehc-300 rounded-xl py-2.5 text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-ehc-500/10 transition-colors">
+              className="min-h-[44px] w-full border border-dashed border-ehc-500/40 text-ehc-300 rounded-xl py-2.5 text-sm font-semibold flex items-center justify-center gap-1.5 hover:bg-ehc-500/10 transition-colors">
               <Plus className="w-4 h-4" />設備グループを追加
             </button>
             {sysTotal > 0 && (
-              <p className="text-[11px] text-slate-400">→ 合計 {groups.length}グループ・{sysTotal}系統</p>
+              <p className="text-xs text-slate-400">→ 合計 {groups.length}グループ・{sysTotal}系統</p>
             )}
 
             {/* 現地条件（任意）: 簡易シミュレーターと同じ項目。ここを合わせると両者の金額が一致する */}
             <div className="border border-white/10 rounded-xl p-3 bg-night-900/40">
               <div className="text-xs font-bold text-ehc-300 mb-1">現地条件（任意・わかれば）</div>
-              <div className="text-[11px] text-slate-400 mb-3">
+              <div className="text-xs text-slate-400 mb-3">
                 屋上や高所の室外機は高所作業車が必要になることがあります。わからなければ空欄のままでOKです。
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -220,7 +220,7 @@ export function DropinRoiWizard() {
                 </Field>
               </div>
               {scaffoldRequired && (
-                <p className="text-[11px] text-amber-300 mt-2 leading-relaxed">
+                <p className="text-xs text-amber-300 mt-2 leading-relaxed">
                   {floor}階＝足場が必要な想定です。足場費用は現地条件で大きく変動するため本概算には含みません（現地調査で確定）。
                 </p>
               )}
@@ -238,11 +238,11 @@ export function DropinRoiWizard() {
           <div className="mt-3 max-w-[220px]">
             <Field label="電力単価(円/kWh・変更可)">
               <Input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
-              <p className="text-[9px] text-slate-500 mt-1 leading-tight">※基本料金＋従量で変動。大手電力HPの従量単価が目安</p>
+              <p className="text-xs text-slate-500 mt-1 leading-tight">※基本料金＋従量で変動。大手電力HPの従量単価が目安</p>
             </Field>
           </div>
           {typeof monthlyBill === "number" && monthlyBill > 0 && (
-            <p className="text-[11px] text-slate-400 mt-2">→ 年間 約{yenJP(monthlyBill * 12)}（電力 約{Math.round((monthlyBill * 12) / (price || DEFAULT_PRICE)).toLocaleString("ja-JP")}kWh 相当）</p>
+            <p className="text-xs text-slate-400 mt-2">→ 年間 約{yenJP(monthlyBill * 12)}（電力 約{Math.round((monthlyBill * 12) / (price || DEFAULT_PRICE)).toLocaleString("ja-JP")}kWh 相当）</p>
           )}
         </StepWrap>
       )}
@@ -258,7 +258,7 @@ export function DropinRoiWizard() {
               年間<span className="text-2xl md:text-3xl mx-1 text-emerald-100">{Math.round(saveYen / 10000).toLocaleString("ja-JP")}</span>万円削減、
               {paybackYears != null ? <>約<span className="text-2xl md:text-3xl mx-1 text-amber-200">{paybackYears}</span>年で回収できます。</> : "回収試算には電気代の入力が必要です。"}
             </div>
-            <div className="text-[11px] text-emerald-50/90 mt-2">
+            <div className="text-xs text-emerald-50/90 mt-2">
               想定削減率 {Math.round(rate * 100)}%（{INDUSTRY[industry]?.label ?? "—"} × {refriSummary}）／ 機器はそのまま・冷媒だけ交換
             </div>
           </div>
@@ -266,10 +266,10 @@ export function DropinRoiWizard() {
           {/* 設備グループ内訳 */}
           {validGroups.length > 1 && (
             <div className="bg-night-900/60 border border-white/10 rounded-xl p-3">
-              <div className="text-[11px] text-slate-300 mb-2 font-semibold">対象設備の内訳（{validGroups.length}グループ・計{sysTotal}系統）</div>
+              <div className="text-xs text-slate-300 mb-2 font-semibold">対象設備の内訳（{validGroups.length}グループ・計{sysTotal}系統）</div>
               <div className="space-y-1">
                 {validGroups.map((g, i) => (
-                  <div key={g.id} className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                  <div key={g.id} className="text-xs text-slate-400 flex items-center gap-1.5">
                     <span className="text-ehc-300 font-semibold">#{i + 1}</span>
                     {RATE[g.refri]?.label} × {g.systems}系統（{KG_PRESETS[g.machineType].label}）
                   </div>
@@ -292,7 +292,7 @@ export function DropinRoiWizard() {
               <span className="text-slate-300">{verdict.advice}</span>
               {(verdict.tone === "warn" || verdict.tone === "weak") && switchTab && (
                 <button onClick={() => switchTab("match")}
-                  className="underline font-semibold inline-flex items-center gap-0.5 hover:opacity-80">
+                  className="min-h-[44px] underline font-semibold inline-flex items-center gap-0.5 hover:opacity-80">
                   補助金マッチングで診断<ArrowRight className="w-3 h-3" />
                 </button>
               )}
@@ -301,7 +301,7 @@ export function DropinRoiWizard() {
 
           {/* 累積ROIグラフ */}
           <div className="bg-night-900/60 border border-white/10 rounded-xl p-3">
-            <div className="text-[11px] text-slate-300 mb-2">累積コスト比較（{YEARS}年・万円）— 線が交わる年が「元が取れる」タイミング</div>
+            <div className="text-xs text-slate-300 mb-2">累積コスト比較（{YEARS}年・万円）— 線が交わる年が「元が取れる」タイミング</div>
             <div className="w-full h-64 md:h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chart} margin={{ top: 8, right: 16, left: 4, bottom: 4 }}>
@@ -321,11 +321,11 @@ export function DropinRoiWizard() {
               </ResponsiveContainer>
             </div>
             {breakEven && (
-              <div className="text-[11px] text-amber-300 mt-1">★ 約{breakEven.year}年目で「何もしない」より割安に。以降の差額はすべてプラスです。</div>
+              <div className="text-xs text-amber-300 mt-1">★ 約{breakEven.year}年目で「何もしない」より割安に。以降の差額はすべてプラスです。</div>
             )}
           </div>
 
-          <p className="text-[10px] text-slate-500 leading-relaxed">
+          <p className="text-xs text-slate-500 leading-relaxed">
             ※ 概算（目安）です。投資額＝HCガス代金＋工事費用（＋高所作業車の実費）。電力単価¥{price}/kWh・想定削減率（消費電力ベース {DROPIN_REDUCTION_LABEL}）・PN見積の系統単価をもとに設備グループごとに自動試算し合算しています。投資回収は税込ベース（下の簡易シミュレーターと同一基準）。実際の効果・費用は機種・稼働・現地条件で±20%程度変動します。{scaffoldRequired ? "足場費用は本概算に含みません。" : ""}正式なお見積りは現地確認のうえご提示します。
           </p>
 
@@ -342,10 +342,10 @@ export function DropinRoiWizard() {
                 `概算投資: ${yenJP(invest)}（税込）`,
                 `年間削減: ${yenJP(saveYen)} ／ 投資回収: ${paybackYears != null ? `約${paybackYears}年` : "—"}`,
               ].join("\n"))}`}
-              className="bg-ehc-500/15 text-ehc-300 border border-ehc-500/40 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-ehc-500/25 transition-colors no-print">
+              className="min-h-[44px] bg-ehc-500/15 text-ehc-300 border border-ehc-500/40 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-ehc-500/25 transition-colors no-print">
               <Mail className="w-4 h-4" />この内容で正式見積りを依頼<ArrowRight className="w-4 h-4" />
             </a>
-            <button onClick={reset} className="text-slate-400 px-4 py-2 rounded-lg text-sm flex items-center gap-2 hover:text-slate-200 transition-colors no-print">
+            <button onClick={reset} className="min-h-[44px] text-slate-400 px-4 py-2 rounded-lg text-sm flex items-center gap-2 hover:text-slate-200 transition-colors no-print">
               <RotateCcw className="w-4 h-4" />最初からやり直す
             </button>
           </div>
@@ -356,11 +356,11 @@ export function DropinRoiWizard() {
       {step < 3 && (
         <div className="flex items-center justify-between mt-5">
           <button onClick={() => setStep((s) => (s > 0 ? ((s - 1) as Step) : s))} disabled={step === 0}
-            className="text-slate-400 px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 disabled:opacity-30 hover:text-slate-200 transition-colors">
+            className="min-h-[44px] text-slate-400 px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 disabled:opacity-30 hover:text-slate-200 transition-colors">
             <ArrowLeft className="w-4 h-4" />戻る
           </button>
           <button onClick={() => canNext && setStep((s) => ((s + 1) as Step))} disabled={!canNext}
-            className="bg-ehc-500 text-night-900 px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ehc-400 transition-colors">
+            className="min-h-[44px] bg-ehc-500 text-night-900 px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-1.5 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-ehc-400 transition-colors">
             {step === 2 ? "結果を見る" : "次へ"}<ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -373,7 +373,7 @@ function StepWrap({ title, hint, children }: { title: string; hint: string; chil
   return (
     <div className="min-h-[120px]">
       <div className="text-sm font-bold text-slate-100 mb-1">{title}</div>
-      <div className="text-[11px] text-slate-400 mb-3">{hint}</div>
+      <div className="text-xs text-slate-400 mb-3">{hint}</div>
       <div className="max-w-md">{children}</div>
     </div>
   );
@@ -388,9 +388,9 @@ function Metric({ color, icon, label, value, sub }: { color: string; icon: React
   };
   return (
     <div className={`bg-gradient-to-br to-night-900 border rounded-xl p-3 ${C[color]}`}>
-      <div className="flex items-center gap-1.5 text-[11px] mb-1">{icon}{label}</div>
+      <div className="flex items-center gap-1.5 text-xs mb-1">{icon}{label}</div>
       <div className="text-lg font-bold">{value}</div>
-      <div className="text-[10px] text-slate-400 mt-0.5">{sub}</div>
+      <div className="text-xs text-slate-400 mt-0.5">{sub}</div>
     </div>
   );
 }

@@ -31,7 +31,7 @@ export function DiagnosisSummary({
         診断結果：判断に必要な9項目
       </h2>
       {!printable && (
-        <p className="text-[11px] text-slate-400 mb-4">
+        <p className="text-xs text-slate-400 mb-4">
           金額・準備期間・間に合うかは概算です。採択・受給・補助額を保証するものではありません。
         </p>
       )}
@@ -50,7 +50,26 @@ export function DiagnosisSummary({
               <strong>{c.subsidy.name}</strong>
               <span className={`ml-1 ${muted}`}>（候補・要件確認前）</span>
             </div>
-          )) : <p>現在の入力条件で候補は見つかりませんでした。所在地・企業規模・設備条件を個別確認します。</p>}
+          )) : <p>入力済みの条件だけで適格性が確定した制度はありません。下記の「確認すれば候補になりうる制度」をご覧ください。</p>}
+
+          {/* 判定不能を「該当なし」に混ぜない。不足情報を出して次の一手にする。 */}
+          {details.pending.length > 0 && (
+            <div className={`mt-2.5 pt-2.5 border-t ${printable ? "border-slate-200" : "border-white/10"}`}>
+              <p className="font-bold mb-1.5">確認すれば候補になりうる制度（{details.pending.length}件）</p>
+              {details.pending.map((p) => (
+                <div key={p.subsidy.id} className="mb-1.5 last:mb-0">
+                  <strong>{p.subsidy.name}</strong>
+                  <span className={`ml-1 ${muted}`}>（判定に必要な情報が未取得）</span>
+                  <ul className={`list-disc pl-4 mt-0.5 ${muted}`}>
+                    {p.missing.map((m) => <li key={m}>{m}</li>)}
+                  </ul>
+                </div>
+              ))}
+              <p className={`mt-1.5 ${muted}`}>
+                対象外が確定したという意味ではありません。上記が埋まった時点で改めて判定します。
+              </p>
+            </div>
+          )}
         </Item>
 
         <Item n="3" label="使い道" base={base} title={title}>
@@ -63,7 +82,7 @@ export function DiagnosisSummary({
           {details.candidates.length ? details.candidates.map((c) => (
             <p key={c.subsidy.id} className="mb-1.5 last:mb-0">
               <strong>{c.subsidy.name}：</strong>{c.subsidy.rate}／上限 {c.subsidy.max}{" "}
-              <a href={c.subsidy.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-cobalt-400 underline">
+              <a href={c.subsidy.url} target="_blank" rel="noreferrer" className="min-h-[44px] inline-flex items-center gap-0.5 text-cobalt-400 underline">
                 公式情報 <ExternalLink className="w-3 h-3" />
               </a>
             </p>
@@ -83,10 +102,19 @@ export function DiagnosisSummary({
           )}
           {details.candidates.map((c) => (
             <p key={c.subsidy.id} className={`mt-1 ${muted}`}>
-              {c.subsidy.name}の要件を満たす場合：補助額 最大概算 {c.potentialManYen.toLocaleString("ja-JP")}万円／実質負担 {c.outOfPocketManYen.toLocaleString("ja-JP")}万円
+              {c.subsidy.infoOnly ? (
+                <>{c.subsidy.name}：情報提供のみの制度のため、補助額・実質負担は算定していません。</>
+              ) : (
+                <>{c.subsidy.name}の要件を満たす場合：補助額 最大概算 {c.potentialManYen.toLocaleString("ja-JP")}万円（千円未満切捨て）／実質負担 {c.outOfPocketManYen.toLocaleString("ja-JP")}万円</>
+              )}
             </p>
           ))}
-          <p className={`mt-1.5 ${muted}`}>対象経費・補助率区分・審査前の概算です。交付額を保証しません。</p>
+          {details.pending.length > 0 && (
+            <p className={`mt-1 ${muted}`}>
+              判定に必要な情報が未取得の制度（{details.pending.length}件）は、金額を「未算定」として集計から外しています。0円という意味ではありません。
+            </p>
+          )}
+          <p className={`mt-1.5 ${muted}`}>対象経費・補助率区分・審査前の概算です。交付額を保証しません。併用可否は各制度の公募要領によるため、複数制度の合算額は出していません。</p>
         </Item>
 
         <Item n="7" label="受付期限" base={base} title={title}>
@@ -113,7 +141,7 @@ function Item({ n, label, base, title, children }: { n: string; label: string; b
   return (
     <div className={`rounded-xl border p-3 ${base}`}>
       <div className={`font-bold mb-1.5 flex items-center gap-2 ${title}`}>
-        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-ehc-600 text-white text-[10px] flex-shrink-0">{n}</span>
+        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-ehc-600 text-white text-xs flex-shrink-0">{n}</span>
         {label}
       </div>
       <div className="leading-relaxed">{children}</div>

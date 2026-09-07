@@ -144,15 +144,15 @@ export function JGrantsLive() {
         <CardTitle icon={<Radio className="w-5 h-5" />}>
           Jグランツ 公募候補（受付中・自動取得）
         </CardTitle>
-        <span className="text-[10px] px-2 py-1 rounded-md bg-ehc-500/15 text-ehc-300 border border-ehc-400/30 font-semibold flex items-center gap-1">
+        <span className="text-xs px-2 py-1 rounded-md bg-ehc-500/15 text-ehc-300 border border-ehc-400/30 font-semibold flex items-center gap-1">
           <RefreshCw className="w-3 h-3" /> 6時間ごとに候補取得
         </span>
       </div>
-      <p className="text-[11px] text-slate-500 mb-2">
+      <p className="text-xs text-slate-500 mb-2">
         デジタル庁「Jグランツ」公開APIから、空調設備が対象になり得る受付中補助金を自動取得しています。
         締切までの残日数から、EHCの標準準備期間（約5週間）で申請が間に合うかを判定します。
       </p>
-      <p className="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-400/20 rounded-lg px-3 py-2 mb-3 flex items-start gap-2">
+      <p className="text-xs text-amber-300/90 bg-amber-500/10 border border-amber-400/20 rounded-lg px-3 py-2 mb-3 flex items-start gap-2">
         <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
         <span>
           ※ SII省エネ補助金・先進的省エネ投資促進支援などの主要補助金はJグランツ非掲載（SII独自ポータルで公募）のため、ここには表示されません。
@@ -161,11 +161,13 @@ export function JGrantsLive() {
       </p>
 
       <div className="flex items-center gap-2 mb-4 no-print">
-        <label className="text-xs text-slate-400">対象地域:</label>
+        {/* 2026-08-24 監査での修正: label が select と関連付いておらず名前無し扱いだった */}
+        <span className="text-xs text-slate-400">対象地域:</span>
         <select
+          aria-label="Jグランツ検索の対象地域"
           value={pref}
           onChange={(e) => setPref(e.target.value)}
-          className="text-xs bg-night-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-200"
+          className="min-h-[44px] text-xs bg-night-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-200"
         >
           <option value="すべて">すべて（全国＋各都道府県）</option>
           {ALL_PREFS.map((p) => (
@@ -207,7 +209,7 @@ export function JGrantsLive() {
                     <div className="flex items-start justify-between gap-3">
                       <h3 className="text-sm font-semibold text-cobalt-200 leading-snug">{it.title}</h3>
                       <span
-                        className={`text-[10px] px-2 py-1 rounded-md border font-semibold whitespace-nowrap ${VERDICT_STYLE[prep.verdict]}`}
+                        className={`text-xs px-2 py-1 rounded-md border font-semibold whitespace-nowrap ${VERDICT_STYLE[prep.verdict]}`}
                       >
                         {prep.label}
                       </span>
@@ -222,14 +224,14 @@ export function JGrantsLive() {
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-slate-300 mt-2 leading-relaxed">{prep.note}</p>
+                    <p className="text-xs text-slate-300 mt-2 leading-relaxed">{prep.note}</p>
                     <div className="flex items-center gap-2 flex-wrap mt-2">
                       <JGrantsChat it={it} />
                       <a
                         href={it.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="no-print inline-flex items-center gap-1 text-[11px] text-ehc-300 hover:text-ehc-200 font-medium"
+                        className="no-print inline-flex items-center gap-1 text-xs text-ehc-300 hover:text-ehc-200 font-medium"
                       >
                         Jグランツで詳細・申請要件を見る <ExternalLink className="w-3 h-3" />
                       </a>
@@ -240,7 +242,7 @@ export function JGrantsLive() {
             </div>
           )}
           {data?.fetchedAt && (
-            <p className="text-[10px] text-slate-600 mt-3">
+            <p className="text-xs text-slate-600 mt-3">
               取得日時: {new Date(data.fetchedAt).toLocaleString("ja-JP")}（最大6時間キャッシュ）／候補発見のみ・要件確認前／出典: デジタル庁 Jグランツ公開API
             </p>
           )}

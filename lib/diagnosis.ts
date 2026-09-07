@@ -1,5 +1,6 @@
 import { MatchResult } from "./match";
 import { MatchInput, Subsidy } from "./types";
+import { subsidyAmountManYen } from "./pricing";
 
 export type CandidateDiagnosis = {
   subsidy: Subsidy;
@@ -12,10 +13,21 @@ export type CandidateDiagnosis = {
   ease: string;
 };
 
+/* 「聞けば対象になりうる制度」を落とさないための枠。
+   result.matched（適格が確定した制度）だけを表示すると、
+   こちらが情報を持っていないだけの制度が「該当なし」に見えてしまう。 */
+export type PendingDiagnosis = {
+  subsidy: Subsidy;
+  missing: string[];
+  deadline: string;
+  timing: CandidateDiagnosis["timing"];
+};
+
 export type DiagnosisDetails = {
   issues: string[];
   recommendation: string;
   candidates: CandidateDiagnosis[];
+  pending: PendingDiagnosis[];
   nextChecks: string[];
 };
 
@@ -61,9 +73,15 @@ const inTimeFor = (s: Subsidy, timing: CandidateDiagnosis["timing"], now: Date) 
     : `残り約${days}日。標準準備期間を下回るため、至急の個別確認が必要です（目安）。`;
 };
 
+/* 2026-08-24 監査での修正:
+     以前は Math.round(… * 10) / 10 で「四捨五入して0.1万円単位」にしていた。
+     match.ts 側は丸めなしだったため、同じ入力でも
+     「該当制度別シミュレーション」と「金額比較」で補助額が食い違っていた。
+     交付申請の実務にあわせ、両者とも**千円未満切捨て**に統一する。 */
 export function potentialSubsidyManYen(s: Subsidy, investManYen: number) {
   if (s.infoOnly) return 0;
-  return Math.round(Math.min(investManYen * s.rateNum, s.capManYen) * 10) / 10;
+  // 丸めの実装は lib/pricing.ts に一本化した（同じ式が4箇所に散っていた）
+  return subsidyAmountManYen(investManYen, s.rateNum, s.capManYen);
 }
 
 export function buildDiagnosisDetails(
@@ -96,6 +114,19 @@ export function buildDiagnosisDetails(
     };
   });
 
+  /* 判定不能（needs_check）の制度は「該当なし」ではない。
+     不足している情報を出して、営業が次の一手を打てるようにする。 */
+  const pending: PendingDiagnosis[] = (result.needsCheck || []).map((subsidy) => {
+    const t = timingFor(subsidy, now);
+    const e = result.eligibility?.[subsidy.id];
+    return {
+      subsidy,
+      missing: e ? e.missing : ["適格性の判定に必要な情報が不足しています。"],
+      deadline: t.deadline,
+      timing: t.timing,
+    };
+  });
+
   const recommendation =
     "高効率空調への更新を基準案とし、現地調査で型番・能力・配管状態を確認して、全更新／段階更新／既存設備活用を比較します。";
   const nextChecks = Array.from(
@@ -103,8 +134,10 @@ export function buildDiagnosisDetails(
       "交付決定前に発注・契約・着工していないか",
       "直近1年の電気料金明細、既設機器の型番・台数、見積書を用意できるか",
       ...candidates.map((c) => c.subsidy.nextCheck).filter((v): v is string => Boolean(v)),
+      // 判定に足りない情報も「次に確認すること」に合流させる
+      ...pending.flatMap((p) => p.missing),
     ])
   );
 
-  return { issues, recommendation, candidates, nextChecks };
+  return { issues, recommendation, candidates, pending, nextChecks };
 }

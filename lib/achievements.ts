@@ -295,9 +295,25 @@ export const EHC_FIELD_TEST_2026 = {
   reductionRate: 16.2, // 同温度補正後の電力削減率(%)
   r2: 0.86,
   annualKwh: 1940, // 年間削減電力量(kWh)
-  annualYen: 95600, // 年間削減コスト(円)
-  annualCo2Kg: 1168, // 年間CO2削減量(kg)
-  // 実測時の電気単価(円/kWh)。試算用の共通定数 ELECTRIC_PRICE_YEN_PER_KWH とはたまたま同値だが
-  // これは「測定当時の実績値」なので、共通定数を変更してもここは追随させないこと。
+  annualYen: 95600, // 年間削減コスト(円) ※下記のとおり未検証
+  annualCo2Kg: 1168, // 年間CO2削減量(kg) ※下記のとおり未検証
+  // 実測時の電気単価(円/kWh)。これは「測定当時の実績値」なので、
+  // 共通定数 ELECTRIC_PRICE_YEN_PER_KWH を変更してもここは追随させないこと。
   pricePerKwh: 27,
+
+  /* ───────── 2026-08-24 監査での指摘（重要） ─────────
+     この3つの年間値は互いに整合しない。大塚倉庫「6,658」と同じ形の誤りである。
+
+       annualKwh 1,940 kWh × pricePerKwh 27円  = 52,380円  ≠ annualYen 95,600円
+                                                （逆算すると 49.3円/kWh になる）
+       annualKwh 1,940 kWh × 0.438 kg-CO2/kWh =   849.7 kg ≠ annualCo2Kg 1,168 kg
+                                                （逆算すると 0.602 kg-CO2/kWh になる）
+       annualCo2Kg 1,168 kg ÷ 0.438            = 2,667 kWh ≠ annualKwh 1,940 kWh
+
+     どの1つを正としても他の2つが合わないため、こちらで「正しい値」を推定して
+     差し替えることはできない。元の計測記録・計算シートに当たって再導出するまでは、
+     金額とCO2を断定的に表示しない（reductionRate と R² は回帰分析から直接出るので表示可）。
+     再導出後に verifiedAnnualFigures を true に戻すこと。 */
+  verifiedAnnualFigures: false,
+  unverifiedNote: "年間削減額・年間CO2削減量は元データとの整合を検証中です（削減率・R²は回帰分析による確定値）。",
 };

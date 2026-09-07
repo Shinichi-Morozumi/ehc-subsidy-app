@@ -26,7 +26,7 @@ export function VendorTable() {
                 <td className="p-3 border-t border-white/10 font-semibold text-white">{v.maker}</td>
                 <td className="p-3 border-t border-white/10 text-slate-300">{v.series}</td>
                 <td className="p-3 border-t border-white/10">
-                  <span className="bg-ehc-500/15 text-ehc-300 px-2 py-0.5 rounded-md font-medium text-[11px]">
+                  <span className="bg-ehc-500/15 text-ehc-300 px-2 py-0.5 rounded-md font-medium text-xs">
                     {v.refri}
                   </span>
                 </td>
@@ -37,7 +37,7 @@ export function VendorTable() {
           </tbody>
         </table>
       </div>
-      <p className="text-[10px] text-slate-500 mt-3 leading-relaxed">※ {VENDORS_DISCLAIMER}</p>
+      <p className="text-xs text-slate-500 mt-3 leading-relaxed">※ {VENDORS_DISCLAIMER}</p>
     </Card>
   );
 }

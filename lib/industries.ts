@@ -124,6 +124,12 @@ export const INDUSTRY_PROFILES: Record<string, IndustryProfile> = {
   },
 };
 
+/* 2026-08-27 監査での注記:
+     削減率の算出は lib/coefficients.ts の getIndustryReductionCoefficient() に一本化した。
+     そちらは値と一緒に「根拠」「検証状態（現時点では provisional）」を返し、
+     画面に「暫定値」と出すために使う。新しい呼び出しはそちらを使うこと。
+     この関数は値だけが必要な箇所のための互換用に残す。 */
 export function getIndustryReductionRate(building: string): number {
-  return INDUSTRY_PROFILES[building]?.reductionPotentialPct / 100 || 0.30;
+  const profile = INDUSTRY_PROFILES[building] ?? INDUSTRY_PROFILES.other;
+  return profile.reductionPotentialPct / 100;
 }

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { SUBSIDIES } from "@/lib/subsidies";
+import { getSubsidies } from "@/lib/subsidies";
 import { AlarmClock } from "lucide-react";
 
 // 公募中で締切が最も近い補助金を自動表示するカウントダウンバナー。
@@ -12,8 +12,15 @@ export function DeadlineBanner() {
 
   // 締切がまだ来ていないものを対象にする。公募開始前（applyOpen が未来）も
   // 「開始まであとN日」として表示する（見落とし防止）。
-  const upcoming = SUBSIDIES.filter((s) => {
+  const upcoming = getSubsidies(now).filter((s) => {
     if (s.closed || !s.applyClose) return false;
+    /* 対象設備に空調が1つも含まれない制度（target が空）は、このツールのどの試算にも入らない。
+       締切バナーは「この案件で使える枠の残り時間」を伝えるものなので、
+       使えない制度の締切を並べると本当に効く制度の締切が埋もれる。
+       （例: 埼玉県 R8 は太陽光・再エネ・コージェネが対象で業務用空調は対象外。
+         2次募集は実際に受付中だが、空調更新の案件では使えない。）
+       受付状態そのものは制度データ側で事実どおり持ち、ここでは表示範囲だけを絞る。 */
+    if (!s.target || s.target.length === 0) return false;
     const close = new Date(`${s.applyClose}T23:59:59+09:00`);
     return close >= now;
   }).sort((a, b) => (a.applyClose! < b.applyClose! ? -1 : 1));

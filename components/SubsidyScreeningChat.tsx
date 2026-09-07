@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { Subsidy, MatchInput } from "@/lib/types";
 import { ClipboardCheck, X, Check, CheckCircle2, AlertTriangle, XCircle, CalendarClock } from "lucide-react";
+import { useModalA11y } from "./ui/useModalA11y";
 
 /* ------------------------------------------------------------------
    全制度 一括スクリーニング
@@ -139,6 +140,9 @@ export function SubsidyScreeningChat({
   const [labels, setLabels] = useState<(string | null)[]>(() => QUESTIONS.map(() => null));
   const [step, setStep] = useState(0);
 
+  // Escape で閉じる / Tab をモーダル内に閉じ込める / 閉じたら元のボタンにフォーカスを戻す
+  const panelRef = useModalA11y(onClose);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -215,20 +219,29 @@ export function SubsidyScreeningChat({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 no-print">
-      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
-      <div className="relative w-[min(600px,100%)] max-h-[88vh] flex flex-col rounded-2xl border-2 border-ehc-400/40 bg-gradient-to-br from-ehc-900/30 via-night-900 to-night-800 shadow-[0_24px_70px_-15px_rgba(0,0,0,0.85)] overflow-hidden">
+      {/* 2026-08-24 監査での修正: 背景オーバーレイは装飾なので支援技術から隠す。
+          クリックで閉じられるのはマウス操作の補助であり、Escape が本来の閉じ手段。 */}
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} aria-hidden="true" />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="screening-chat-title"
+        tabIndex={-1}
+        className="relative w-[min(600px,100%)] max-h-[88vh] flex flex-col rounded-2xl border-2 border-ehc-400/40 bg-gradient-to-br from-ehc-900/30 via-night-900 to-night-800 shadow-[0_24px_70px_-15px_rgba(0,0,0,0.85)] overflow-hidden focus:outline-none"
+      >
         {/* ヘッダー */}
         <div className="flex items-center gap-2.5 px-4 py-3 border-b border-white/10 bg-night-900/80">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-ehc-500 to-ehc-700 flex items-center justify-center flex-shrink-0">
-            <ClipboardCheck className="w-4 h-4 text-white" />
+            <ClipboardCheck className="w-4 h-4 text-white" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold text-white truncate">補助金 該当診断ガイド</div>
-            <div className="text-[11px] text-slate-400 truncate">
+            <div id="screening-chat-title" className="text-sm font-bold text-white truncate">補助金 該当診断ガイド</div>
+            <div className="text-xs text-slate-400 truncate">
               {input.pref}・候補 {candidates.length} 制度をまとめて判定します
             </div>
           </div>
-          <button onClick={onClose} aria-label="閉じる" className="text-slate-400 hover:text-white p-1">
+          <button onClick={onClose} aria-label="閉じる" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -245,13 +258,13 @@ export function SubsidyScreeningChat({
             return (
               <div key={q.id} className="space-y-1.5">
                 <Bubble>
-                  <span className="text-[11px] text-ehc-300 font-semibold">
+                  <span className="text-xs text-ehc-300 font-semibold">
                     質問 {i + 1}/{QUESTIONS.length}
                   </span>
                   <br />
                   {q.text}
                   {i === step && (
-                    <span className="block mt-1.5 text-[11px] text-slate-400 leading-relaxed border-l-2 border-ehc-500/30 pl-2">
+                    <span className="block mt-1.5 text-xs text-slate-400 leading-relaxed border-l-2 border-ehc-500/30 pl-2">
                       なぜ聞くか：{q.hint}
                     </span>
                   )}
@@ -293,15 +306,15 @@ export function SubsidyScreeningChat({
                       </div>
                       <div className="flex items-center gap-1.5 mt-2">
                         <CalendarClock className={`w-3.5 h-3.5 flex-shrink-0 ${timingTone(t.key).icon}`} />
-                        <span className={`text-[11px] font-semibold ${timingTone(t.key).text}`}>{t.label}</span>
+                        <span className={`text-xs font-semibold ${timingTone(t.key).text}`}>{t.label}</span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{t.detail}</p>
+                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">{t.detail}</p>
                     </div>
                   );
                 })}
               </div>
 
-              <p className="text-[10px] text-slate-500 leading-relaxed">
+              <p className="text-xs text-slate-500 leading-relaxed">
                 ※ 本判定は目安です。最終的な採択可否は各補助金事務局の審査によります。公募日程は制度側の発表により変わります。
               </p>
             </>
@@ -316,7 +329,7 @@ export function SubsidyScreeningChat({
                 <button
                   key={c.label}
                   onClick={() => pick(c)}
-                  className={`w-full text-left px-3 py-2.5 rounded-xl border text-xs font-semibold transition-colors ${
+                  className={`min-h-[44px] flex items-center w-full text-left px-3 py-2.5 rounded-xl border text-xs font-semibold transition-colors ${
                     c.verdict === "yes"
                       ? "border-ehc-500/40 text-ehc-200 hover:bg-ehc-500/15"
                       : c.verdict === "no"
@@ -327,14 +340,14 @@ export function SubsidyScreeningChat({
                   {c.label}
                 </button>
               ))}
-              <button onClick={onClose} className="w-full text-center text-[11px] text-slate-500 hover:text-slate-300 mt-1">
+              <button onClick={onClose} className="min-h-[44px] w-full text-center text-xs text-slate-500 hover:text-slate-300 mt-1">
                 あとで確認する（閉じる）
               </button>
             </div>
           ) : (
             <button
               onClick={finish}
-              className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-sm font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors"
+              className="min-h-[44px] w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 text-white text-sm font-bold hover:from-ehc-500 hover:to-ehc-400 transition-colors"
             >
               <Check className="w-4 h-4" />
               診断結果を反映して、候補となる補助金を見る
@@ -361,7 +374,7 @@ export function VerdictChip({ v }: { v: ScreenVerdict }) {
   } as const;
   const m = map[v];
   return (
-    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border flex-shrink-0 ${m.cls}`}>{m.label}</span>
+    <span className={`text-xs font-bold px-2 py-0.5 rounded-md border flex-shrink-0 ${m.cls}`}>{m.label}</span>
   );
 }
 

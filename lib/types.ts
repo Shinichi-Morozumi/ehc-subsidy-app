@@ -47,10 +47,29 @@ export interface Subsidy {
   programKind?: "subsidy" | "grant";
   programCategory?: "equipment" | "employment" | "training" | "resilience";
   status?: ProgramStatus;
-  verificationState?: VerificationState;
+  /* 2026-08-24 監査での修正: 以前は任意項目で、subsidies.ts 側に
+     `verificationState: s.verificationState ?? "verified"` という既定値があった。
+     つまり制度を追加した人が確認状態を書き忘れただけで「公式確認済み」扱いになり、
+     match.ts の補助額計算ゲート（verified 以外は0円）を素通りしてしまう設計だった。
+     未記入を型エラーにするため必須にする。 */
+  verificationState: VerificationState;
   officialCheckedAt?: string;
   sourceType?: "official_api" | "official_page" | "official_pdf";
   sourceUrl?: string;
+  /* 2026-08-27 監査での追加 ─ 同一公募の複数類型が1つの公募情報ページを共有する件
+   *
+   * program-monitor.ts は「複数制度が同じURLを共有している＝そのURLでは制度を区別できない」
+   * として coverage_gap（監視できていない）に落とす。これはポータルのトップを
+   * 各制度が指している状態を検知するための規則だった。
+   * だが SII の設備単位型／GX設備単位型のように、**同じ公募の2類型**が
+   * 1枚の公募情報ページ（例: sii.or.jp/setsubi07r/overview3.html）に併記される制度がある。
+   * この場合、共有は設計上正しく、しかもそのページが更新されれば両方を見直せばよいので
+   * 変更検知は正しく働く。データをどう直しても解消できない gap を出し続けるのは誤検知である。
+   *
+   * そこで「意図した共有」を宣言できるようにする。同一URLを共有する制度が
+   * **全て同じ sourceSharedGroup を宣言している**場合に限り、共有を正常とみなす。
+   * 宣言の無い共有（＝ポータルのトップを指しているだけ）は従来どおり coverage_gap のまま。 */
+  sourceSharedGroup?: string;
   fetchedAt?: string;
   prepLeadDaysMin?: number;
   prepLeadDaysMax?: number;

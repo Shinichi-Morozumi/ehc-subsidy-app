@@ -1,7 +1,17 @@
 import { Subsidy, MatchInput, RefriType, EquipType, EquipGroup } from "./types";
-import { SUBSIDIES } from "./subsidies";
-import { getIndustryReductionRate } from "./industries";
-import { ELECTRIC_PRICE_YEN_PER_KWH, CO2_TON_PER_KWH } from "./pricing";
+import { getSubsidies } from "./subsidies";
+import { ELECTRIC_PRICE_YEN_PER_KWH, CO2_TON_PER_KWH, subsidyAmountManYen } from "./pricing";
+import { checkEligibility, canShowAmount, EligibilityResult } from "./eligibility";
+import {
+  Coefficient,
+  CoefficientAudit,
+  auditCoefficients,
+  getAgeDegradationCoefficient,
+  getRefrigerantGenCoefficient,
+  getEquipBonusCoefficient,
+  getIndustryReductionCoefficient,
+  isProvisional,
+} from "./coefficients";
 
 export interface GroupResult {
   id: string;
@@ -18,10 +28,22 @@ export interface GroupResult {
   saveKwhPerYear: number;
   saveYenPerYear: number;
   label: string;                // 表示用ラベル（例: R410A・パッケージ・7台）
+  /* 2026-08-27 監査での追加。
+     このグループの削減率に、出典未確定の係数が1つでも入っているか。
+     true のとき画面は「暫定値」と明示する。 */
+  ratesAreProvisional: boolean;
 }
 
 export interface MatchResult {
   matched: Subsidy[];
+  /* 2026-08-24 監査で追加。
+     「対象外」ではなく「判定に必要な情報が足りない」制度。
+     ここを画面に出さないと、聞けば通ったかもしれない制度が黙って消える。 */
+  needsCheck: Subsidy[];
+  /** 制度ID → 判定結果（理由・不足事項・確認事項）。UIはここから文言を作る。 */
+  eligibility: Record<string, EligibilityResult>;
+  /** 補助額の根拠として採用した制度のID。null＝根拠となる制度が無い（＝金額を出さない）。 */
+  bestSubsidyId: string | null;
   bestSubsidyManYen: number;
   saveYenPerYear: number;       // 全体（合算）
   totalKwh: number;
@@ -36,6 +58,11 @@ export interface MatchResult {
   effectiveReductionRate: number;   // 全体の実効削減率（合算saveKwh / 総kWh）
   representativeEquip: EquipType;   // AchievementsSection等の代表種別
   co2ReductionTon: number;          // 年間CO2削減量(t)＝削減kWh×排出係数（自動計算）
+  /* 2026-08-27 監査での追加。
+     削減率の算出に使った係数のうち、一次資料を特定できていないものの一覧。
+     補助制度に verificationState を持たせたのと同じ扱いを係数にも適用する。
+     UI・帳票はここが空でない限り「暫定値」と明示すること。 */
+  coefficientAudit: CoefficientAudit;
   groups: GroupResult[];
 }
 
@@ -46,50 +73,54 @@ const REFRI_LABEL: Record<RefriType, string> = {
   r22: "R22", r410a: "R410A", r32: "R32", unknown: "冷媒不明",
 };
 
-// 経年劣化率（エビデンス: 業務用空調は年約2%効率低下、10〜15年で20〜40%低下／
-// 資源エネルギー庁・業界資料。コイル汚れ・冷媒漏れ・圧縮機摩耗による）
+/* 2026-08-27 監査での修正:
+     経年劣化率・冷媒世代差・制御効率差の3係数は、ここに直書きされた数値を返す関数だった。
+     コメントには「資源エネルギー庁・業界資料」とあったが、どの資料の何ページかは辿れず、
+     画面にも「出典: 資源エネルギー庁／メーカー資料／業界資料」としか出ていなかった。
+     出典の無い数字が、出典のある数字と同じ顔で客先に出る状態である。
+     定義は lib/coefficients.ts に移し、値と一緒に「根拠」「検証状態」を必ず持たせた。
+     出典未確定のものは provisional として画面に「暫定値」と出す。
+     以下は既存の呼び出し互換のための数値ラッパー。 */
 export function getAgeDegradationRate(years: number): number {
-  if (years >= 25) return 0.40;
-  if (years >= 20) return 0.33;
-  if (years >= 15) return 0.25;
-  if (years >= 10) return 0.12;
-  if (years >= 5) return 0.08;
-  return 0.03;
+  return getAgeDegradationCoefficient(years).value;
 }
-
-// 冷媒世代による技術効率差（エビデンス: R22機は最新R32機比で消費電力が大幅に大きい。
-// R410A→R32でAPF向上。資源エネルギー庁/メーカー資料）。現行R32を基準(0)に旧世代ほど加算
 export function getRefrigerantGenRate(refri: RefriType): number {
-  switch (refri) {
-    case "r22": return 0.12;
-    case "r410a": return 0.05;
-    case "r32": return 0.0;
-    default: return 0.05;
-  }
+  return getRefrigerantGenCoefficient(refri).value;
 }
-
-// 設備種別の制御効率差（マルチ/VRFは個別・部分負荷制御で運用省エネ）
 export function getEquipBonusRate(equip: EquipType): number {
-  return equip === "multi" ? 0.03 : 0.0;
+  return getEquipBonusCoefficient(equip).value;
 }
 
 // 1グループの実効削減率を算出
-function computeGroupRates(g: EquipGroup, industryRate: number) {
+function computeGroupRates(g: EquipGroup, industry: Coefficient) {
   const age = Math.max(0, CURRENT_YEAR - (g.installYear || CURRENT_YEAR));
-  const ageDegradationRate = getAgeDegradationRate(age);
-  const refriGenRate = getRefrigerantGenRate(g.refri);
-  const equipBonusRate = getEquipBonusRate(g.equip);
+  const ageCoefficient = getAgeDegradationCoefficient(age);
+  const refriCoefficient = getRefrigerantGenCoefficient(g.refri);
+  const equipCoefficient = getEquipBonusCoefficient(g.equip);
+  const ageDegradationRate = ageCoefficient.value;
+  const refriGenRate = refriCoefficient.value;
+  const equipBonusRate = equipCoefficient.value;
   const techReduction =
-    1 - (1 - industryRate) * (1 - refriGenRate) * (1 - equipBonusRate);
+    1 - (1 - industry.value) * (1 - refriGenRate) * (1 - equipBonusRate);
   const effectiveReductionRate = Math.min(
     0.6,
     1 - (1 - techReduction) / (1 + ageDegradationRate)
   );
-  return { age, ageDegradationRate, refriGenRate, equipBonusRate, effectiveReductionRate };
+  const used: Coefficient[] = [industry, ageCoefficient, refriCoefficient, equipCoefficient];
+  return {
+    age,
+    ageDegradationRate,
+    refriGenRate,
+    equipBonusRate,
+    effectiveReductionRate,
+    used,
+    ratesAreProvisional: used.some(isProvisional),
+  };
 }
 
 export function matchSubsidies(input: MatchInput): MatchResult {
-  const industryReductionRate = getIndustryReductionRate(input.building);
+  const industryCoefficient = getIndustryReductionCoefficient(input.building);
+  const industryReductionRate = industryCoefficient.value;
   const groups = input.equipGroups.length
     ? input.equipGroups
     : [{ id: "g1", refri: "r410a" as RefriType, equip: "ac" as EquipType, installYear: CURRENT_YEAR - 15, units: 1 }];
@@ -98,8 +129,10 @@ export function matchSubsidies(input: MatchInput): MatchResult {
   const weights = groups.map((g) => Math.max(1, g.units) * (g.hp && g.hp > 0 ? g.hp : 1));
   const weightSum = weights.reduce((a, b) => a + b, 0) || 1;
 
+  const usedCoefficients: Coefficient[] = [];
   const groupResults: GroupResult[] = groups.map((g, i) => {
-    const r = computeGroupRates(g, industryReductionRate);
+    const r = computeGroupRates(g, industryCoefficient);
+    usedCoefficients.push(...r.used);
     const kwh =
       input.kwhMode === "measured"
         ? Math.max(0, g.kwh || 0)
@@ -121,8 +154,10 @@ export function matchSubsidies(input: MatchInput): MatchResult {
       saveKwhPerYear,
       saveYenPerYear,
       label: `${REFRI_LABEL[g.refri]}・${g.equip === "multi" ? "マルチ" : "パッケージ"}・${g.units}台（${g.installYear}年/築${r.age}年）`,
+      ratesAreProvisional: r.ratesAreProvisional,
     };
   });
+  const coefficientAudit = auditCoefficients(usedCoefficients);
 
   const totalKwh = groupResults.reduce((a, g) => a + g.kwh, 0);
   const totalSaveKwh = groupResults.reduce((a, g) => a + g.saveKwhPerYear, 0);
@@ -141,26 +176,42 @@ export function matchSubsidies(input: MatchInput): MatchResult {
   // CO2削減量(t/年)を削減kWhから自動計算
   const co2ReductionTon = Number((totalSaveKwh * CO2_FACTOR_TON_PER_KWH).toFixed(1));
 
-  // 補助金マッチング（いずれかのグループの種別が対象なら適用）
-  const matched = SUBSIDIES.filter((s) => {
-    // 資金額・ROIに反映するのは、公式確認済みかつ現在受付中の制度だけ。
-    // 受付予定・要再確認・終了制度は ProgramMatchBoard のB/Cに表示し、ここでは安全側に0円とする。
-    if (s.closed || s.status !== "open" || s.verificationState !== "verified") return false;
-    if (!s.biz.includes(input.bizType)) return false;
-    if (!s.size.includes(input.size)) return false;
-    if (s.pref !== "all" && !s.pref.includes(input.pref)) return false;
-    if (!groups.some((g) => s.target.includes(g.equip))) return false;
-    if (s.id === "kanagawa" && co2ReductionTon < 3) return false;
-    if (s.id === "hotel_sustainability" && input.building !== "hotel") return false;
-    return true;
+  /* 2026-08-24 監査での修正:
+       以前はここに `filter` が1本あるだけで、落ちた制度の理由が残らなかった。
+       true/false しか無いので「要件を満たさないから0円」と
+       「こちらが情報を持っていないから0円」が同じ“該当なし”に潰れていた。
+       前者は本当に対象外、後者は聞けば対象かもしれない案件で、営業上まるで意味が違う。
+       判定は lib/eligibility.ts に集約し、理由付きの3値で受け取る。 */
+  const now = new Date();
+  const allSubsidies = getSubsidies(now);
+  const matchInputWithGroups: MatchInput = { ...input, equipGroups: groups };
+  const eligibility: Record<string, EligibilityResult> = {};
+  allSubsidies.forEach((s) => {
+    eligibility[s.id] = checkEligibility(s, matchInputWithGroups, { co2ReductionTon, now });
   });
 
+  // A判定: 要件を満たし、判定に必要な情報も揃っている制度だけ
+  const matched = allSubsidies.filter((s) => eligibility[s.id].verdict === "eligible");
+  // B判定: 対象外ではないが、判定に足りない情報がある制度（ヒアリングで拾える見込み）
+  const needsCheck = allSubsidies.filter((s) => eligibility[s.id].verdict === "needs_check");
+
+  /* 補助額の丸め（千円未満切捨て）は lib/pricing.ts の subsidyAmountManYen() に集約した。
+     以前はこの計算が match.ts と ProgramMatchBoard.tsx に別々に書かれ、
+     片方だけ切捨てをしていたため、同じ画面で同じ制度の金額が食い違っていた。 */
   let bestSubsidyManYen = 0;
+  let bestSubsidyId: string | null = null;
   matched.forEach((s) => {
-    if (s.infoOnly) return; // 情報提供のみ（持続化等）は資金額/ROIに含めない
-    const calc = Math.min(input.invest * s.rateNum, s.capManYen);
-    if (calc > bestSubsidyManYen) bestSubsidyManYen = calc;
+    // 情報提供のみ（持続化等）は canShowAmount が false になる
+    if (!canShowAmount(eligibility[s.id])) return;
+    const calc = subsidyAmountManYen(input.invest, s.rateNum, s.capManYen);
+    if (calc > bestSubsidyManYen) {
+      bestSubsidyManYen = calc;
+      bestSubsidyId = s.id;
+    }
   });
+  /* 併用可否は公募要領の定めであり、こちらで断定できない。
+     断定できないものを合算すると返還リスクを客に負わせるので、最大額1件のみを採る。
+     この方針は lib/eligibility.ts の canSumAmounts() に明文化してある。 */
 
   const saveManYenPerYear = saveYenPerYear / 10000;
   const yearsToRecover =
@@ -177,12 +228,18 @@ export function matchSubsidies(input: MatchInput): MatchResult {
   if (anyR22) reasons.push("R22機を含みます。2020年全廃の最旧世代で最新R32機比の消費電力が大きく、更新による削減余地が特に大（修理用冷媒も入手困難）。");
   if (anyR410a) reasons.push("R410A機を含みます。2025年で製造規制完了の1世代前。R32最新機への更新でAPF世代差分も削減（故障時の修理コスト2-3倍）。");
   if (hasMulti) reasons.push("マルチ(ビル用)は室内機の個別・部分負荷制御で未使用ゾーンを停止でき、運用面でも追加の省エネが可能。");
-  if (oldest && oldest.age >= 15) reasons.push(`最も古い設備は築${oldest.age}年（${oldest.installYear}年設置）。法定耐用年数超過・経年劣化 約${Math.round(oldest.ageDegradationRate * 100)}%で、更新時の削減効果が大きい。`);
+  if (oldest && oldest.age >= 15) reasons.push(`最も古い設備は築${oldest.age}年（${oldest.installYear}年設置）。法定耐用年数超過・経年劣化 約${Math.round(oldest.ageDegradationRate * 100)}%（暫定値）で、更新時の削減効果が大きい。`);
   reasons.push("冷媒規制や故障リスクを見据え、現地調査で更新・段階更新・既存設備活用を比較することを推奨します。");
   if (bestSubsidyManYen > 0) {
     reasons.push(`候補制度の要件を満たす場合、最大 ${(bestSubsidyManYen * 10000).toLocaleString("ja-JP")} 円の補助額概算です。採択・受給・補助額を保証するものではありません。`);
   }
   if (saveYenPerYear > 0) reasons.push(`年間電気代 ${saveYenPerYear.toLocaleString("ja-JP")} 円削減（全体実効 ${Math.round(effectiveReductionRate * 100)}%）：15年で ${total15YearsYen.toLocaleString("ja-JP")} 円。`);
+  /* 2026-08-27 監査での追加。
+     削減率が暫定値の係数に依っていることは、訴求文の中でも言い切っておく。
+     ここを言わずに「実効33%」だけを出すと、大塚倉庫の「−33%」と同じ立場になる。 */
+  if (!coefficientAudit.allSourced && saveYenPerYear > 0) {
+    reasons.push(`上記の削減率は、経年劣化・冷媒世代差・業種別省エネ余地の各係数に一次資料を特定できていない暫定値を含みます（${coefficientAudit.provisional.length}項目）。現地調査と実測により再算定します。`);
+  }
 
   let ehcPlan = "";
   if (representativeEquip === "ac") {
@@ -193,6 +250,9 @@ export function matchSubsidies(input: MatchInput): MatchResult {
 
   return {
     matched,
+    needsCheck,
+    eligibility,
+    bestSubsidyId,
     bestSubsidyManYen,
     saveYenPerYear,
     totalKwh,
@@ -207,6 +267,7 @@ export function matchSubsidies(input: MatchInput): MatchResult {
     effectiveReductionRate,
     representativeEquip,
     co2ReductionTon,
+    coefficientAudit,
     groups: groupResults,
   };
 }

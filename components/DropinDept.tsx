@@ -49,7 +49,7 @@ export function DropinDept() {
       </div>
 
       <DropinRoiWizard />
-      <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[11px] text-slate-400">
+      <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-400">
         下の「簡易シミュレーター」は<strong className="text-slate-200">社内向け</strong>の詳細版です。上のROI診断と<strong className="text-slate-200">同じ単価・同じ税込基準</strong>で計算しているため、同条件を入れれば金額・回収年数は一致します（簡易シミュレーターは追加充填量の入力・金額の手動上書き・見積の印刷が可能）。
       </div>
       <DropinSimulator />
@@ -83,13 +83,13 @@ export function DropinDept() {
               <div className="w-24 text-xs font-semibold text-slate-300">{g.gas}</div>
               <div className="flex-1 bg-white/10 rounded-full h-6 overflow-hidden relative">
                 <div
-                  className="h-full rounded-full flex items-center justify-end pr-2 text-[10px] font-bold text-white"
+                  className="h-full rounded-full flex items-center justify-end pr-2 text-xs font-bold text-white"
                   style={{ width: `${(g.gwp / maxGwp) * 100}%`, background: g.color }}
                 >
                   {g.gwp >= 200 && `GWP ${g.gwp}`}
                 </div>
                 {g.gwp < 200 && (
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold" style={{ color: g.color }}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold" style={{ color: g.color }}>
                     GWP {g.gwp}
                   </span>
                 )}
@@ -123,11 +123,11 @@ export function DropinDept() {
                   <td className="p-3 border-t border-white/10">
                     <div className="flex flex-wrap gap-1">
                       {p.targetRefri.map(r => (
-                        <span key={r} className="bg-ehc-500/15 text-ehc-300 px-1.5 py-0.5 rounded text-[10px] font-medium">{r}</span>
+                        <span key={r} className="bg-ehc-500/15 text-ehc-300 px-1.5 py-0.5 rounded text-xs font-medium">{r}</span>
                       ))}
                     </div>
                   </td>
-                  <td className="p-3 border-t border-white/10 text-slate-400 text-[11px]">{p.description}</td>
+                  <td className="p-3 border-t border-white/10 text-slate-400 text-xs">{p.description}</td>
                 </tr>
               ))}
             </tbody>
@@ -144,21 +144,21 @@ export function DropinDept() {
               {JAPAN_MARKET_SIZE.totalBusinessAcUnits.toLocaleString("ja-JP")}
               <span className="text-base ml-1">{JAPAN_MARKET_SIZE.unit}</span>
             </div>
-            <div className="text-[10px] text-ehc-300 mt-1">{JAPAN_MARKET_SIZE.source}</div>
+            <div className="text-xs text-ehc-300 mt-1">{JAPAN_MARKET_SIZE.source}</div>
           </div>
           <div className="bg-gradient-to-br from-amber-500/10 to-amber-500/10 border border-amber-500/30 rounded-xl p-4">
             <div className="text-xs text-amber-300 mb-1">
               {JAPAN_MARKET_SIZE.breakdown[0].category} 約{JAPAN_MARKET_SIZE.breakdown[0].units}{JAPAN_MARKET_SIZE.unit}
             </div>
             <div className="text-3xl font-bold text-amber-300">{JAPAN_MARKET_SIZE.breakdown[0].refri}</div>
-            <div className="text-[10px] text-amber-300 mt-1">→ Minus 60 / HC32 で対応</div>
+            <div className="text-xs text-amber-300 mt-1">→ Minus 60 / HC32 で対応</div>
           </div>
           <div className="bg-gradient-to-br from-sky-500/10 to-sky-500/10 border border-sky-500/30 rounded-xl p-4">
             <div className="text-xs text-sky-300 mb-1">
               {JAPAN_MARKET_SIZE.breakdown[1].category} 約{JAPAN_MARKET_SIZE.breakdown[1].units}{JAPAN_MARKET_SIZE.unit}
             </div>
             <div className="text-3xl font-bold text-sky-300">{JAPAN_MARKET_SIZE.breakdown[1].refri}</div>
-            <div className="text-[10px] text-sky-300 mt-1">→ Minus 50 / 60 で対応</div>
+            <div className="text-xs text-sky-300 mt-1">→ Minus 50 / 60 で対応</div>
           </div>
         </div>
       </Card>
