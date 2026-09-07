@@ -50,3 +50,8 @@ next-env.d.ts
 *.xlsx
 /hozon.skill
 AppGuard_二宮さん報酬メモ_2026-06-22.pdf
+
+# 社内メモ・引き継ぎ（公開リポジトリに載せない）
+引き継ぎ_*.md
+引継ぎ_*.md
+*_引き継ぎ書_*.md
