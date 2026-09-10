@@ -2,6 +2,7 @@ import { Subsidy, MatchInput, RefriType, EquipType, EquipGroup } from "./types";
 import { getSubsidies } from "./subsidies";
 import { ELECTRIC_PRICE_YEN_PER_KWH, CO2_TON_PER_KWH, subsidyAmountManYen } from "./pricing";
 import { checkEligibility, canShowAmount, EligibilityResult } from "./eligibility";
+import { resolveInvestState } from "./roiState";
 import {
   Coefficient,
   CoefficientAudit,
@@ -214,8 +215,14 @@ export function matchSubsidies(input: MatchInput): MatchResult {
      この方針は lib/eligibility.ts の canSumAmounts() に明文化してある。 */
 
   const saveManYenPerYear = saveYenPerYear / 10000;
+  /* 2026-09-10 EHC-0031 F01:
+     設備投資額の入力を空にすると Number("") が 0 になり、ここが
+     0 ÷ 年間削減額 ＝「回収 0.0年」を返していた。
+     費用が不明なことと費用が0円であることは違うので null を返す
+     （表示側は lib/roiState.ts の yearsOrUnknown が「未算定」と出す）。 */
+  const investKnown = resolveInvestState(input.invest) === "known";
   const yearsToRecover =
-    saveManYenPerYear > 0
+    investKnown && saveManYenPerYear > 0
       ? Number((input.invest / saveManYenPerYear).toFixed(1))
       : null;
   const total15YearsYen = saveYenPerYear * 15;

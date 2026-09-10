@@ -5,6 +5,7 @@ import { MatchInput, Subsidy } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
 import { canShowAmount } from "@/lib/eligibility";
 import { subsidyAmountManYen } from "@/lib/pricing";
+import { judgePrep, PREP_DISCLAIMER } from "@/lib/prep";
 import { AlertCircle, CalendarClock, CheckCircle2, ExternalLink, HelpCircle, WalletCards, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -61,9 +62,10 @@ function buildTiming(s: Subsidy, now: Date) {
   if (s.status === "upcoming") return `受付予定：${dateLabel(s.applyOpen) ?? "公式発表待ち"}〜${dateLabel(s.applyClose) ?? "期限未定"}`;
   if (s.status === "open") {
     if (!s.applyClose) return "受付中（締切は公式要領で確認）";
-    const days = Math.ceil((new Date(`${s.applyClose}T23:59:59+09:00`).getTime() - now.getTime()) / 86400000);
-    const lead = s.prepLeadDaysMax ?? 42;
-    return `受付中・期限 ${dateLabel(s.applyClose)}。残り約${Math.max(0, days)}日、準備${s.prepLeadDaysMin ?? 21}〜${lead}日を見込むため${days >= lead ? "今から準備できる可能性があります" : "早急な個別確認が必要です"}`;
+    /* 2026-09-08 NEOレビュー差し戻しでの修正:
+       残日数が最大日数を下回ると一律「早急な個別確認」になっており、
+       最小日数すら切っている制度と区別できなかった。判定は lib/prep.ts に一本化。 */
+    return `受付中・期限 ${dateLabel(s.applyClose)}。${judgePrep(s, now).text}`;
   }
   return s.scheduleNote || "受付時期は公式確認が必要です";
 }
@@ -158,13 +160,25 @@ const BUCKETS: { key: ProgramBucket; title: string; note: string; icon: typeof C
   { key: "C", title: "今回は対象外・受付終了", note: "対象外の理由または終了した受付回を確認できます", icon: XCircle, tone: "border-white/15 bg-white/[0.03] text-slate-300" },
 ];
 
-export function ProgramMatchBoard({ input, result, printable = false, onSimulationProgramsChange }: { input: MatchInput; result: MatchResult; printable?: boolean; onSimulationProgramsChange?: (programs: Subsidy[]) => void }) {
+/* 2026-09-08 EHC-0028:
+   画面の制度マッチングと、印刷専用の診断書（ReportPrintSheet）で
+   同じ判定結果を使うためのフック。
+   印刷側で assessPrograms を呼び直すと、更新監視の到着タイミング次第で
+   画面と紙の A/B/C が食い違う。判定は1回だけ行い、その配列を両方へ配る。
+   loadMonitor() はモジュールレベルで Promise を使い回すので、
+   複数箇所から呼んでも /api/subsidies/monitor へのfetchは1回で済む。 */
+export function useProgramAssessments(input: MatchInput, result: MatchResult) {
   const [monitor, setMonitor] = useState<MonitorPayload | null>(null);
   useEffect(() => { let active = true; loadMonitor().then((data) => { if (active) setMonitor(data); }); return () => { active = false; }; }, []);
   const assessments = useMemo(() => {
     const monitorStates = Object.fromEntries((monitor?.sources ?? []).map((s) => [s.id, s]));
     return assessPrograms(input, result, monitorStates);
   }, [input, result, monitor]);
+  return { assessments, monitorCheckedAt: monitor?.checkedAt ?? null };
+}
+
+export function ProgramMatchBoard({ input, result, printable = false, onSimulationProgramsChange }: { input: MatchInput; result: MatchResult; printable?: boolean; onSimulationProgramsChange?: (programs: Subsidy[]) => void }) {
+  const { assessments, monitorCheckedAt } = useProgramAssessments(input, result);
   const active = assessments.filter((a) => a.bucket === "A");
   const conditional = assessments.filter((a) => a.bucket === "B");
   /* 2026-08-27 監査で追加。
@@ -207,7 +221,7 @@ export function ProgramMatchBoard({ input, result, printable = false, onSimulati
     <section className={`rounded-2xl border p-4 md:p-6 ${shell}`}>
       <div className="flex items-start gap-3 mb-4">
         <CalendarClock className={`w-5 h-5 mt-0.5 ${printable ? "text-ehc-700" : "text-ehc-300"}`} />
-        <div><h2 className={`font-bold ${printable ? "text-slate-900" : "text-white"}`}>制度マッチング結果</h2><p className={`text-xs mt-1 ${printable ? "text-slate-600" : "text-slate-400"}`}>資格確定や採択見込みではありません。公式情報と不足条件を確認したうえで申請可否を判断します。{monitor ? ` 公式ページ更新確認：${new Date(monitor.checkedAt).toLocaleString("ja-JP")}` : " 公式ページの更新有無を確認中です。"}</p></div>
+        <div><h2 className={`font-bold ${printable ? "text-slate-900" : "text-white"}`}>制度マッチング結果</h2><p className={`text-xs mt-1 ${printable ? "text-slate-600" : "text-slate-400"}`}>資格確定や採択見込みではありません。公式情報と不足条件を確認したうえで申請可否を判断します。{monitorCheckedAt ? ` 公式ページ更新確認：${new Date(monitorCheckedAt).toLocaleString("ja-JP")}` : " 公式ページの更新有無を確認中です。"}</p></div>
       </div>
       {coverageGapItems.length ? (
         <div className={`mb-4 rounded-xl border px-3 py-2.5 text-xs leading-relaxed ${printable ? "border-slate-200 bg-slate-50 text-slate-600" : "border-white/10 bg-white/[0.03] text-slate-400"}`}>
@@ -237,6 +251,7 @@ export function ProgramMatchBoard({ input, result, printable = false, onSimulati
         <div className={`rounded-2xl border p-4 ${printable ? "border-slate-200" : "border-white/10 bg-white/[0.02]"}`}>
           <div className="flex items-center gap-2 mb-3"><CalendarClock className="w-4 h-4 text-amber-400" /><h3 className={`text-sm font-bold ${printable ? "text-slate-900" : "text-white"}`}>3｜期限</h3></div>
           <div className="space-y-2">{deadlineItems.length ? deadlineItems.map((a) => <div key={a.subsidy.id} className={`rounded-xl border p-3 text-xs ${printable ? "border-slate-200" : "border-white/10"}`}><div className="flex flex-wrap items-center gap-2"><strong>{a.subsidy.name}</strong><span className="rounded-full border border-amber-500/30 px-2 py-0.5 text-xs text-amber-500">{statusLabel(a.subsidy)}</span></div><p className="mt-1.5 leading-relaxed">{a.timing}</p></div>) : <p className="text-xs text-slate-500">受付中の候補はありません。次回公募の公式発表待ちです。</p>}</div>
+          <p className={`mt-2 text-xs leading-relaxed ${printable ? "text-slate-600" : "text-slate-500"}`}>{PREP_DISCLAIMER}</p>
         </div>
 
         <details open={printable} className={`rounded-2xl border p-4 ${printable ? "border-slate-200" : "border-white/10 bg-white/[0.02]"}`}>

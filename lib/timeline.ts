@@ -1,5 +1,6 @@
 import { MatchInput, EquipGroup, RefriType } from "./types";
 import { matchSubsidies } from "./match";
+import { effectiveInterest } from "./features";
 
 export interface TimelineStep {
   label: string;
@@ -138,7 +139,8 @@ export function buildConstructionTimeline(
   const units = groups.reduce((a, g) => a + Math.max(0, g.units), 0);
   const multiUnits = groups.filter((g) => g.equip === "multi").reduce((a, g) => a + Math.max(0, g.units), 0);
   const pkgUnits = Math.max(0, units - multiUnits);
-  const dropinOnly = opts?.dropinOnly ?? input?.interest === "dropin";
+  // 非表示中は interest==="dropin" が残っていてもドロップイン工程表に落とさない
+  const dropinOnly = opts?.dropinOnly ?? effectiveInterest(input?.interest) === "dropin";
   const useSubsidy = !!opts?.subsidyName;
 
   // 実働日数の目安：更新工事＝パッケージ1日2台／ビル用マルチ1日1台、ドロップイン＝1日6台

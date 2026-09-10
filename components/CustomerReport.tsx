@@ -4,7 +4,10 @@ import { useState, useRef } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { MatchInput, Subsidy, INTEREST_LABELS } from "@/lib/types";
 import { MatchResult } from "@/lib/match";
-import { RoiChart } from "./RoiChart";
+import { RoiChart, RoiChartLegend } from "./RoiChart";
+import {
+  SubsidyState, SUBSIDY_STATE_NOTE, INVEST_UNKNOWN_LABEL, resolveInvestState, yearsOrUnknown,
+} from "@/lib/roiState";
 import { NextSteps } from "./NextSteps";
 import { AchievementsSection } from "./AchievementsSection";
 import { Printer, FileText, Handshake, Calendar, LineChart, Award, ClipboardList, Mail } from "lucide-react";
@@ -12,7 +15,9 @@ import { INDUSTRY_PROFILES } from "@/lib/industries";
 import { PROVISIONAL_COEFFICIENT_NOTE } from "@/lib/coefficients";
 import { QRCodeSVG } from "qrcode.react";
 import { DiagnosisSummary } from "./DiagnosisSummary";
-import { ProgramMatchBoard } from "./ProgramMatchBoard";
+import { ProgramMatchBoard, useProgramAssessments } from "./ProgramMatchBoard";
+import { ReportPrintSheet } from "./ReportPrintSheet";
+import { BUILDING_LABELS } from "@/lib/labels";
 import { issueDocumentNumber, documentFileName } from "@/lib/docNumber";
 import { useModalA11y } from "./ui/useModalA11y";
 
@@ -23,19 +28,16 @@ import { useModalA11y } from "./ui/useModalA11y";
 //   ※メール自動送信は別途バックエンド/連携（要権限）。本コンポーネントは出力体裁のみ担当。
 // ───────────────────────────────────────────────
 
-const BUILDING_LABELS: Record<string, string> = {
-  office: "オフィス・事務所", retail: "小売店舗", restaurant: "飲食店",
-  hotel: "ホテル・宿泊", medical: "医療・福祉", school: "学校・教育", other: "その他事業所",
-};
-const REFRI_LABELS: Record<string, string> = {
-  r22: "R22（HCFC・製造禁止）", r410a: "R410A（HFC・廃止進行中）", r32: "R32（GWP675）", unknown: "不明",
-};
+/* 2026-09-08 EHC-0028:
+   BUILDING_LABELS / REFRI_LABELS はここに直書きされていたが、
+   印刷専用シート（ReportPrintSheet.tsx）でも同じ表示名を使うため lib/labels.ts へ移した。 */
 
 export function CustomerReport({
   input,
   result,
   appliedSubsidyManYen,
   appliedSubsidy,
+  subsidyState,
 }: {
   input: MatchInput;
   result: MatchResult;
@@ -43,6 +45,10 @@ export function CustomerReport({
   appliedSubsidyManYen?: number;
   // 上記に対応する「ご希望の補助金」。提案書の補助金一覧で強調表示する。
   appliedSubsidy?: Subsidy | null;
+  /* 2026-09-10 EHC-0031 F03:
+     補助額の状態（未確認 / 算定0円 / 算定済み）は画面側の判定をそのまま受け取る。
+     提案書側で金額から作り直すと、同じ案件で画面と紙が違うことを言う。 */
+  subsidyState?: SubsidyState;
 }) {
   const now = new Date();
   const today = now.toLocaleDateString("ja-JP", {
@@ -57,8 +63,17 @@ export function CustomerReport({
      （毎レンダーで new Date() すると、印刷前後で番号が変わってしまう）。 */
   const [proposalNo] = useState(() => issueDocumentNumber());
 
+  /* 2026-09-08 EHC-0028 §6A:
+     制度の A/B/C 判定は1回だけ行い、画面（ProgramMatchBoard）と
+     印刷専用シート（ReportPrintSheet）へ同じ配列を配る。
+     印刷側で判定や補助額を再計算すると、紙と画面が食い違う。 */
+  const { assessments, monitorCheckedAt } = useProgramAssessments(input, result);
+
   // 補助金は共通診断＋個別要件を確認した後だけ反映する。未確認時は0円。
   const displaySubsidyManYen = appliedSubsidyManYen ?? 0;
+  /* 未指定時は従来互換。正額なら算定済み、0なら未確認とみなす（F03） */
+  const reportSubsidyState: SubsidyState = subsidyState ?? (displaySubsidyManYen > 0 ? "positive" : "unconfirmed");
+  const reportInvestState = resolveInvestState(input.invest);
   const displaySubsidyYen = Math.round(displaySubsidyManYen * 10000);
   const rewardYen = Math.round(displaySubsidyManYen * 10000 * 0.1);
   const industryLabel = (INDUSTRY_PROFILES[input.building] ?? INDUSTRY_PROFILES.other).label;
@@ -182,13 +197,18 @@ export function CustomerReport({
             email: input.customerEmail || "",
             phone: input.customerPhone || "",
             address: input.customerAddress || "",
-            subsidyYen: displaySubsidyYen,
+            /* 2026-09-10 EHC-0031 F01/F02:
+               未確認・未算定を 0 として送らない。Notionのアタックリストに
+               「補助金額(概算) 0円」「投資0万円」で記録されると、後で見た人が
+               「算定して0だった案件」と読み違える（送信APIは undefined の
+               プロパティを書き込まない実装なので、欄が空のまま残る）。 */
+            subsidyYen: reportSubsidyState === "unconfirmed" ? undefined : displaySubsidyYen,
             yearsToRecover:
               typeof result.yearsToRecover === "number" ? result.yearsToRecover : null,
             wishSubsidy: appliedSubsidy ? appliedSubsidy.name : null,
             proposalNo,
             sentDate: new Date().toISOString().slice(0, 10),
-            memo: `${industryLabel} / 投資${input.invest}万円 / ご関心:${interestLabel ?? "-"} / EHC担当:${input.ehcStaff || "-"} / 個人情報利用同意:画面で取得済み`,
+            memo: `${industryLabel} / 投資${reportInvestState === "known" ? `${input.invest}万円` : INVEST_UNKNOWN_LABEL} / ご関心:${interestLabel ?? "-"} / EHC担当:${input.ehcStaff || "-"} / 個人情報利用同意:画面で取得済み`,
           },
         }),
       });
@@ -271,11 +291,11 @@ ${interestLabel ? `ご関心: ${interestLabel}\n` : ""}
 対象設備: 合計 ${totalUnits}台
 ${groupsText}
 年間電力使用量: ${result.totalKwh.toLocaleString("ja-JP")} kWh（${input.kwhMode === "measured" ? "実測" : "自動按分"}）
-今回更新分の設備投資概算: ${input.invest.toLocaleString("ja-JP")} 万円
+今回更新分の設備投資概算: ${reportInvestState === "known" ? `${input.invest.toLocaleString("ja-JP")} 万円` : INVEST_UNKNOWN_LABEL}
 
 【2. ご提案サマリー】（全体の実効削減率 約${(result.effectiveReductionRate * 100).toFixed(0)}%${result.coefficientAudit.allSourced ? "" : "・暫定値"}）${result.coefficientAudit.allSourced ? "" : `\n※${PROVISIONAL_COEFFICIENT_NOTE}`}
-想定補助金額: ¥${displaySubsidyYen.toLocaleString("ja-JP")}
-回収年数(補助金適用前・税抜): ${result.yearsToRecover !== null ? `${result.yearsToRecover}年` : "—"}
+想定補助金額: ${reportSubsidyState === "unconfirmed" ? "未確認（要件確認前。0円という判定ではありません）" : `¥${displaySubsidyYen.toLocaleString("ja-JP")}`}
+回収年数(補助金適用前・税抜): ${yearsOrUnknown(result.yearsToRecover)}
 年間電気代削減: ¥${result.saveYenPerYear.toLocaleString("ja-JP")}
 15年累計削減: ¥${result.total15YearsYen.toLocaleString("ja-JP")}
 CO₂削減/年: ${result.co2ReductionTon} t
@@ -468,7 +488,7 @@ ${result.ehcPlan}
 
       <div
         ref={reportRef}
-        className="report-sheet relative overflow-hidden border-2 border-slate-200 rounded-xl p-6 bg-white select-none"
+        className="report-sheet screen-report relative overflow-hidden border-2 border-slate-200 rounded-xl p-6 bg-white select-none"
       >
         {/* 透かし（画面＋全印刷ページ）: コピー・スクショ・無断転載の抑止 */}
         <div className="watermark-layer" aria-hidden>
@@ -507,7 +527,11 @@ ${result.ehcPlan}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1.5 mb-3">
               <CondCell label="業種・用途" value={`${BUILDING_LABELS[input.building] ?? "—"}（${industryLabel}）`} />
               <CondCell label="年間電力使用量" value={`${result.totalKwh.toLocaleString("ja-JP")} kWh${input.kwhMode === "measured" ? "（実測）" : "（自動按分）"}`} />
-              <CondCell label="今回更新分の設備投資概算" value={`${input.invest.toLocaleString("ja-JP")} 万円`} />
+              {/* F01: 未入力（空欄→0）を「0 万円」と書かない */}
+              <CondCell
+                label="今回更新分の設備投資概算"
+                value={reportInvestState === "known" ? `${input.invest.toLocaleString("ja-JP")} 万円` : INVEST_UNKNOWN_LABEL}
+              />
               {interestLabel && <CondCell label="ご関心" value={interestLabel} />}
             </div>
             <table className="w-full text-[11px]">
@@ -549,6 +573,7 @@ ${result.ehcPlan}
           result={result}
           appliedSubsidyManYen={displaySubsidyManYen}
           appliedSubsidy={appliedSubsidy}
+          subsidyState={reportSubsidyState}
           printable
         />
 
@@ -572,12 +597,17 @@ ${result.ehcPlan}
             </p>
           )}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <SummaryCell label="想定補助金額" value={`¥${displaySubsidyYen.toLocaleString("ja-JP")}`} color="green" />
+            {/* F02: 未確認を¥0と書かない。0円と未算定は違う情報 */}
+            <SummaryCell
+              label="想定補助金額"
+              value={reportSubsidyState === "unconfirmed" ? "未確認" : `¥${displaySubsidyYen.toLocaleString("ja-JP")}`}
+              color="green"
+            />
             {/* 2026-08-24 監査での修正: 「損益分岐(回収)」とだけ書かれており、
                 補助金を引く前か後か、税抜か税込かが読み手に分からなかった。
                 実装は「税抜の工事費 ÷ 年間電気代削減額」＝補助金を引く前の値なので、
                 そのとおりにラベルへ明記する（数式は変えない）。 */}
-            <SummaryCell label="回収年数(補助金適用前・税抜)" value={result.yearsToRecover !== null ? `${result.yearsToRecover} 年` : "—"} color="amber" />
+            <SummaryCell label="回収年数(補助金適用前・税抜)" value={yearsOrUnknown(result.yearsToRecover)} color="amber" />
             <SummaryCell label="年間電気代削減" value={`¥${result.saveYenPerYear.toLocaleString("ja-JP")}`} color="blue" />
             <SummaryCell label="15年累計削減" value={`¥${result.total15YearsYen.toLocaleString("ja-JP")}`} color="purple" />
             <SummaryCell label="CO₂削減/年" value={`${result.co2ReductionTon} t`} color="green" />
@@ -593,22 +623,21 @@ ${result.ehcPlan}
             <RoiChart
               invest={input.invest}
               bestSubsidyManYen={displaySubsidyManYen}
+              subsidyState={reportSubsidyState}
               saveYenPerYear={result.saveYenPerYear}
               kwhPerYear={result.totalKwh || input.kwh}
               reductionRate={result.effectiveReductionRate}
             />
           </div>
-          <div className="text-[11px] text-slate-600 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-2">
-            <div className="bg-red-50 border border-red-100 rounded-md px-2 py-1.5">
-              <strong className="text-red-700">赤線:</strong> 何もしない（旧機器維持・効率低下＆修理費）
-            </div>
-            <div className="bg-amber-50 border border-amber-100 rounded-md px-2 py-1.5">
-              <strong className="text-amber-700">橙線:</strong> 更新（補助金なし）
-            </div>
-            <div className="bg-ehc-50 border border-ehc-200 rounded-md px-2 py-1.5">
-              <strong className="text-ehc-700">緑線:</strong> 更新（補助金あり）← ベスト
-            </div>
-          </div>
+          {/* 2026-09-10 EHC-0031 F02:
+              凡例を手書きしていたため、緑線を描かない状態でも
+              「緑線: 更新（補助金あり）← ベスト」が客先の書面に残っていた。
+              描く線と凡例を roiSeriesFor() 一箇所から出す。 */}
+          <RoiChartLegend
+            subsidyState={reportSubsidyState}
+            className="text-[11px] text-slate-600 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-2 [&>div]:rounded-md [&>div]:border [&>div]:border-slate-200 [&>div]:bg-slate-50 [&>div]:px-2 [&>div]:py-1.5"
+          />
+          <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">補助金: {SUBSIDY_STATE_NOTE[reportSubsidyState]}</p>
         </section>
 
         <section className="mb-5">
@@ -777,6 +806,26 @@ ${result.ehcPlan}
             © {now.getFullYear()} EHC Solutions Co., Ltd. All Rights Reserved.
           </div>
         </footer>
+      </div>
+
+      {/* 2026-09-08 EHC-0028 §6A:
+          紙は画面DOMの流し込みではなく、同じ診断スナップショットを受け取る
+          印刷専用の構成で出す。画面では display:none（globals.css の .print-report）。
+          画面側の reportRef / html2canvas の対象（.screen-report）は一切変えない。 */}
+      <div className="print-report" aria-hidden>
+        <ReportPrintSheet
+          input={input}
+          result={result}
+          assessments={assessments}
+          monitorCheckedAt={monitorCheckedAt}
+          proposalNo={proposalNo}
+          today={today}
+          issuedYear={now.getFullYear()}
+          displaySubsidyManYen={displaySubsidyManYen}
+          subsidyState={reportSubsidyState}
+          appliedSubsidy={appliedSubsidy}
+          inquiryMailtoShort={inquiryMailtoShort}
+        />
       </div>
     </Card>
   );

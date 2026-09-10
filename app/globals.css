@@ -105,7 +105,15 @@ select option:hover {
 }
 
 @media print {
-  body { background: #fff; }
+  /* html にダークテーマの地色が残っていると、キャンバス背景として
+     @page の余白（1.2cm）まで黒く塗られる。html も白に戻す。 */
+  /* 2026-09-08 EHC-0028 C02 の実測で確定:
+     background を #fff にしても、全14ページの外周が RGB(18,18,18)=#121212 で刷られていた。
+     #121212 は night-900(#131313) でもアプリのDOM由来でもなく、
+     color-scheme: dark（:23）を見た Chrome が塗るキャンバス色である。
+     印刷メディアだけ light に戻す。背景印刷をOFFにして隠す対処はしない。 */
+  html, body { background: #fff !important; color-scheme: light !important; }
+  :root { color-scheme: light !important; }
   .no-print { display: none !important; }
   .print-only { display: block !important; }
   .print-container { padding: 0 !important; max-width: 100% !important; }
@@ -127,11 +135,15 @@ select option:hover {
     print-color-adjust: exact;
   }
   .customer-report .report-sheet { border: none !important; padding: 0 !important; }
-  /* 途中でぶつ切りにならないよう、小ブロック単位で改ページ制御 */
-  .customer-report section > div,
-  .customer-report section li,
-  .customer-report table,
-  .customer-report footer { break-inside: avoid; }
+  /* 2026-09-08 EHC-0028:
+     ここには `.customer-report section > div / section li / table / footer` への
+     一括 break-inside:avoid があった。ProgramMatchBoard の親div・DiagnosisSummary の
+     9項目の親div にも掛かり、1ページに収まらない塊を丸ごと次ページへ送っていた。
+     （結論の追い出し・制度カードの分断・QRの別ページ送りの主因）
+     一括指定は廃止し、実際に一緒に読ませる小単位＝ .pr-keep だけに限定する。 */
+  /* 画面用の診断書DOMをそのまま紙へ流すのをやめる。紙面は .print-report が専用に組む。
+     画面側のDOM・状態は一切変更しないので、印刷後も回答・試算・同意状態は壊れない。 */
+  .customer-report .screen-report { display: none !important; }
   /* ダーク配色ブロック（次のステップ・導入実績）を紙向けのライト配色に変換 */
   .customer-report :is(.bg-night-900, .bg-night-800) {
     background: #f8fafc !important;
@@ -148,6 +160,162 @@ select option:hover {
   .customer-report .text-emerald-100 { color: #d1fae5 !important; }
 }
 .print-only { display: none; }
+
+/* ══ 診断書の印刷専用紙面（EHC-0028 / 2026-09-08）════════════════
+   画面のDOMを紙に流し込むのをやめ、A4縦・使用幅186mm専用に組んだ
+   ReportPrintSheet だけを印刷する。書体の下限（本文10.5pt / 表10pt / 注記9pt）を
+   CSS側で持たせているので、コンポーネント側は Tailwind の文字サイズを使わない。
+   固定高さ＋overflow:hidden での切り捨て、transform 縮小、印刷倍率の縮小は使わない。 */
+.print-report { display: none; }
+@media print {
+  .print-report {
+    display: block !important;
+    width: 186mm;
+    margin: 0 auto;
+    background: #fff;
+    color: #0f172a;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* 【2026-09-08 EHC-0028 C06】1枚目だけ走りフッタが次ページへ落ちる不具合の是正。
+     実測では .print-page はどれも刷り面(1032px)に収まっていた。割れていた原因は
+     紙面の高さではなく「1枚目の開始位置が刷り面の先頭ではなかった」こと。
+       - SubsidyMatcher の #result-section と、その中の .customer-report は
+         Tailwind の space-y-5（`> * + * { margin-top: 1.25rem }`）で 20px ずつ
+         上マージンを持つ。隣接兄弟結合子は前の兄弟が display:none でも効くので、
+         no-print で消したブロックがあっても印刷時にマージンだけが残る。
+       - 合わせて 40px 以上が1枚目の刷り面を先食いし、1013px の紙面が
+         1032px を超えて、末尾の走りフッタだけが2ページ目へ押し出されていた。
+     そこで .print-report の祖先だけ、印刷時に余白・内側余白・枠線を落として
+     1枚目を刷り面の先頭から始める。:has() で祖先を選ぶので、将来ラッパーが
+     増えても効く。明示指定は :has() 非対応環境向けの二重化。
+     縮小でも切り捨てでもないので §6B には触れない。 */
+  html:has(.print-report),
+  body:has(.print-report),
+  *:has(.print-report),
+  #result-section,
+  .customer-report,
+  .print-report {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+
+  /* 1ページ1テーマ。最終ページの末尾には強制改ページを付けない。
+     @page の余白1.2cm を引いた A4 の刷り面は 273mm ＝ 実測 1032px。
+     min-height 268mm(=1013px) はその内側なので、ページがこの高さで
+     止まっている限り物理ページは割れない。割れるのは中身が 1032px を
+     超えたときだけなので、超える章は ReportPrintSheet 側でページを足す。 */
+  .print-report .print-page {
+    width: 186mm;
+    min-height: 268mm;
+    display: flex;
+    flex-direction: column;
+    page-break-after: always;
+    break-after: page;
+  }
+  .print-report .print-page:last-child { page-break-after: auto; break-after: auto; }
+  /* 章の末尾ブロックの下マージンは刷り面を食うだけなので落とす（約5mm回収） */
+  .print-report .pr-body > :last-child { margin-bottom: 0; }
+
+  /* 一緒に読ませる最小単位だけを分割禁止にする（大きな親には付けない） */
+  .print-report .pr-keep { break-inside: avoid; page-break-inside: avoid; }
+
+  /* 走りヘッダ／走りフッタ。本文へ重ねない（重ねるのは透かしではなく通常フロー） */
+  .print-report .pr-runhead {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 6mm;
+    border-bottom: 0.4mm solid #00773b; padding-bottom: 1.6mm; margin-bottom: 4mm;
+    font-size: 9pt; color: #475569;
+  }
+  .print-report .pr-runhead .pr-chapter { font-weight: 700; color: #00773b; }
+  .print-report .pr-body { flex: 1 1 auto; }
+  .print-report .pr-runfoot {
+    margin-top: 6mm; padding-top: 1.6mm; border-top: 0.3mm solid #cbd5e1;
+    display: flex; justify-content: space-between; gap: 6mm;
+    font-size: 9pt; color: #64748b;
+  }
+
+  /* 見出し */
+  .print-report h1 { font-size: 16pt; line-height: 1.35; margin: 0 0 2mm; color: #004423; }
+  .print-report .pr-h2 {
+    font-size: 12pt; font-weight: 700; color: #005d2f;
+    border-left: 1.2mm solid #009148; padding-left: 2.4mm;
+    margin: 0 0 2.4mm;
+    page-break-after: avoid; break-after: avoid;
+  }
+  .print-report .pr-h3 { font-size: 11pt; font-weight: 700; margin: 0 0 1.4mm; color: #0f172a; }
+  .print-report .pr-sec { margin-bottom: 5mm; }
+  .print-report p { margin: 0 0 1.8mm; }
+  .print-report ul, .print-report ol { margin: 0 0 1.8mm; padding-left: 5mm; }
+  .print-report li { margin-bottom: 0.9mm; }
+
+  /* 注記・出典は9pt下限 */
+  .print-report .pr-note { font-size: 9pt; color: #475569; line-height: 1.5; }
+
+  /* 箱 */
+  .print-report .pr-box { border: 0.3mm solid #cbd5e1; border-radius: 1.5mm; padding: 2.8mm 3mm; background: #f8fafc; }
+  .print-report .pr-box-em { border: 0.6mm solid #009148; border-radius: 1.5mm; padding: 3.2mm 3.4mm; background: #e8f8ef; }
+  .print-report .pr-box-warn { border: 0.3mm solid #fcd34d; border-radius: 1.5mm; padding: 2.6mm 3mm; background: #fffbeb; }
+
+  /* KPI（ラベル＋数値＋注記を1単位にする） */
+  .print-report .pr-kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5mm; }
+  .print-report .pr-kpi-2 { grid-template-columns: repeat(2, 1fr); }
+  .print-report .pr-kpi-cell { border: 0.3mm solid #cbd5e1; border-radius: 1.5mm; padding: 2.4mm 2.6mm; background: #fff; }
+  .print-report .pr-kpi-cell .pr-kpi-label { font-size: 9pt; color: #475569; display: block; margin-bottom: 0.8mm; }
+  .print-report .pr-kpi-cell .pr-kpi-value { font-size: 13pt; font-weight: 700; color: #0f172a; display: block; }
+  .print-report .pr-kpi-cell .pr-kpi-sub { font-size: 9pt; color: #475569; display: block; margin-top: 0.8mm; }
+
+  /* 表：10pt以上。継続ページでも列見出しを繰り返す */
+  .print-report table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+  .print-report thead { display: table-header-group; }
+  .print-report tr { break-inside: avoid; page-break-inside: avoid; }
+  .print-report th { text-align: left; font-weight: 700; color: #334155; border-bottom: 0.4mm solid #94a3b8; padding: 1.4mm 1.6mm; }
+  .print-report td { border-bottom: 0.25mm solid #e2e8f0; padding: 1.4mm 1.6mm; color: #0f172a; }
+  .print-report .pr-num { text-align: right; }
+  /* colgroup の列幅を効かせる表（制度一覧）。auto レイアウトだと長文セルが
+     列を押し広げて紙面からはみ出すため、この表だけ fixed にして折り返させる。 */
+  .print-report .pr-table-fixed { table-layout: fixed; }
+  .print-report .pr-table-fixed td,
+  .print-report .pr-table-fixed th { overflow-wrap: anywhere; word-break: normal; vertical-align: top; }
+
+  /* 制度カード */
+  .print-report .pr-card { border: 0.3mm solid #cbd5e1; border-radius: 1.5mm; padding: 2.8mm 3mm; background: #fff; margin-bottom: 3mm; }
+  .print-report .pr-card-a { border-color: #009148; background: #f2fbf6; }
+  .print-report .pr-card-b { border-color: #f59e0b; background: #fffdf5; }
+  .print-report .pr-card-c { border-color: #cbd5e1; background: #f8fafc; }
+  .print-report .pr-card-title { font-size: 11pt; font-weight: 700; color: #0f172a; margin-bottom: 1.4mm; }
+  .print-report .pr-badge {
+    display: inline-block; font-size: 9pt; font-weight: 700; color: #fff;
+    background: #00773b; border-radius: 1mm; padding: 0.3mm 1.6mm; margin-right: 1.6mm;
+  }
+  .print-report .pr-badge-b { background: #b45309; }
+  .print-report .pr-badge-c { background: #64748b; }
+  .print-report .pr-kv { display: grid; grid-template-columns: 26mm 1fr; gap: 0.8mm 2.4mm; font-size: 10pt; }
+  .print-report .pr-kv dt { color: #475569; }
+  .print-report .pr-kv dd { margin: 0; color: #0f172a; }
+  /* 長いURLを紙面内で安全に折り返す（リンク先だけに隠さず印字する） */
+  .print-report .pr-url { font-size: 9pt; color: #243578; word-break: break-all; overflow-wrap: anywhere; }
+
+  /* グラフ＋凡例＋重要注記を1単位に */
+  .print-report .pr-chart { break-inside: avoid; page-break-inside: avoid; }
+  /* 2026-09-10 EHC-0031 F02: 凡例は補助額の状態で2件になることがある
+     （補助金が未確認・0円のときは「更新（補助金あり）」線を描かない）。
+     3列固定だと1列ぶん空くので、件数に合わせて埋める。 */
+  .print-report .pr-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(50mm, 1fr)); gap: 2mm; margin-top: 2mm; font-size: 9pt; }
+  .print-report .pr-legend div { border: 0.3mm solid #cbd5e1; border-radius: 1mm; padding: 1.4mm 1.8mm; }
+  .print-report .pr-swatch { display: inline-block; width: 6mm; height: 1mm; vertical-align: middle; margin-right: 1.4mm; }
+
+  /* 問い合わせ文＋QR＋診断書番号は絶対に分けない */
+  .print-report .pr-contact {
+    break-inside: avoid; page-break-inside: avoid;
+    border: 0.6mm solid #00773b; border-radius: 1.5mm; padding: 4mm;
+    display: flex; gap: 5mm; align-items: center; background: #fff;
+  }
+  .print-report .pr-contact .pr-qr { flex: 0 0 auto; background: #fff; padding: 3mm; border: 0.3mm solid #cbd5e1; border-radius: 1mm; }
+}
 
 /* ── ドロップイン簡易見積の印刷ビュー ──────────────
    body.print-dropin を付けて window.print() すると、このビューだけを印刷する。 */

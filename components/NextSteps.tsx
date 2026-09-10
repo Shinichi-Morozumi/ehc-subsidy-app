@@ -1,6 +1,9 @@
 import { FileSearch, Building, FileText, ClipboardCheck, Wrench, CalendarCheck, ArrowRight } from "lucide-react";
 
-const STEPS = [
+/* 2026-09-08 EHC-0028:
+   印刷専用シートでも同じ5ステップを（紙向けのライト配色で）出すため export する。
+   文言をコピーして二重管理しないこと。 */
+export const STEPS = [
   {
     icon: FileSearch,
     title: "STEP 1 — 電気料金 & 設備情報の確認",

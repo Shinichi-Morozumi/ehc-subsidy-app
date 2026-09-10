@@ -37,7 +37,7 @@ export function GuidedDiagnosis({ input, setInput, onComplete }: {
   const update = <K extends keyof MatchInput>(key: K, value: MatchInput[K]) => setInput((prev) => ({ ...prev, [key]: value }));
   const next = () => { setAssist(null); setStep((s) => Math.min(TOTAL_STEPS - 1, s + 1)); };
   const choose = (fn: () => void) => { fn(); next(); };
-  const useAssist = (message: string, fn: () => void) => {
+  const handleAssist = (message: string, fn: () => void) => {
     fn();
     setAssist(message);
     window.setTimeout(() => { setAssist(null); setStep((s) => Math.min(TOTAL_STEPS - 1, s + 1)); }, 550);
@@ -69,7 +69,7 @@ export function GuidedDiagnosis({ input, setInput, onComplete }: {
         <div className="px-5 pt-4"><div className="flex items-center justify-between text-xs text-slate-400 mb-2"><span>質問 {step + 1} / {TOTAL_STEPS}</span><span>{Math.round(((step + 1) / TOTAL_STEPS) * 100)}%</span></div><div className="h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-gradient-to-r from-ehc-600 to-ehc-400 transition-all" style={{ width: `${((step + 1) / TOTAL_STEPS) * 100}%` }} /></div></div>
         <main className="flex-1 overflow-y-auto px-5 py-6">
           {assist ? <div className="mb-4 rounded-xl border border-cobalt-500/30 bg-cobalt-500/10 p-3 text-xs text-cobalt-100 flex items-start gap-2"><Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" /> {assist}</div> : null}
-          <Question step={step} input={input} choose={choose} next={next} update={update} useAssist={useAssist} finish={finish} />
+          <Question step={step} input={input} choose={choose} next={next} update={update} handleAssist={handleAssist} finish={finish} />
         </main>
         <footer className="px-5 py-3 border-t border-white/10 flex items-center justify-between"><button type="button" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="min-h-[44px] inline-flex items-center gap-1 text-xs text-slate-400 hover:text-white disabled:opacity-30"><ArrowLeft className="w-4 h-4" /> 戻る</button><button type="button" onClick={() => setOpen(false)} className="min-h-[44px] inline-flex items-center text-xs text-slate-500 hover:text-slate-300">保存して閉じる</button></footer>
       </div>
@@ -77,10 +77,10 @@ export function GuidedDiagnosis({ input, setInput, onComplete }: {
   );
 }
 
-function Question({ step, input, choose, next, update, useAssist, finish }: {
+function Question({ step, input, choose, next, update, handleAssist, finish }: {
   step: number; input: MatchInput; choose: (fn: () => void) => void; next: () => void;
   update: <K extends keyof MatchInput>(key: K, value: MatchInput[K]) => void;
-  useAssist: (message: string, fn: () => void) => void; finish: () => void;
+  handleAssist: (message: string, fn: () => void) => void; finish: () => void;
 }) {
   const heading = (title: string, help: string) => <div className="mb-5"><h3 className="text-xl font-bold text-white leading-snug">{title}</h3><p className="text-xs text-slate-400 mt-2 leading-relaxed">{help}</p></div>;
   const button = (label: string, action: () => void, active = false) => <button key={label} type="button" onClick={() => choose(action)} className={`w-full text-left rounded-xl border px-4 py-3.5 text-sm font-semibold transition-colors ${active ? "border-ehc-400 bg-ehc-500/15 text-ehc-100" : "border-white/15 bg-white/[0.03] text-slate-200 hover:border-ehc-500/50 hover:bg-ehc-500/10"}`}>{label}</button>;
@@ -91,7 +91,7 @@ function Question({ step, input, choose, next, update, useAssist, finish }: {
   if (step === 3) return <>{heading("事業者区分を教えてください", "法人・個人事業主の区分は制度要件の確認に使います。")}<div className="space-y-2">{([ ["corporation", "法人・団体"], ["sole_proprietor", "個人事業主"] ] as [EntityType, string][]).map(([v, label]) => button(label, () => { update("entityType", v); update("bizType", "business"); update("customerKind", v === "sole_proprietor" ? "individual" : "company"); }, input.entityType === v))}</div></>;
   if (step === 4) return <>{heading("事業規模を教えてください", "資本金・従業員数による最終判定は、候補表示後に確認します。")}<div className="space-y-2">{([ ["sme", "中小企業・小規模事業者"], ["middle", "中堅企業"], ["large", "大企業"] ] as [SizeType, string][]).map(([v, label]) => button(label, () => update("size", v), input.size === v))}</div></>;
   if (step === 5) return <>{heading("建物の用途は？", "用途限定制度の判定と、後段の省エネ概算に使います。")}<div className="space-y-2">{BUILDINGS.map(([v, label]) => button(label, () => update("building", v), input.building === v))}</div></>;
-  return <>{heading("空調更新の予算・見積額は？", "おおよその税抜金額で構いません。補助額と実質負担の概算に使います。")}<NumberAnswer value={input.invest} onChange={(v) => update("invest", v)} onNext={finish} /><button type="button" onClick={() => useAssist("現時点では500万円として仮計算します。結果後に詳しい設備情報から上書きできます。", () => update("invest", 500))} className="w-full rounded-xl border border-cobalt-500/35 bg-cobalt-500/10 px-4 py-3 text-left text-sm font-semibold text-cobalt-100 hover:bg-cobalt-500/20 flex items-center gap-2"><Sparkles className="w-4 h-4" /> 分からない（500万円で仮診断）</button></>;
+  return <>{heading("空調更新の予算・見積額は？", "おおよその税抜金額で構いません。補助額と実質負担の概算に使います。")}<NumberAnswer value={input.invest} onChange={(v) => update("invest", v)} onNext={finish} /><button type="button" onClick={() => handleAssist("現時点では500万円として仮計算します。結果後に詳しい設備情報から上書きできます。", () => update("invest", 500))} className="w-full rounded-xl border border-cobalt-500/35 bg-cobalt-500/10 px-4 py-3 text-left text-sm font-semibold text-cobalt-100 hover:bg-cobalt-500/20 flex items-center gap-2"><Sparkles className="w-4 h-4" /> 分からない（500万円で仮診断）</button></>;
 }
 
 function SelectAnswer({ value, options, onChange, onNext }: { value: string; options: string[]; onChange: (value: string) => void; onNext: () => void }) {

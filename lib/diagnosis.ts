@@ -1,6 +1,7 @@
 import { MatchResult } from "./match";
 import { MatchInput, Subsidy } from "./types";
 import { subsidyAmountManYen } from "./pricing";
+import { effortLabel, judgePrep, prepLeadLabel, PREP_DISCLAIMER } from "./prep";
 
 export type CandidateDiagnosis = {
   subsidy: Subsidy;
@@ -37,10 +38,14 @@ const jpDate = (iso?: string) => {
   return `${y}年${m}月${d}日`;
 };
 
+/* 2026-09-08 NEOレビュー差し戻しでの修正:
+     ここに「6〜10週間」と独自の週表記を持っていたため、
+     画面側の「準備35〜56日」と食い違っていた。
+     日数は lib/subsidies.ts の制度別 prepLeadDaysMin/Max だけを見る（lib/prep.ts 経由）。 */
 const preparationFor = (s: Subsidy) => {
-  if (s.difficulty === "高") return "6〜10週間（書類量：多い）";
-  if (s.difficulty === "低") return "1〜2週間（書類量：少なめ）";
-  return "3〜6週間（書類量：標準〜やや多い）";
+  const lead = prepLeadLabel(s);
+  const effort = effortLabel(s);
+  return lead ? `${lead}（書類量：${effort}）` : `準備日数は要確認（書類量：${effort}）`;
 };
 
 const timingFor = (s: Subsidy, now: Date) => {
@@ -61,16 +66,13 @@ const timingFor = (s: Subsidy, now: Date) => {
   return { timing: "unknown" as const, deadline: `受付期限は未定。${s.scheduleNote || "公式発表待ち"}` };
 };
 
+/* 判定の区切りは lib/prep.ts の judgePrep に一本化した。
+   以前はここだけ needed=42/21/14 という別の閾値を持っていた。 */
 const inTimeFor = (s: Subsidy, timing: CandidateDiagnosis["timing"], now: Date) => {
-  if (timing === "closed") return "この回には間に合いません。次回公募を待ちながら準備する目安です。";
-  if (timing === "unknown") return "日程未定のため断定できません。GビズID・見積・既設機器一覧を先に揃える目安です。";
-  if (timing === "upcoming") return "今から準備開始すれば間に合う可能性があります（目安）。";
-  const close = s.applyClose ? new Date(`${s.applyClose}T23:59:59+09:00`) : null;
-  const days = close ? Math.ceil((close.getTime() - now.getTime()) / 86400000) : 0;
-  const needed = s.difficulty === "高" ? 42 : s.difficulty === "低" ? 14 : 21;
-  return days >= needed
-    ? `残り約${days}日。今から準備すれば間に合う可能性があります（目安）。`
-    : `残り約${days}日。標準準備期間を下回るため、至急の個別確認が必要です（目安）。`;
+  if (timing === "closed") return `この回には間に合いません。次回公募を待ちながら準備します。${PREP_DISCLAIMER}`;
+  if (timing === "unknown") return `受付日程が未定のため判定できません。GビズID・見積・既設機器一覧を先に揃えます。${PREP_DISCLAIMER}`;
+  if (timing === "upcoming") return `受付開始前です。開始までに書類を揃えられるかを個別に確認します。${PREP_DISCLAIMER}`;
+  return `${judgePrep(s, now).text}${PREP_DISCLAIMER}`;
 };
 
 /* 2026-08-24 監査での修正:
@@ -110,7 +112,10 @@ export function buildDiagnosisDetails(
       timing: t.timing,
       preparation: preparationFor(subsidy),
       inTime: inTimeFor(subsidy, t.timing, now),
-      ease: `申請の進めやすさ：${subsidy.difficulty || "要確認"}。${subsidy.difficultyNote || "必要書類と審査方法を確認してください。"}`,
+      /* 2026-09-08 NEOレビュー差し戻しでの修正:
+         difficulty は「申請の難易度（高＝大変）」なのに「進めやすさ：高」と出力しており、
+         意味が反転して読めていた。手間・書類量として「多い／標準／少なめ」で表す。 */
+      ease: `申請の手間・書類量：${effortLabel(subsidy)}。${subsidy.difficultyNote || "必要書類と審査方法を確認してください。"}`,
     };
   });
 

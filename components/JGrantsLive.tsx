@@ -150,7 +150,10 @@ export function JGrantsLive() {
       </div>
       <p className="text-xs text-slate-500 mb-2">
         デジタル庁「Jグランツ」公開APIから、空調設備が対象になり得る受付中補助金を自動取得しています。
-        締切までの残日数から、EHCの標準準備期間（約5週間）で申請が間に合うかを判定します。
+        {/* 2026-09-08 NEOレビュー差し戻しでの修正:
+            「標準準備期間（約5週間）で判定します」と書いていたが、
+            この一覧では判定していない上、日数も他画面（制度別の準備日数）と食い違っていた。 */}
+        ここでは受付中の候補と締切日のみを表示します。準備日数の目安と間に合うかの判定は、下の「業務用空調向け 補助金データベース（EHC精査済み）」の制度別日数で行います。
       </p>
       <p className="text-xs text-amber-300/90 bg-amber-500/10 border border-amber-400/20 rounded-lg px-3 py-2 mb-3 flex items-start gap-2">
         <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />

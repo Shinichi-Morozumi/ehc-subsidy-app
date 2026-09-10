@@ -15,14 +15,19 @@ import { SubsidyScreeningChat, VerdictChip, ScreeningResult } from "./SubsidyScr
 import { SampleCase } from "@/lib/samples";
 import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle, CheckCircle2, LineChart as LineChartIcon, PieChart, Plus, Trash2, Layers, Gauge, Link2, QrCode, Printer, Wallet, ClipboardCheck, Bot } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { RoiChart } from "./RoiChart";
+import { RoiChart, RoiChartLegend } from "./RoiChart";
+import {
+  SubsidyState, buildRoiSnapshot, resolveSubsidyState,
+  SUBSIDY_STATE_NOTE, INVEST_UNKNOWN_LABEL, RECOVERY_UNKNOWN_LABEL,
+  yenOrUnknown, yearsOrUnknown,
+} from "@/lib/roiState";
 import { GroupSavingsChart } from "./GroupSavingsChart";
 import { useProject } from "./ProjectContext";
 import { RoadmapView } from "./RoadmapView";
 import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
 import { PROVISIONAL_COEFFICIENT_NOTE } from "@/lib/coefficients";
-import { estimateInvestManYenFromGroups, estimateAnnualKwhFromGroups, kwhPerHpYear, siiBuildingUse, DEFAULT_HP_WHEN_UNKNOWN, CO2_TON_PER_KWH, MACHINE, WORK, COST_CLASS, SITE_ACCESS, DEFAULT_KG_PER_UNIT, PRICING_SOURCE, subsidyAmountManYen as subsidyAmountFromRate } from "@/lib/pricing";
+import { estimateInvestManYenFromGroups, estimateAnnualKwhFromGroups, kwhPerHpYear, siiBuildingUse, DEFAULT_HP_WHEN_UNKNOWN, CO2_TON_PER_KWH, MACHINE, WORK, COST_CLASS, SITE_ACCESS, DEFAULT_KG_PER_UNIT, PRICING_SOURCE, ELECTRIC_PRICE_YEN_PER_KWH, subsidyAmountManYen as subsidyAmountFromRate } from "@/lib/pricing";
 import { ProgramMatchBoard } from "./ProgramMatchBoard";
 import { UpdateEstimator } from "./UpdateEstimator";
 
@@ -140,6 +145,11 @@ export function SubsidyMatcher() {
   // プランナー②③で確定した補助金額・ご希望の補助金（提案書PDFへ反映）
   const [appliedSubsidyManYen, setAppliedSubsidyManYen] = useState<number>(0);
   const [appliedSubsidy, setAppliedSubsidy] = useState<Subsidy | null>(null);
+  /* 2026-09-10 EHC-0031 F03:
+     補助額の状態（未確認 / 0円 / 算定済み）も画面とPDFで共有する。
+     金額だけを渡していたため、PDF側が「0円＝対象外」と自前で解釈し、
+     同じ案件で画面と紙が違うことを言う状態になっていた。 */
+  const [appliedSubsidyState, setAppliedSubsidyState] = useState<SubsidyState>("unconfirmed");
   const [simulationPrograms, setSimulationPrograms] = useState<Subsidy[]>([]);
   const [eligibilityScreening, setEligibilityScreening] = useState<ScreeningResult | null>(null);
   const [eligibilityScreenOpen, setEligibilityScreenOpen] = useState(false);
@@ -599,7 +609,12 @@ export function SubsidyMatcher() {
 
       {result && (
         <div id="result-section" className="space-y-5">
-          <ProgramMatchBoard input={input} result={result} onSimulationProgramsChange={handleSimulationProgramsChange} />
+          {/* 2026-09-08 NEOレビュー差し戻しでの修正:
+              ここだけ no-print が抜けており、印刷すると画面用のダークな「制度マッチング結果」が
+              1ページ目に出て、診断書内の同じセクション（CustomerReport の printable 版）と二重になっていた。 */}
+          <div className="no-print">
+            <ProgramMatchBoard input={input} result={result} onSimulationProgramsChange={handleSimulationProgramsChange} />
+          </div>
           <div className="no-print rounded-2xl border border-white/10 bg-night-900 p-4 md:p-5">
             <div className="flex items-start gap-3">
               <ClipboardCheck className="w-5 h-5 text-ehc-300 mt-0.5 shrink-0" />
@@ -668,14 +683,16 @@ export function SubsidyMatcher() {
             result={result}
             appliedSubsidyManYen={appliedSubsidyManYen}
             appliedSubsidy={appliedSubsidy}
+            subsidyState={appliedSubsidyState}
           />
           <ResultView
             result={result}
             input={input}
             eligTrigger={eligTrigger}
-            onApplied={(manYen, subsidy) => {
+            onApplied={(manYen, subsidy, state) => {
               setAppliedSubsidyManYen(manYen);
               setAppliedSubsidy(subsidy);
+              setAppliedSubsidyState(state);
             }}
           />
           <div className="no-print">
@@ -763,6 +780,7 @@ export function SubsidyMatcher() {
                 result={result}
                 appliedSubsidyManYen={appliedSubsidyManYen}
                 appliedSubsidy={appliedSubsidy}
+                subsidyState={appliedSubsidyState}
               />
             </div>
           )}
@@ -886,7 +904,7 @@ function splitRequirements(req: string): string[] {
   return req.split("。").map((t) => t.trim()).filter((t) => t.length > 0);
 }
 
-function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: MatchResult; input: MatchInput; eligTrigger?: number; onApplied?: (manYen: number, subsidy: Subsidy | null) => void }) {
+function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: MatchResult; input: MatchInput; eligTrigger?: number; onApplied?: (manYen: number, subsidy: Subsidy | null, subsidyState: SubsidyState) => void }) {
   const [view, setView] = useState<"overall" | "groups">("overall");
 
   // ===== 補助金プランナー（希望有無 / 希望する補助金 / 要件クリア可否 で ROI に連動） =====
@@ -959,12 +977,18 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
   const selectedAmountManYen = selected ? subsidyAmountManYen(selected, input.invest) : 0;
   // 実際にROI・グラフへ反映する補助金額
   const appliedSubsidyManYen = wantSubsidy && selected && selectedScreeningOk && allReqMet ? selectedAmountManYen : 0;
+  /* 2026-09-10 EHC-0031 F02: 補助額の「確認が済んでいるか」を金額と別に持つ。
+     ・補助金を希望しない＝自己負担で進めるという確定した判断 → 算定0円
+     ・希望しているが要件・受付状況が未確認 → 未確認（0円ではない）
+     金額が 0 かどうかでこの区別を付けてはいけない。 */
+  const subsidyConfirmed = !wantSubsidy || Boolean(selected && selectedScreeningOk && allReqMet);
   // 確定した補助金額・ご希望の補助金を親（提案書PDF）へ反映
   const appliedSubsidyForReport = wantSubsidy && selected && selectedScreeningOk && allReqMet ? selected : null;
+  const subsidyState = resolveSubsidyState({ confirmed: subsidyConfirmed, amountManYen: appliedSubsidyManYen });
   useEffect(() => {
-    onApplied?.(appliedSubsidyManYen, appliedSubsidyForReport);
+    onApplied?.(appliedSubsidyManYen, appliedSubsidyForReport, subsidyState);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedSubsidyManYen, appliedSubsidyForReport]);
+  }, [appliedSubsidyManYen, appliedSubsidyForReport, subsidyState]);
 
   const toggleReq = (i: number) => {
     if (!selected) return;
@@ -975,20 +999,28 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
     });
   };
 
-  const netInvestYen = Math.max(0, input.invest - appliedSubsidyManYen) * 10000;
+  /* 2026-09-10 EHC-0031 F01/F03:
+     実質負担額・回収年数・比較表は、この1つのスナップショットだけを読む。
+     設備投資額が未算定（空欄→Number("")=0 を含む）のときは 0 ではなく null に
+     なるので、「¥0」「0年」という誤った即答が構造的に出せない。
+     提案書PDFにも同じ判定を渡す（PDF側で再判定・再計算しない）。 */
+  const roi = buildRoiSnapshot({
+    investManYen: input.invest,
+    subsidyConfirmed,
+    subsidyManYen: appliedSubsidyManYen,
+    saveYenPerYear: result.saveYenPerYear,
+  });
+  const netInvestYen = roi.netInvestManYen == null ? null : roi.netInvestManYen * 10000;
   const horizons = [5, 10, 15].map((y) => {
     const cum = result.saveYenPerYear * y;
-    return { y, cum, net: cum - netInvestYen };
+    return { y, cum, net: netInvestYen == null ? null : cum - netInvestYen };
   });
   const totalKwhForChart = result.totalKwh || input.kwh;
   // ①実質負担額の即答: 補助なし回収年数との比較
-  const investYen = input.invest * 10000;
-  const subsidyYen = appliedSubsidyManYen * 10000;
-  const yearsNoSubsidy = result.saveYenPerYear > 0 ? Math.round((investYen / result.saveYenPerYear) * 10) / 10 : null;
-  const appliedYearsToRecover =
-    result.saveYenPerYear > 0
-      ? Math.round(((input.invest - appliedSubsidyManYen) / (result.saveYenPerYear / 10000)) * 10) / 10
-      : null;
+  const investYen = roi.investManYen == null ? null : roi.investManYen * 10000;
+  const subsidyYen = roi.subsidyManYen == null ? null : roi.subsidyManYen * 10000;
+  const yearsNoSubsidy = roi.recoveryYearsNoSubsidy;
+  const appliedYearsToRecover = roi.recoveryYears;
   const yearsShortened =
     yearsNoSubsidy !== null && appliedYearsToRecover !== null
       ? Math.round((yearsNoSubsidy - appliedYearsToRecover) * 10) / 10
@@ -1001,19 +1033,29 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
         <div className="relative grid grid-cols-1 md:grid-cols-2 gap-5 items-center">
           <div>
             <div className="text-xs tracking-widest text-ehc-300 font-semibold mb-1">補助金適用後の実質負担額</div>
-            <div className="text-4xl md:text-5xl font-bold text-white tracking-tight">
-              ¥{netInvestYen.toLocaleString("ja-JP")}
+            {/* F01: 未算定は金額として表示しない。¥0 と書けば「無償で更新できる」と読まれる */}
+            <div className={roi.investState === "known" ? "text-4xl md:text-5xl font-bold text-white tracking-tight" : "text-2xl md:text-3xl font-bold text-amber-300 tracking-tight"}>
+              {roi.investState === "known" ? yenOrUnknown(roi.netInvestManYen) : INVEST_UNKNOWN_LABEL}
             </div>
             <div className="text-xs text-slate-400 mt-2">
-              設備投資 ¥{investYen.toLocaleString("ja-JP")} − 想定補助金{" "}
-              <span className="text-ehc-300 font-semibold">¥{subsidyYen.toLocaleString("ja-JP")}</span>
-              {subsidyYen > 0 && (
-                <span className="ml-1.5 text-ehc-300 font-semibold">
-                  （{Math.round((subsidyYen / investYen) * 100)}%オフ）
-                </span>
+              {roi.investState === "known" ? (
+                <>
+                  設備投資 {yenOrUnknown(roi.investManYen)} − 想定補助金{" "}
+                  <span className="text-ehc-300 font-semibold">
+                    {roi.subsidyState === "unconfirmed" ? "未確認" : yenOrUnknown(roi.subsidyManYen)}
+                  </span>
+                  {subsidyYen !== null && subsidyYen > 0 && investYen !== null && investYen > 0 && (
+                    <span className="ml-1.5 text-ehc-300 font-semibold">
+                      （{Math.round((subsidyYen / investYen) * 100)}%オフ）
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>「今回更新分の設備投資概算」が未入力です。金額を入れるか、更新工事の概算見積を反映すると実質負担額を算定します。</>
               )}
             </div>
-            {appliedSubsidyManYen > 0 && selected ? (
+            <div className="text-xs text-slate-500 mt-1.5 leading-relaxed">{SUBSIDY_STATE_NOTE[roi.subsidyState]}</div>
+            {roi.subsidyState === "positive" && selected ? (
               <div className="mt-2 inline-flex items-start gap-1.5 bg-ehc-500/15 border border-ehc-500/40 rounded-lg px-2.5 py-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-ehc-400 flex-shrink-0 mt-0.5" />
                 <span className="text-xs text-ehc-200 font-semibold leading-snug">
@@ -1022,29 +1064,31 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
               </div>
             ) : (
               <div className="mt-2 text-xs text-amber-300/90">
-                {wantSubsidy
+                {roi.subsidyState === "unconfirmed"
                   ? "補助金は未反映（下の「補助金プランを選ぶ」で補助金を選び、要件にチェックを入れてください）"
                   : "補助金なし（自己負担）で試算中"}
               </div>
             )}
           </div>
           <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            {appliedSubsidyManYen > 0 ? (
+            {/* 2026-09-10 EHC-0031 F01/F02:
+                回収年数が出せないときは「—」で終わらせず理由を出す。
+                また分岐条件は金額の正負ではなく補助額の状態で判定する
+                （0.5万円の補助を「補助金なし」側に落とさない）。 */}
+            {roi.subsidyState === "positive" ? (
               <>
                 <div className="text-xs text-slate-400 mb-2">投資回収年数の比較</div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <div>
                     <div className="text-xs text-slate-500">補助金なし</div>
                     <div className="text-xl font-bold text-slate-300 line-through decoration-red-400/60">
-                      {yearsNoSubsidy !== null ? `${yearsNoSubsidy}年` : "—"}
+                      {yearsOrUnknown(yearsNoSubsidy)}
                     </div>
                   </div>
                   <div className="text-ehc-400 text-xl font-bold">→</div>
                   <div>
                     <div className="text-xs text-ehc-300">補助金あり</div>
-                    <div className="text-3xl font-bold text-ehc-300">
-                      {appliedYearsToRecover !== null ? `${appliedYearsToRecover}年` : "—"}
-                    </div>
+                    <div className="text-3xl font-bold text-ehc-300">{yearsOrUnknown(appliedYearsToRecover)}</div>
                   </div>
                   {yearsShortened !== null && yearsShortened > 0 && (
                     <div className="ml-auto bg-ehc-500/15 border border-ehc-500/40 text-ehc-200 text-xs font-bold px-2.5 py-1.5 rounded-lg">
@@ -1056,12 +1100,11 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
             ) : (
               <>
                 <div className="text-xs text-slate-400 mb-2">
-                  投資回収年数{wantSubsidy ? "（補助金なしで試算中）" : "（自己負担）"}
+                  投資回収年数
+                  {roi.subsidyState === "unconfirmed" ? "（補助金は未確認のため未反映）" : "（自己負担）"}
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <div className="text-3xl font-bold text-slate-200">
-                    {yearsNoSubsidy !== null ? `${yearsNoSubsidy}年` : "—"}
-                  </div>
+                  <div className="text-3xl font-bold text-slate-200">{yearsOrUnknown(yearsNoSubsidy)}</div>
                   <div className="text-xs text-slate-500">電気代削減で回収</div>
                 </div>
                 {wantSubsidy && (
@@ -1070,6 +1113,9 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                   </div>
                 )}
               </>
+            )}
+            {roi.recoveryUnavailableReason && (
+              <p className="text-xs text-amber-300 mt-2 leading-relaxed">{roi.recoveryUnavailableReason}</p>
             )}
           </div>
         </div>
@@ -1266,17 +1312,26 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
             </p>
           )
         ) : (
-          <p className="text-sm text-slate-400">
-            補助金なし（自己負担）で試算します。下のグラフの「更新（補助金あり）」線は補助金なしと同じ位置になります。
-          </p>
+          /* 2026-09-10 EHC-0031 F02:
+             緑線は「補助金あり」が算定できたときだけ描く実装に変えたため、
+             「補助金なしと同じ位置になります」という説明は事実と合わなくなった。
+             状態の説明は lib/roiState.ts の SUBSIDY_STATE_NOTE に一本化する。 */
+          <p className="text-sm text-slate-400 leading-relaxed">{SUBSIDY_STATE_NOTE[subsidyState]}</p>
         )}
       </Card>
 
       <Card>
         <CardTitle icon={<BarChart3 className="w-5 h-5" />}>ROI シミュレーション</CardTitle>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <RoiBox label="想定補助金" value={`¥${(appliedSubsidyManYen * 10000).toLocaleString("ja-JP")}`} accent="green" />
-          <RoiBox label="損益分岐(投資回収)" value={appliedYearsToRecover !== null ? `${appliedYearsToRecover} 年` : "計算不能"} accent="amber" />
+          {/* 2026-09-10 EHC-0031 F02: 「未確認」を¥0と書かない。
+              金額が0円であることと、まだ算定していないことは別の情報。 */}
+          <RoiBox
+            label="想定補助金"
+            value={roi.subsidyState === "unconfirmed" ? "未確認" : yenOrUnknown(roi.subsidyManYen)}
+            accent="green"
+          />
+          {/* F01: 算定できないときは「計算不能」で終わらせず、理由を下段に必ず出す（§後述の注記） */}
+          <RoiBox label="損益分岐(投資回収)" value={yearsOrUnknown(appliedYearsToRecover)} accent="amber" />
           <RoiBox label="年間電気代削減" value={`¥${result.saveYenPerYear.toLocaleString("ja-JP")}`} accent="blue" />
           <RoiBox label="15年間累計削減" value={`¥${result.total15YearsYen.toLocaleString("ja-JP")}`} accent="purple" />
           <RoiBox label="CO₂削減(自動)" value={`${result.co2ReductionTon} t/年`} accent="green" />
@@ -1285,7 +1340,8 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
         {/* 投資効果 比較表（5/10/15年・損益分岐） */}
         <div className="mt-4 bg-white/5 border border-white/10 rounded-xl p-4">
           <div className="text-xs font-semibold text-slate-300 mb-2.5 flex items-center gap-1.5">
-            <BarChart3 className="w-3.5 h-3.5 text-cobalt-300" /> 投資効果 比較表（実質投資 ¥{netInvestYen.toLocaleString("ja-JP")}＝設備投資−補助金）
+            <BarChart3 className="w-3.5 h-3.5 text-cobalt-300" /> 投資効果 比較表（実質投資{" "}
+            {roi.netInvestManYen == null ? INVEST_UNKNOWN_LABEL : yenOrUnknown(roi.netInvestManYen)}＝設備投資−補助金）
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -1302,11 +1358,18 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                   <tr key={h.y} className="border-b border-white/5">
                     <td className="py-1.5 pr-2 text-slate-200 font-semibold">{h.y}年</td>
                     <td className="py-1.5 px-2 text-right text-slate-200">¥{h.cum.toLocaleString("ja-JP")}</td>
-                    <td className={`py-1.5 px-2 text-right font-bold ${h.net >= 0 ? "text-ehc-300" : "text-red-300"}`}>
-                      {h.net >= 0 ? "+" : "−"}¥{Math.abs(h.net).toLocaleString("ja-JP")}
-                    </td>
+                    {/* 2026-09-10 EHC-0031 F01:
+                        実質投資が未算定のとき、従来は net=cum（投資0円）として
+                        「全額が純便益」という表になっていた。算定できない欄は空にする。 */}
+                    {h.net == null ? (
+                      <td className="py-1.5 px-2 text-right text-amber-300 font-semibold">{RECOVERY_UNKNOWN_LABEL}</td>
+                    ) : (
+                      <td className={`py-1.5 px-2 text-right font-bold ${h.net >= 0 ? "text-ehc-300" : "text-red-300"}`}>
+                        {h.net >= 0 ? "+" : "−"}¥{Math.abs(h.net).toLocaleString("ja-JP")}
+                      </td>
+                    )}
                     <td className="py-1.5 pl-2 text-right text-cobalt-200">
-                      {netInvestYen > 0 ? `${(h.cum / netInvestYen).toFixed(1)}倍` : "—"}
+                      {netInvestYen !== null && netInvestYen > 0 ? `${(h.cum / netInvestYen).toFixed(1)}倍` : "—"}
                     </td>
                   </tr>
                 ))}
@@ -1314,8 +1377,16 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
             </table>
           </div>
           <div className="text-xs text-slate-500 mt-2">
-            損益分岐点 = {appliedYearsToRecover !== null ? `約${appliedYearsToRecover}年` : "—"}。純便益がプラスに転じる時点。電気単価27円/kWhで試算。
+            損益分岐点 ={" "}
+            {appliedYearsToRecover !== null
+              ? `約${appliedYearsToRecover}年`
+              : RECOVERY_UNKNOWN_LABEL}
+            。純便益がプラスに転じる時点。電気単価{ELECTRIC_PRICE_YEN_PER_KWH}円/kWhで試算。
           </div>
+          {/* 算定できなかったときは必ず理由を出す。「—」だけで終わらせない（F01） */}
+          {roi.recoveryUnavailableReason && (
+            <p className="text-xs text-amber-300 mt-1.5 leading-relaxed">{roi.recoveryUnavailableReason}</p>
+          )}
         </div>
 
         <IndustryBasis building={input.building} result={result} />
@@ -1347,21 +1418,19 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
             <RoiChart
               invest={input.invest}
               bestSubsidyManYen={appliedSubsidyManYen}
+              subsidyState={subsidyState}
               saveYenPerYear={result.saveYenPerYear}
               kwhPerYear={totalKwhForChart}
               reductionRate={result.effectiveReductionRate}
             />
-            <div className="text-xs text-slate-400 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-3">
-              <div className="bg-red-500/10 border border-red-500/20 rounded-md px-2 py-1.5">
-                <strong className="text-red-300">赤線:</strong> 何もしない（旧機器維持）
-              </div>
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1.5">
-                <strong className="text-amber-300">橙線:</strong> 更新（補助金なし）
-              </div>
-              <div className="bg-ehc-500/10 border border-ehc-500/30 rounded-md px-2 py-1.5">
-                <strong className="text-ehc-300">緑線:</strong> 更新（補助金あり）← ベスト
-              </div>
-            </div>
+            {/* 2026-09-10 EHC-0031 F02:
+                凡例を手書きしていたため、緑線を描かない状態でも
+                「緑線: 更新（補助金あり）← ベスト」が残っていた。
+                描く線と凡例を lib/roiState.ts の roiSeriesFor() 一箇所から出す。 */}
+            <RoiChartLegend
+              subsidyState={subsidyState}
+              className="text-xs text-slate-400 grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-3 [&>div]:rounded-md [&>div]:border [&>div]:border-white/10 [&>div]:bg-white/5 [&>div]:px-2 [&>div]:py-1.5"
+            />
             {result.groups.length > 1 && (
               <div className="mt-5">
                 <div className="text-xs font-semibold text-slate-300 mb-1.5">設備グループ別 年間削減額の内訳</div>

@@ -5,6 +5,7 @@ import { MatchResult } from "@/lib/match";
 import { buildSubsidyTimeline, buildConstructionTimeline, buildMultiYearRoadmap, DatedStep } from "@/lib/timeline";
 import { CalendarClock, Wrench, Map, AlertTriangle, Banknote, Leaf, Scale } from "lucide-react";
 import { estimateUpdateCost, estimateMachineCost, PRICING_SOURCE } from "@/lib/pricing";
+import { effectiveInterest } from "@/lib/features";
 
 const yen = (n: number) => `¥${Math.round(n).toLocaleString("ja-JP")}`;
 
@@ -81,7 +82,8 @@ export function RoadmapView({
     .filter((s) => s.applyClose && new Date(s.applyClose + "T00:00:00") >= today)
     .sort((a, b) => new Date(a.applyClose!).getTime() - new Date(b.applyClose!).getTime());
   const bestSubsidy = appliedSubsidy || openOnes[0] || candidates[0];
-  const dropinOnly = input.interest === "dropin";
+  // ドロップイン非表示中（lib/features.ts）は専用工程表へ分岐させない
+  const dropinOnly = effectiveInterest(input.interest) === "dropin";
   const subsidyTL = buildSubsidyTimeline(bestSubsidy, today);
   const constructionPlan = buildConstructionTimeline(input, {
     subsidyName: dropinOnly ? null : bestSubsidy?.name ?? null,

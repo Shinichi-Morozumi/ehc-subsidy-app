@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
+/* v17 ホームの見た目。全セレクタが .ehc17 配下にスコープされているため、
+   既存のダークテーマ（globals.css）と診断ツール側の表示には影響しない。 */
+import "./home-v17.css";
 import { PwaRegister } from "@/components/PwaRegister";
 
 export const metadata: Metadata = {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MatchInput, SizeType, EquipType, RefriType, InterestType, INTEREST_LABELS } from "@/lib/types";
 import { estimateInvestManYenFromGroups } from "@/lib/pricing";
+import { isInterestVisible, effectiveInterest } from "@/lib/features";
 import { useTabSwitch } from "./ui/Tabs";
 import { OPEN_HEARING_EVENT } from "./HowItWorks";
 import { MessageCircle, Send, Sparkles, X, RotateCcw, Wand2, CheckCircle2, CornerUpLeft } from "lucide-react";
@@ -169,13 +170,17 @@ const STEPS: Step[] = [
       t === "sales"
         ? "まず、お客様が今いちばん気にされているのはどれですか？（あとで変えられます）"
         : "まず、今いちばん気になっていることを教えてください。（あとで変えられます）",
-    chips: [
-      { label: "補助金でいくら安くなるか", value: "subsidy" },
-      { label: "電気代を下げたい", value: "energy" },
-      { label: "冷媒だけ入替（ドロップイン）", value: "dropin" },
-      { label: "機器の入替・更新工事", value: "update" },
-      { label: "まだ決めていない・おまかせ", value: "unsure" },
-    ],
+    // ドロップインは公開時 非表示（lib/features.ts の DROPIN_UI_ENABLED）。
+    // 選択肢を配列から消すのではなく1か所のフィルタで落とし、復帰時に戻せるようにする。
+    chips: (
+      [
+        { label: "補助金でいくら安くなるか", value: "subsidy" },
+        { label: "電気代を下げたい", value: "energy" },
+        { label: "冷媒だけ入替（ドロップイン）", value: "dropin" },
+        { label: "機器の入替・更新工事", value: "update" },
+        { label: "まだ決めていない・おまかせ", value: "unsure" },
+      ] as { label: string; value: InterestType }[]
+    ).filter((c) => isInterestVisible(c.value)),
     allowUnknown: false, // 「まだ決めていない」チップが実値なので3段階処理は不要
     apply: (v, { setInput }) => setInput((p) => ({ ...p, interest: v as InterestType })),
   },
@@ -437,7 +442,14 @@ export function HearingChat({
   const [done, setDone] = useState(false);
   const switchTab = useTabSwitch(); // ご関心に応じて別タブ（ドロップイン等）へ案内する
   const interest = input.interest;
-  const nextByInterest = interest ? INTEREST_NEXT[interest] : null;
+  /* 遷移先の判定は effectiveInterest を通す。
+     ドロップイン非表示中に保存済みの interest==="dropin" が残っていると、
+     INTEREST_NEXT.dropin が指す tab:"dropin" は既に存在しないため
+     「詳細を見る」が無反応になる。非表示中は更新工事の案内に寄せる。 */
+  const nextByInterest = (() => {
+    const eff = effectiveInterest(interest);
+    return eff ? INTEREST_NEXT[eff] : null;
+  })();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef(input);
   inputRef.current = input;
