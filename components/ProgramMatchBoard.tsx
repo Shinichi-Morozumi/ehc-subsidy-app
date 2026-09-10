@@ -137,11 +137,15 @@ export function assessPrograms(input: MatchInput, result: MatchResult, monitorSt
        計算式（千円未満切捨て）は lib/pricing.ts に一本化した。 */
     const amountShown = bucket === "A" && !s.infoOnly && (elig ? canShowAmount(elig) : false);
     const potentialManYen = amountShown ? subsidyAmountManYen(input.invest, s.rateNum, s.capManYen) : 0;
+    /* 2026-09-10 EHC-0031 P0-D: 所在地は既定値を持たない（未入力を取りうる）。
+       未入力のまま `${input.pref}・…` と書くと文が「・中小企業等…」で始まり、
+       しかも所在地を判定したかのように読める。未入力なら所在地に触れない。 */
+    const prefPhrase = input.pref ? `${input.pref}・` : "";
     const reason = bucket === "A"
-      ? `${input.pref}・${input.size === "sme" ? "中小企業等" : "選択した事業規模"}・業務用空調更新が、公式確認済みの基本条件と矛盾しないためです。`
+      ? `${prefPhrase}${input.size === "sme" ? "中小企業等" : "選択した事業規模"}・業務用空調更新が、公式確認済みの基本条件と矛盾しないためです。`
       : bucket === "B"
         ? s.programCategory === "equipment"
-          ? `${input.pref}・事業規模・空調更新との関連がありますが、${s.status === "upcoming" ? "受付開始前です" : "公式要件と不足情報の追加確認が必要です"}。`
+          ? `${prefPhrase}事業規模・空調更新との関連がありますが、${s.status === "upcoming" ? "受付開始前です" : "公式要件と不足情報の追加確認が必要です"}。`
           : "雇用・研修等の取組がある場合に関連する可能性があります。空調設備費の補助額には算入しません。"
         : hardReasons.length ? hardReasons.join("、") : "今回確認した受付回は終了しています。";
     const nextAction = bucket === "A"
@@ -212,6 +216,15 @@ export function ProgramMatchBoard({ input, result, printable = false, onSimulati
     .sort((a, b) => b.potentialManYen - a.potentialManYen)[0];
   const potential = simulationCandidate?.potentialManYen ?? 0;
   const potentialUnavailable = !simulationCandidate;
+  /* 2026-09-10 EHC-0031 UI-03:
+     金額が出せないとき、その原因が「あと少し情報が足りない」のか
+     「そもそも候補が無い」のかで、客がとるべき行動は正反対になる。
+     前者は不足情報を埋めれば金額が出るので、何を答えればよいかを名指しで出す。 */
+  const missingForAmount = useMemo(() => {
+    const seen = new Set<string>();
+    conditional.forEach((a) => a.missing.forEach((m) => seen.add(m)));
+    return [...seen].slice(0, 4);
+  }, [conditional]);
   const annualManYen = result.saveYenPerYear / 10000;
   const recoveryWithout = annualManYen > 0 ? input.invest / annualManYen : null;
   const recoveryWith = annualManYen > 0 ? Math.max(0, input.invest - potential) / annualManYen : null;
@@ -239,13 +252,76 @@ export function ProgramMatchBoard({ input, result, printable = false, onSimulati
 
         <div className={`rounded-2xl border p-4 ${printable ? "border-slate-200" : "border-white/10 bg-white/[0.02]"}`}>
           <div className="flex items-center gap-2 mb-3"><WalletCards className="w-4 h-4 text-cobalt-400" /><h3 className={`text-sm font-bold ${printable ? "text-slate-900" : "text-white"}`}>2｜金額比較</h3></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <MoneyPanel title="補助金なし" invest={input.invest} subsidy={0} annualYen={result.saveYenPerYear} recovery={recoveryWithout} printable={printable} />
-            <MoneyPanel title="採択された場合の概算" invest={input.invest} subsidy={potential} annualYen={result.saveYenPerYear} recovery={recoveryWith} printable={printable} accent unavailable={potentialUnavailable} candidateName={simulationCandidate?.subsidy.name} />
-          </div>
-          <p className={`mt-3 text-xs leading-relaxed ${printable ? "text-slate-600" : "text-slate-500"}`}>{potentialUnavailable
-            ? "※現時点では、補助額の根拠として使える制度（A判定）がありません。判定に必要な情報が揃っていない制度の補助率で金額を出すと、根拠のない数字になるため未算定としています。4｜制度の詳細で不足情報をご確認ください。"
-            : `※右側は「${simulationCandidate?.subsidy.name}」の補助率・上限を仮置きした比較です（補助額は千円未満切捨て）。対象経費、申請区分、審査結果により補助額は変わり、採択・受給を保証しません。併用可否は各制度の公募要領によるため、複数制度の合算額は出していません。`}</p>
+          {/* 2026-09-10 EHC-0031 UI-03
+              SHINICHIさん指摘:「補助金が入らないと話にならなくない？
+              該当する補助金がないならないで出さないと」
+
+              従来は A判定が無いときも「採択された場合の概算」の枠を残し、
+              中身を全て「未算定／算定不可」で埋めていた。
+              空の枠は何も伝えないうえに、「本来は金額が出るはずなのに出せて
+              いない」という印象だけを残す。読んだ人が次に何をすればよいかも
+              分からない。
+
+              A判定が無いときは枠自体を出さず、次のどちらであるかを言い切る。
+                ・条件確認が残っている（B判定あり）→ 何を答えれば金額が出るか
+                ・そもそも候補が無い（B判定も無い）→「該当する補助金はありません」
+              金額を出す条件（A判定のみ・lib/eligibility.ts canShowAmount）は
+              変えていない。変えたのは、出せないときの伝え方だけである。 */}
+          {potentialUnavailable ? (
+            <>
+              <MoneyPanel title="補助金なし（今回の前提）" invest={input.invest} subsidy={0} annualYen={result.saveYenPerYear} recovery={recoveryWithout} printable={printable} />
+              <div className={`mt-3 rounded-xl border px-3.5 py-3 text-xs leading-relaxed ${
+                printable
+                  ? "border-slate-200 bg-slate-50 text-slate-700"
+                  : conditional.length
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-100"
+                    : "border-white/15 bg-white/[0.03] text-slate-300"
+              }`}>
+                {conditional.length ? (
+                  <>
+                    <strong className={printable ? "text-slate-900" : "text-amber-200"}>
+                      補助金ありの金額は、まだ出せません（該当なしとは限りません）。
+                    </strong>
+                    <p className="mt-1.5">
+                      候補になり得る制度が{conditional.length}件ありますが、適格かどうかの判定に必要な情報が揃っていません。
+                      揃っていない状態で補助率を当てはめると、根拠のない金額を出すことになるため算定していません。
+                    </p>
+                    {missingForAmount.length ? (
+                      <p className="mt-1.5">
+                        次を確認できると金額を出せます：
+                        <strong className={printable ? "text-slate-900" : "text-white"}>{missingForAmount.join("／")}</strong>
+                      </p>
+                    ) : null}
+                    <p className="mt-1.5 opacity-80">制度ごとの不足情報は「4｜制度の詳細」に記載しています。</p>
+                  </>
+                ) : (
+                  <>
+                    <strong className={printable ? "text-slate-900" : "text-white"}>
+                      現在の入力条件に該当する補助金はありません。
+                    </strong>
+                    <p className="mt-1.5">
+                      確認した制度はいずれも対象外または受付終了で、比較できる「補助金あり」の案がありません。
+                      上の金額が、今回そのまま判断材料になります。
+                    </p>
+                    <p className="mt-1.5 opacity-80">
+                      所在地・事業規模・設備種別・導入時期のいずれかが変わると結果が変わることがあります。
+                      次回公募の公式発表後にあらためて診断してください。
+                    </p>
+                  </>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <MoneyPanel title="補助金なし" invest={input.invest} subsidy={0} annualYen={result.saveYenPerYear} recovery={recoveryWithout} printable={printable} />
+                <MoneyPanel title="採択された場合の概算" invest={input.invest} subsidy={potential} annualYen={result.saveYenPerYear} recovery={recoveryWith} printable={printable} accent candidateName={simulationCandidate?.subsidy.name} />
+              </div>
+              <p className={`mt-3 text-xs leading-relaxed ${printable ? "text-slate-600" : "text-slate-500"}`}>
+                {`※右側は「${simulationCandidate?.subsidy.name}」の補助率・上限を仮置きした比較です（補助額は千円未満切捨て）。対象経費、申請区分、審査結果により補助額は変わり、採択・受給を保証しません。併用可否は各制度の公募要領によるため、複数制度の合算額は出していません。`}
+              </p>
+            </>
+          )}
         </div>
 
         <div className={`rounded-2xl border p-4 ${printable ? "border-slate-200" : "border-white/10 bg-white/[0.02]"}`}>

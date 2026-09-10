@@ -39,27 +39,40 @@ function reqChoices(r: string): Choice[] {
   ];
 }
 
-// 構造条件（地域・規模・業種区分・対象設備）は、この補助金が「マッチ結果」に
-// 出ている時点で match.ts のフィルタを通過済み。ここでは確認済みとして提示する。
-function structuralChecks(subsidy: Subsidy, input: MatchInput): { label: string; ok: boolean }[] {
+/* 構造条件（地域・規模・業種区分・対象設備）は、この補助金が「マッチ結果」に
+   出ている時点で match.ts のフィルタを通過済み。ここでは確認済みとして提示する。
+
+   2026-09-10 EHC-0031 P0-D:
+   所在地の既定値（東京都）を撤去したため input.pref は "" を取りうる。
+   ok:boolean の2値では、未入力を「対象外（✕・赤）」として描いてしまい、
+   聞いていない条件で非該当と断定することになる。
+   「該当」「対象外」「未判定」の3値に分ける。 */
+type CheckState = "ok" | "ng" | "unknown";
+
+function structuralChecks(subsidy: Subsidy, input: MatchInput): { label: string; state: CheckState }[] {
   const equipTypes = Array.from(new Set(input.equipGroups.map((g) => g.equip)));
   const equipHit = equipTypes.filter((t) => subsidy.target.includes(t));
+  const prefState: CheckState =
+    subsidy.pref === "all" ? "ok" : !input.pref ? "unknown" : subsidy.pref.includes(input.pref) ? "ok" : "ng";
   return [
     {
-      label: `対象地域: ${subsidy.pref === "all" ? "全国対象" : subsidy.pref.join("・") + " が対象"}（お客様所在地: ${input.pref}）`,
-      ok: subsidy.pref === "all" || subsidy.pref.includes(input.pref),
+      label:
+        subsidy.pref === "all"
+          ? "対象地域: 全国対象"
+          : `対象地域: ${subsidy.pref.join("・")} が対象（お客様所在地: ${input.pref || "未入力のため地域要件は判定していません"}）`,
+      state: prefState,
     },
     {
       label: `事業規模: ${subsidy.size.map((s) => SIZE_LABEL[s]).join("・")} が対象（お客様: ${SIZE_LABEL[input.size] || input.size}）`,
-      ok: subsidy.size.includes(input.size),
+      state: subsidy.size.includes(input.size) ? "ok" : "ng",
     },
     {
       label: `区分: ${subsidy.biz.map((b) => BIZ_LABEL[b]).join("・")} が対象（お客様: ${BIZ_LABEL[input.bizType] || input.bizType}）`,
-      ok: subsidy.biz.includes(input.bizType),
+      state: subsidy.biz.includes(input.bizType) ? "ok" : "ng",
     },
     {
       label: `対象設備: ${subsidy.target.map((t) => EQUIP_LABEL[t]).join("・")}（お客様設備: ${equipHit.map((t) => EQUIP_LABEL[t]).join("・") || "なし"}）`,
-      ok: equipHit.length > 0,
+      state: equipHit.length > 0 ? "ok" : "ng",
     },
   ];
 }
@@ -78,7 +91,8 @@ export function SubsidyEligibilityChat({
   onClose: () => void;
 }) {
   const structural = useMemo(() => structuralChecks(subsidy, input), [subsidy, input]);
-  const structuralOk = structural.every((c) => c.ok);
+  const structuralNg = structural.some((c) => c.state === "ng");
+  const structuralUnknown = structural.some((c) => c.state === "unknown");
 
   // 各要件への回答。毎回まっさらな状態から1問ずつ確認する。
   const [answers, setAnswers] = useState<(Answer | null)[]>(() => reqs.map(() => null));
@@ -106,18 +120,28 @@ export function SubsidyEligibilityChat({
 
   // 判定
   const verdict = useMemo(() => {
-    if (!structuralOk) return { key: "no" as const };
+    // 構造条件が明確に外れている場合だけ「非該当」。未判定は「要確認」に落とす（P0-D）
+    if (structuralNg) return { key: "no" as const };
     if (answers.some((a) => a === "no")) return { key: "no" as const };
+    if (structuralUnknown) return { key: "maybe" as const };
     if (answers.some((a) => a === "unknown")) return { key: "maybe" as const };
     if (answers.every((a) => a === "yes")) return { key: "yes" as const };
     return { key: "maybe" as const };
-  }, [structuralOk, answers]);
+  }, [structuralNg, structuralUnknown, answers]);
 
   const verdictView =
     verdict.key === "yes"
       ? { icon: <CheckCircle2 className="w-5 h-5" />, title: "◎ 該当見込みです", cls: "bg-ehc-500/15 border-ehc-500/40 text-ehc-200", note: "構造条件・要件ともに満たしています。EHCが申請書類の作成を代行し、採択率を高めます。" }
       : verdict.key === "maybe"
-      ? { icon: <AlertTriangle className="w-5 h-5" />, title: "△ 要確認です", cls: "bg-amber-500/10 border-amber-500/30 text-amber-300", note: "「わからない」項目があります。現地調査でEHC担当が実態を確認し、該当可否を確定します。" }
+      ? {
+          icon: <AlertTriangle className="w-5 h-5" />,
+          title: "△ 要確認です",
+          cls: "bg-amber-500/10 border-amber-500/30 text-amber-300",
+          // 未入力（所在地など）と「わからない」回答を混同しない（P0-D）
+          note: structuralUnknown
+            ? "所在地（都道府県）が未入力のため、地域要件を判定していません。所在地を入力するか、EHC担当が実態を確認して該当可否を確定します。"
+            : "「わからない」項目があります。現地調査でEHC担当が実態を確認し、該当可否を確定します。",
+        }
       : { icon: <XCircle className="w-5 h-5" />, title: "✕ このままでは非該当の可能性", cls: "bg-red-500/10 border-red-500/30 text-red-300", note: "満たせない要件があります。要件を満たす方法や、他の補助金への切替をEHCが提案します。" };
 
   const applyResult = () => onApply(answers.map((a) => a === "yes"));
@@ -158,12 +182,16 @@ export function SubsidyEligibilityChat({
           <div className="rounded-xl border border-white/10 bg-night-900 p-3 space-y-1.5">
             {structural.map((c, i) => (
               <div key={i} className="flex items-start gap-2 text-xs">
-                {c.ok ? (
+                {c.state === "ok" ? (
                   <Check className="w-4 h-4 text-ehc-400 flex-shrink-0 mt-0.5" />
+                ) : c.state === "unknown" ? (
+                  <HelpCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                 ) : (
                   <MinusCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
                 )}
-                <span className={c.ok ? "text-slate-300" : "text-red-300"}>{c.label}</span>
+                <span className={c.state === "ok" ? "text-slate-300" : c.state === "unknown" ? "text-amber-300" : "text-red-300"}>
+                  {c.label}
+                </span>
               </div>
             ))}
           </div>

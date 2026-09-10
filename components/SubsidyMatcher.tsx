@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Card, CardTitle } from "./ui/Card";
+import { Card, CardTitle, SectionLabel } from "./ui/Card";
 import { Field, Select, Input, Button } from "./ui/Field";
 import { MatchInput, BizType, SizeType, EquipType, RefriType, EquipGroup, KwhMode, Subsidy } from "@/lib/types";
 import { matchSubsidies, MatchResult, GroupResult } from "@/lib/match";
@@ -17,10 +17,11 @@ import { Sparkles, BarChart3, Target, Lightbulb, Building2, User, AlertTriangle,
 import { QRCodeSVG } from "qrcode.react";
 import { RoiChart, RoiChartLegend } from "./RoiChart";
 import {
-  SubsidyState, buildRoiSnapshot, resolveSubsidyState,
+  SubsidyState, RoiSnapshot, buildRoiSnapshot, resolveSubsidyState,
   SUBSIDY_STATE_NOTE, INVEST_UNKNOWN_LABEL, RECOVERY_UNKNOWN_LABEL,
   yenOrUnknown, yearsOrUnknown,
 } from "@/lib/roiState";
+import { canShowAmount, canCombine } from "@/lib/eligibility";
 import { GroupSavingsChart } from "./GroupSavingsChart";
 import { useProject } from "./ProjectContext";
 import { RoadmapView } from "./RoadmapView";
@@ -115,7 +116,8 @@ export function SubsidyMatcher() {
   const [input, setInput] = useState<MatchInput>({
     bizType: "business",
     size: "sme",
-    pref: "東京都",
+    // 既定は未選択。既定値を持たせると「聞いていない条件で該当と表示する」ことになる（P0-D）
+    pref: "",
     building: "office",
     equipGroups: [newGroup({ refri: "r410a", equip: "ac", installYear: new Date().getFullYear() - 12, units: 5 })],
     kwhMode: "auto",
@@ -352,10 +354,17 @@ export function SubsidyMatcher() {
               <option value="large">大企業</option>
             </Select>
           </Field>
+          {/* 2026-09-10 EHC-0031 P0-D:
+              既定が「東京都」だったため、所在地を一度も聞いていない案件でも
+              東京都の地域制度が「該当」として金額付きで並んでいた。
+              未選択を既定にして、lib/eligibility.ts の
+              「所在地（都道府県）が未入力のため、地域要件を判定できません。」
+              を正しく通らせる。 */}
           <Field label="所在地（都道府県）" help={HELP.pref}>
             <Select value={input.pref} onChange={(e) => set("pref", e.target.value)}>
+              <option value="">選択してください</option>
               {PREFS.map((p) => (
-                <option key={p}>{p}</option>
+                <option key={p} value={p}>{p}</option>
               ))}
             </Select>
           </Field>
@@ -904,6 +913,182 @@ function splitRequirements(req: string): string[] {
   return req.split("。").map((t) => t.trim()).filter((t) => t.length > 0);
 }
 
+/* ───────────────────────────────────────────────────────────
+   2026-09-10 EHC-0031 UI-01
+   「補助金を適用しない」「①の補助金」「②の補助金」の3列比較。
+
+   設計上の約束（崩すと数字が嘘になる）:
+   ・①② は該当見込みの制度を補助額の大きい順に上位2件まで。
+     3件目以降を並べない理由は情報量ではなく、選ぶのが客の仕事だから。
+   ・**合算しない。** 併用可否は各制度の公募要領の定めで、こちらでは
+     断定できない（lib/eligibility.ts canSumAmounts / canCombine）。
+     3列は「どれか1つを選ぶ」ための比較であって、足し算のためではない。
+   ・金額・回収年数はすべて buildRoiSnapshot() から受け取る。
+     このコンポーネントでは一切割り算をしない（F03: 画面とPDFで
+     別々に再計算した結果、同じ案件で違う数字が出た事故の再発防止）。
+   ・設備投資額が未算定なら金額欄を作らない。¥0 と書くと
+     「無償で更新できる」と読まれる（F01）。
+   ─────────────────────────────────────────────────────────── */
+type ScenarioTone = "none" | "first" | "second";
+
+interface ScenarioRow {
+  /** 制度ID。補助金なしの行は "no-subsidy" */
+  key: string;
+  badge: string;
+  title: string;
+  sub: string;
+  tone: ScenarioTone;
+  /** ガイド診断の結果。未診断と「該当見込み」を同じ見え方にしない */
+  screened: "yes" | "maybe" | "unscreened";
+  snapshot: RoiSnapshot;
+}
+
+const SCENARIO_TONE: Record<ScenarioTone, { wrap: string; badge: string; amount: string; sub: string }> = {
+  none: {
+    wrap: "border-white/10 bg-night-850",
+    badge: "bg-white/10 text-slate-300 border border-white/15",
+    amount: "text-slate-100",
+    sub: "text-slate-500",
+  },
+  first: {
+    wrap: "border-ehc-500/45 bg-gradient-to-br from-ehc-600/15 via-night-900 to-night-900 shadow-soft",
+    badge: "bg-ehc-500/20 text-ehc-200 border border-ehc-500/45",
+    amount: "text-ehc-300",
+    sub: "text-ehc-200/70",
+  },
+  second: {
+    /* 2026-09-10 EHC-0031 UI-02:
+       ②は当初コバルト（青）で塗っていた。色を変えると別の性質のもののように
+       見えるが、①②はどちらも「使えるかもしれない補助金」で性質は同じである。
+       違いは金額の大小だけなので、色は変えず、面を塗るか塗らないかで区別する。
+       ①=塗る（金額が大きい） ②=枠線だけ。 */
+    wrap: "border-ehc-500/30 bg-night-850 shadow-soft",
+    badge: "bg-white/5 text-ehc-200 border border-ehc-500/35",
+    amount: "text-ehc-200",
+    sub: "text-ehc-200/70",
+  },
+};
+
+function ScenarioColumn({ row }: { row: ScenarioRow }) {
+  const t = SCENARIO_TONE[row.tone];
+  const s = row.snapshot;
+  return (
+    <div className={`rounded-xl border p-4 ${t.wrap}`}>
+      <div className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${t.badge}`}>
+        {row.badge}
+      </div>
+      <div className="mt-2 text-xs font-semibold text-slate-100 leading-snug min-h-[2.5rem]">{row.title}</div>
+      <div className={`text-[11px] ${t.sub}`}>{row.sub}</div>
+
+      <div className="mt-3 pt-3 border-t border-white/10 space-y-2.5">
+        <div>
+          <div className="text-[11px] text-slate-400">想定補助金</div>
+          <div className={`text-sm font-bold ${row.tone === "none" ? "text-slate-400" : t.amount}`}>
+            {row.tone === "none" ? "なし（¥0）" : yenOrUnknown(s.subsidyManYen)}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] text-slate-400">実質負担額</div>
+          <div className={`text-2xl font-bold tracking-tight ${t.amount}`}>{yenOrUnknown(s.netInvestManYen)}</div>
+        </div>
+        <div>
+          <div className="text-[11px] text-slate-400">投資回収年数</div>
+          <div className={`text-sm font-bold ${row.tone === "none" ? "text-slate-300" : t.amount}`}>
+            {yearsOrUnknown(s.recoveryYears)}
+          </div>
+        </div>
+      </div>
+
+      {row.tone !== "none" && (
+        <div
+          className={`mt-3 text-[11px] leading-snug ${row.screened === "yes" ? "text-ehc-300" : "text-amber-300"}`}
+        >
+          {row.screened === "yes"
+            ? "ガイド診断: 該当見込み"
+            : row.screened === "maybe"
+            ? "ガイド診断: 要確認（EHCが実態を確認します）"
+            : "ガイド診断前（該当可否は未確認）"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScenarioCompare({
+  rows,
+  combineNote,
+  screeningDone,
+}: {
+  rows: ScenarioRow[];
+  combineNote: string | null;
+  /* 2026-09-10 EHC-0031 UI-03:
+     ガイド診断を通したかどうか。①②が0件のとき、
+     「まだ診断していない」のか「診断した結果、該当が無い」のかで
+     客がとるべき行動が正反対になるため、両者を同じ文面にしない。 */
+  screeningDone: boolean;
+}) {
+  const investUnknown = rows[0].snapshot.investState === "unknown";
+  const subsidyRows = rows.length - 1;
+  return (
+    <div className="mb-5">
+      <div className="text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+        <Wallet className="w-3.5 h-3.5 text-ehc-400" />
+        補助金を適用しない場合 / 適用できた場合
+      </div>
+      <p className="text-[11px] text-slate-500 mb-3">
+        該当見込みの制度を補助額の大きい順に並べています。数字はいずれも概算で、交付決定を保証するものではありません。
+      </p>
+
+      {investUnknown ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <p className="text-xs text-amber-300 leading-relaxed">
+            「今回更新分の設備投資概算」が未入力のため、比較する金額を算定していません。
+            投資額を入力するか、下の「更新工事 見積シミュレーター」で概算を作ると、3つの場合の実質負担額と回収年数が並びます。
+          </p>
+        </div>
+      ) : (
+        <div className={`grid grid-cols-1 gap-3 ${subsidyRows >= 2 ? "md:grid-cols-3" : subsidyRows === 1 ? "md:grid-cols-2" : ""}`}>
+          {rows.map((r) => (
+            <ScenarioColumn key={r.key} row={r} />
+          ))}
+        </div>
+      )}
+
+      {!investUnknown && subsidyRows === 0 && (
+        /* 2026-09-10 EHC-0031 UI-03 SHINICHIさん指摘:
+           「該当する補助金がないならないで出さないと」
+           空欄や未算定だけを並べて終わらせず、どちらの状態かを言い切る。 */
+        screeningDone ? (
+          <div className="mt-2.5 rounded-xl border border-white/15 bg-white/[0.03] px-3.5 py-3">
+            <p className="text-xs font-bold text-white">現在の条件に該当する補助金はありません。</p>
+            <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+              ガイド診断の結果、金額の根拠を出せる制度がありませんでした。
+              上の「補助金を適用しない場合」が、今回そのまま判断材料になります。
+              所在地・事業規模・設備種別・導入時期が変わると結果が変わることがあるため、次回公募の発表後に再診断してください。
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-amber-300 mt-2 leading-relaxed">
+            いま比較できるのは自己負担の場合だけです。上の「補助金プランを選ぶ」で①希望の有無 →
+            ②ガイド診断まで進めると、①②の補助金の金額が入ります。
+          </p>
+        )
+      )}
+      {!investUnknown && subsidyRows === 1 && (
+        <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+          現在の条件では、金額の根拠を出せる制度が1件です（②はありません）。
+        </p>
+      )}
+      {subsidyRows >= 2 && (
+        <p className="text-xs text-slate-500 mt-2.5 leading-relaxed">
+          ①②は<strong className="text-slate-300">どちらか一方を選ぶ前提</strong>で並べています。金額は足し合わせていません。
+          {combineNote ? `　${combineNote}` : ""}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: MatchResult; input: MatchInput; eligTrigger?: number; onApplied?: (manYen: number, subsidy: Subsidy | null, subsidyState: SubsidyState) => void }) {
   const [view, setView] = useState<"overall" | "groups">("overall");
 
@@ -1025,6 +1210,66 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
     yearsNoSubsidy !== null && appliedYearsToRecover !== null
       ? Math.round((yearsNoSubsidy - appliedYearsToRecover) * 10) / 10
       : null;
+
+  /* 2026-09-10 EHC-0031 UI-01: 「補助金なし」「①」「②」の3列比較データ。
+     ①② の選び方:
+       1. 金額の根拠を出してよい制度だけ（canShowAmount。infoOnly・needs_check は除外）
+       2. 受付終了・対象外と診断された制度を落とす
+       3. 該当見込み(yes) → 要確認(maybe) の順、同順位内は補助額の大きい順
+       4. 上位2件まで
+     ガイド診断前は 2 で落とせないので「診断前」と明示して並べる。
+     金額を隠すと比較の目的を果たさず、確定と見せると嘘になる。 */
+  const scenarioRows = useMemo<ScenarioRow[]>(() => {
+    const snap = (subsidyManYen: number) =>
+      buildRoiSnapshot({
+        investManYen: input.invest,
+        subsidyConfirmed: true,
+        subsidyManYen,
+        saveYenPerYear: result.saveYenPerYear,
+      });
+    const base: ScenarioRow = {
+      key: "no-subsidy",
+      badge: "補助金を適用しない",
+      title: "自己負担で更新する場合",
+      sub: "補助金の申請なし",
+      tone: "none",
+      screened: "unscreened",
+      snapshot: snap(0),
+    };
+    const EXCLUDE = 9;
+    const priority = (id: string): number => {
+      if (!screening) return 1;
+      if (screening.timingById[id]?.key === "closed") return EXCLUDE;
+      const v = screening.verdictById[id];
+      return v === "yes" ? 0 : v === "maybe" ? 1 : EXCLUDE;
+    };
+    const picked = fundable
+      .filter((s) => canShowAmount(result.eligibility[s.id]))
+      .map((s) => ({ s, amt: subsidyAmountManYen(s, input.invest), p: priority(s.id) }))
+      .filter((x) => x.amt > 0 && x.p < EXCLUDE)
+      .sort((a, b) => a.p - b.p || b.amt - a.amt)
+      .slice(0, 2);
+    return [
+      base,
+      ...picked.map<ScenarioRow>((x, i) => ({
+        key: x.s.id,
+        badge: i === 0 ? "① の補助金" : "② の補助金",
+        title: x.s.name,
+        sub: `補助率 ${x.s.rate} ／ 上限 ${x.s.max}`,
+        tone: i === 0 ? "first" : "second",
+        screened: !screening ? "unscreened" : screening.verdictById[x.s.id] === "yes" ? "yes" : "maybe",
+        snapshot: snap(x.amt),
+      })),
+    ];
+  }, [fundable, result.eligibility, result.saveYenPerYear, input.invest, screening]);
+
+  /* ①②の併用可否はこちらで断定しない。断定できないものを「併用可」と
+     表示すると返還リスクを客に負わせる（lib/eligibility.ts canCombine）。 */
+  const combineNote = useMemo(() => {
+    const ids = scenarioRows.filter((r) => r.tone !== "none").map((r) => r.key);
+    return ids.length >= 2 ? canCombine(ids[0], ids[1]).reason : null;
+  }, [scenarioRows]);
+
   return (
     <div className="space-y-5 no-print">
       {/* 実質負担額ヒーロー（即答の主役） */}
@@ -1195,8 +1440,10 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                   </div>
                 ) : (
                   <div className="rounded-xl border border-ehc-500/30 bg-ehc-500/5 p-3">
+                    {/* 2026-09-10 EHC-0031 P0-A: 「判定済み」という断定をやめる。
+                        判定できるのは入力済みの項目だけで、未入力の項目は判定していない。 */}
                     <p className="text-xs text-slate-300 leading-relaxed mb-2.5">
-                      所在地・事業規模・対象設備は入力内容から判定済みです。
+                      所在地・事業規模・対象設備は、入力済みの内容から判定できる範囲を反映しています。
                       <strong className="text-ehc-300">共通の前提条件（発注前か・機種・書類・GビズID等）と公募時期</strong>
                       を5問のガイドで確認し、該当見込みをまとめて判定します。
                     </p>
@@ -1321,26 +1568,42 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
       </Card>
 
       <Card>
-        <CardTitle icon={<BarChart3 className="w-5 h-5" />}>ROI シミュレーション</CardTitle>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {/* 2026-09-10 EHC-0031 UI-02: メインページと同じ見出しの型で並び順を示す */}
+        <SectionLabel>SIMULATION 01 ── 投資回収</SectionLabel>
+        <CardTitle icon={<BarChart3 className="w-5 h-5" />} iconTone="ehc">
+          ROI シミュレーション
+        </CardTitle>
+
+        {/* 2026-09-10 EHC-0031 UI-01: 補助金なし／①／② の3列比較を最上部に置く。
+            「補助金を使うと何がどう変わるか」が、この画面で最初に読みたい情報。 */}
+        <ScenarioCompare rows={scenarioRows} combineNote={combineNote} screeningDone={!!screening} />
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-x-4 gap-y-4">
           {/* 2026-09-10 EHC-0031 F02: 「未確認」を¥0と書かない。
-              金額が0円であることと、まだ算定していないことは別の情報。 */}
+              金額が0円であることと、まだ算定していないことは別の情報。
+              2026-09-10 UI-02: 未確認・未算定のときだけ橙にする。 */}
           <RoiBox
             label="想定補助金"
             value={roi.subsidyState === "unconfirmed" ? "未確認" : yenOrUnknown(roi.subsidyManYen)}
-            accent="green"
+            tone="green"
+            unavailable={roi.subsidyState === "unconfirmed" || roi.subsidyManYen == null}
           />
           {/* F01: 算定できないときは「計算不能」で終わらせず、理由を下段に必ず出す（§後述の注記） */}
-          <RoiBox label="損益分岐(投資回収)" value={yearsOrUnknown(appliedYearsToRecover)} accent="amber" />
-          <RoiBox label="年間電気代削減" value={`¥${result.saveYenPerYear.toLocaleString("ja-JP")}`} accent="blue" />
-          <RoiBox label="15年間累計削減" value={`¥${result.total15YearsYen.toLocaleString("ja-JP")}`} accent="purple" />
-          <RoiBox label="CO₂削減(自動)" value={`${result.co2ReductionTon} t/年`} accent="green" />
+          <RoiBox
+            label="損益分岐(投資回収)"
+            value={yearsOrUnknown(appliedYearsToRecover)}
+            tone="green"
+            unavailable={appliedYearsToRecover === null}
+          />
+          <RoiBox label="年間電気代削減" value={`¥${result.saveYenPerYear.toLocaleString("ja-JP")}`} />
+          <RoiBox label="15年間累計削減" value={`¥${result.total15YearsYen.toLocaleString("ja-JP")}`} />
+          <RoiBox label="CO₂削減(自動)" value={`${result.co2ReductionTon} t/年`} tone="green" />
         </div>
 
         {/* 投資効果 比較表（5/10/15年・損益分岐） */}
         <div className="mt-4 bg-white/5 border border-white/10 rounded-xl p-4">
           <div className="text-xs font-semibold text-slate-300 mb-2.5 flex items-center gap-1.5">
-            <BarChart3 className="w-3.5 h-3.5 text-cobalt-300" /> 投資効果 比較表（実質投資{" "}
+            <BarChart3 className="w-3.5 h-3.5 text-ehc-400" /> 投資効果 比較表（実質投資{" "}
             {roi.netInvestManYen == null ? INVEST_UNKNOWN_LABEL : yenOrUnknown(roi.netInvestManYen)}＝設備投資−補助金）
           </div>
           <div className="overflow-x-auto">
@@ -1368,7 +1631,9 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                         {h.net >= 0 ? "+" : "−"}¥{Math.abs(h.net).toLocaleString("ja-JP")}
                       </td>
                     )}
-                    <td className="py-1.5 pl-2 text-right text-cobalt-200">
+                    {/* 2026-09-10 EHC-0031 UI-02: アクセントは緑1色に寄せる。
+                        補助情報の列を青で塗ると、緑（良い）橙（未算定）の対比が薄まる。 */}
+                    <td className="py-1.5 pl-2 text-right text-slate-300">
                       {netInvestYen !== null && netInvestYen > 0 ? `${(h.cum / netInvestYen).toFixed(1)}倍` : "—"}
                     </td>
                   </tr>
@@ -1394,8 +1659,10 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
 
       {/* 全体 / 設備グループ別 タブ */}
       <Card>
+        {/* 2026-09-10 EHC-0031 UI-02 */}
+        <SectionLabel>SIMULATION 03 ── 電気代とCO₂</SectionLabel>
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <CardTitle icon={<LineChartIcon className="w-5 h-5" />} className="border-b-0 pb-0 mb-0">
+          <CardTitle icon={<LineChartIcon className="w-5 h-5" />} iconTone="ehc" className="border-b-0 pb-0 mb-0">
             削減シミュレーション
           </CardTitle>
           <div className="flex gap-1 p-1 bg-night-800 border border-white/10 rounded-lg">
@@ -1404,7 +1671,7 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
                 key={v}
                 type="button"
                 onClick={() => setView(v)}
-                className={`min-h-[44px] px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1 ${view === v ? "bg-cobalt-600 text-white" : "text-slate-400 hover:text-white"}`}
+                className={`min-h-[44px] px-3 py-1.5 text-xs rounded-md transition-colors flex items-center gap-1 ${view === v ? "bg-ehc-600 text-white" : "text-slate-400 hover:text-white"}`}
               >
                 {v === "groups" && <Layers className="w-3.5 h-3.5" />}
                 {label}
@@ -1574,26 +1841,44 @@ function ResultView({ result, input, eligTrigger = 0, onApplied }: { result: Mat
   );
 }
 
-const ACCENT_COLORS = {
-  green: "from-ehc-500/10 to-ehc-500/10 text-ehc-300",
-  amber: "from-amber-500/10 to-amber-500/10 text-amber-300",
-  blue: "from-sky-500/10 to-sky-500/10 text-sky-300",
-  purple: "from-violet-500/10 to-violet-500/10 text-violet-300",
-};
+/* ───────────────────────────────────────────────────────────
+   2026-09-10 EHC-0031 UI-02
+   メインページ（HomeV17）の .benefit-card と同じ型に寄せた数値セル。
+
+   変更前は5つの数字に緑・橙・水色・紫の4色グラデーションを敷いていた。
+   これをやめた理由は見た目の好みではない。同じ画面の中で色が4つあると、
+   「橙は注意、緑は良い」という色の意味が読めなくなる。実際に
+   「損益分岐(投資回収)」が常に橙だったため、算定できていない状態と
+   ただの項目色の区別がつかなかった。
+
+   決めごと:
+   ・面の色は使わず、HomeV17 と同じ 1px のヘアラインで区切る
+   ・アクセントは緑1色（ehc-300）に限定する
+   ・橙（amber-300）は「未算定・未確認」の合図として**だけ**使う
+   ─────────────────────────────────────────────────────────── */
+const ROI_TONE = {
+  green: "text-ehc-300",
+  neutral: "text-slate-100",
+} as const;
 
 function RoiBox({
   label,
   value,
-  accent,
+  tone = "neutral",
+  unavailable = false,
 }: {
   label: string;
   value: string;
-  accent: "green" | "amber" | "blue" | "purple";
+  tone?: keyof typeof ROI_TONE;
+  /** 未算定・未確認。true のときだけ橙になる */
+  unavailable?: boolean;
 }) {
   return (
-    <div className={`bg-gradient-to-br ${ACCENT_COLORS[accent]} p-4 rounded-xl shadow-soft`}>
-      <div className="text-xs text-slate-400 font-medium mb-1">{label}</div>
-      <div className="text-2xl font-bold tracking-tight">{value}</div>
+    <div className="border-t border-white/15 pt-3">
+      <div className="text-[11px] text-slate-400 font-medium mb-1 leading-snug">{label}</div>
+      <div className={`text-2xl font-bold tracking-tight ${unavailable ? "text-amber-300" : ROI_TONE[tone]}`}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -1651,15 +1936,17 @@ function IndustryBasis({ building, result }: { building: string; result: MatchRe
           <div className="text-xs text-slate-500">経年劣化(加重平均)</div>
           <div className="text-sm font-bold text-amber-300">+{agePct}%</div>
         </div>
-        <div className="bg-cobalt-600/15 border border-cobalt-500/40 rounded-md p-2">
-          <div className="text-xs text-cobalt-200">実効削減率</div>
-          <div className="text-sm font-bold text-cobalt-200">{effPct}%</div>
+        {/* 2026-09-10 EHC-0031 UI-02: 合計にあたる欄は緑で締める。
+            内訳（+%）と合計（実効%）の区別は色ではなく面の強さで付ける。 */}
+        <div className="bg-ehc-600/15 border border-ehc-500/40 rounded-md p-2">
+          <div className="text-xs text-ehc-200">実効削減率</div>
+          <div className="text-sm font-bold text-ehc-200">{effPct}%</div>
         </div>
       </div>
       <p className="text-xs text-slate-400 leading-relaxed">
         {profile.label}は冷媒設備（空調{ac ? `${ac.pct}%` : ""}{fridge ? `＋冷凍冷蔵${fridge.pct}%` : ""}）が電力の約{refrigerantPct}%。
         高効率化{basePct}%に、冷媒世代差+{refriPct}%（R22/R410A→R32）・設備制御+{equipPct}%（マルチ部分負荷）・経年劣化回復+{agePct}%（設備グループの加重平均）を合成し、
-        <strong className="text-cobalt-200">実効{effPct}%</strong>として試算。設備グループ別の内訳は「設備グループ別」タブをご覧ください。
+        <strong className="text-ehc-200">実効{effPct}%</strong>として試算。設備グループ別の内訳は「設備グループ別」タブをご覧ください。
       </p>
       {/* 2026-08-27 監査での修正:
             ここには以前「出典: 資源エネルギー庁／メーカー資料／業界資料『10〜15年で20〜40%低下』」と
@@ -1702,7 +1989,7 @@ function GroupCard({ g }: { g: GroupResult }) {
       <div className="flex items-end justify-between">
         <div>
           <div className="text-xs text-slate-500">実効削減率</div>
-          <div className="text-2xl font-bold text-cobalt-200">{Math.round(g.effectiveReductionRate * 100)}%</div>
+          <div className="text-2xl font-bold text-ehc-200">{Math.round(g.effectiveReductionRate * 100)}%</div>
           {/* 2026-08-27 監査での追加: 出典未確定の係数を含む削減率は、数字の隣で暫定と分かるようにする */}
           {g.ratesAreProvisional && <div className="text-xs text-amber-300">暫定値（出典確定前）</div>}
         </div>

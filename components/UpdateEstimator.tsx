@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardTitle } from "./ui/Card";
+import { Card, CardTitle, SectionLabel } from "./ui/Card";
 import { Field, Select, Input } from "./ui/Field";
 import { Receipt, Link2, Link2Off, Lock, ArrowUp } from "lucide-react";
 import { estimateUpdateBreakdownGroups, MachineGrade, CostClass, COST_CLASS, SITE_ACCESS, PRICING_SOURCE, yenJP, DEFAULT_KG_PER_UNIT, SUBSIDY_ROUND_UNIT_YEN } from "@/lib/pricing";
@@ -131,7 +131,11 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
   if (!ready) {
     return (
       <Card>
-        <CardTitle icon={<Receipt className="w-5 h-5" />}>更新工事 見積シミュレーター（お客様提示用の明細）</CardTitle>
+        {/* 2026-09-10 EHC-0031 UI-02: 未入力のときも同じ見出しの型にする */}
+        <SectionLabel>SIMULATION 02 ── 工事費の概算</SectionLabel>
+        <CardTitle icon={<Receipt className="w-5 h-5" />} iconTone="ehc">
+          更新工事 見積シミュレーター（お客様提示用の明細）
+        </CardTitle>
         <div className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-4">
           <Lock className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
           <div className="text-xs text-slate-300 leading-relaxed">
@@ -150,8 +154,14 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
 
   return (
     <Card>
-      <CardTitle icon={<Receipt className="w-5 h-5" />}>更新工事 見積シミュレーター（お客様提示用の明細）</CardTitle>
-      <p className="text-xs text-cobalt-200 bg-cobalt-600/10 border border-cobalt-500/30 rounded-lg px-3 py-2 mb-3">
+      {/* 2026-09-10 EHC-0031 UI-02 */}
+      <SectionLabel>SIMULATION 02 ── 工事費の概算</SectionLabel>
+      <CardTitle icon={<Receipt className="w-5 h-5" />} iconTone="ehc">
+        更新工事 見積シミュレーター（お客様提示用の明細）
+      </CardTitle>
+      {/* 2026-09-10 EHC-0031 UI-02: 補足説明の面を青で塗るのをやめる。
+          この画面のアクセントは緑1色、橙は未算定の合図だけに限定する。 */}
+      <p className="text-xs text-slate-300 bg-white/5 border border-white/10 rounded-lg px-3 py-2 mb-3">
         上のロードマップ内「投資額の妥当性チェック」が<strong>レンジ（金額の桁が妥当か）</strong>の確認なのに対し、ここは<strong>明細（お客様にそのまま出せる内訳）</strong>を作る欄です。
       </p>
       <p className="text-xs text-slate-400 mb-3">
@@ -162,8 +172,8 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
         実見積は機種グレード・搬入条件・配管長で変動する<strong className="text-slate-200">参考値</strong>です。
       </p>
 
-      <details className="mb-3 rounded-xl border border-cobalt-500/30 bg-cobalt-600/10 px-3 py-2.5">
-        <summary className="cursor-pointer text-xs font-bold text-cobalt-200">入力サポート｜系統ごとに機器・年式が違う場合</summary>
+      <details className="mb-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+        <summary className="cursor-pointer text-xs font-bold text-slate-200">入力サポート｜系統ごとに機器・年式が違う場合</summary>
         <div className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-300">
           <p>室外機の系統ごとに1行作り、同じ型式・年式・馬力の機器だけを同じ行にまとめます。機種や設置年が違う場合は行を分けてください。</p>
           <p><strong className="text-white">確認する場所：</strong>室外機側面の銘板で「型式・製造年・冷媒・能力」を確認します。分からない項目は不明のままでも仮診断できます。</p>
@@ -173,7 +183,7 @@ export function UpdateEstimator({ eligiblePrograms = [], diagnosisComplete = fal
               details.open = true;
               details.scrollIntoView({ behavior: "smooth", block: "start" });
             }
-          }} className="mt-1 min-h-[44px] inline-flex items-center justify-center rounded-lg border border-cobalt-500/40 px-3 py-1.5 text-xs font-bold text-cobalt-200 hover:bg-cobalt-500/10">
+          }} className="mt-1 min-h-[44px] inline-flex items-center justify-center rounded-lg border border-ehc-500/40 px-3 py-1.5 text-xs font-bold text-ehc-200 hover:bg-ehc-500/10">
             系統別の設備情報を入力・修正する
           </button>
         </div>

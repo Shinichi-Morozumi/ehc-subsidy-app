@@ -87,15 +87,19 @@ function Question({ step, input, choose, next, update, handleAssist, finish }: {
 
   if (step === 0) return <>{heading("業務用空調の更新予定はありますか？", "制度は契約・発注前の申請が必要な場合があります。予定の確度から確認します。")}<div className="space-y-2">{([ ["planned", "更新する予定がある"], ["considering", "更新を検討している"], ["none", "まだ予定はない"] ] as [UpdatePlan, string][]).map(([v, label]) => button(label, () => { update("updatePlan", v); update("interest", "subsidy"); }, input.updatePlan === v))}</div></>;
   if (step === 1) return <>{heading("いつ頃、更新したいですか？", "受付期限と申請準備に間に合う可能性を先に判定します。")}<div className="space-y-2">{([ ["within_1m", "1か月以内"], ["within_3m", "3か月以内"], ["within_6m", "6か月以内"], ["within_12m", "1年以内"], ["undecided", "まだ決めていない"] ] as [DesiredTiming, string][]).map(([v, label]) => button(label, () => update("desiredTiming", v), input.desiredTiming === v))}</div></>;
-  if (step === 2) return <>{heading("設備がある都道府県は？", "国の制度に加えて、自治体の制度を照合します。")}<SelectAnswer value={input.pref} options={PREFS} onChange={(v) => update("pref", v)} onNext={next} /></>;
+  if (step === 2) return <>{heading("設備がある都道府県は？", "国の制度に加えて、自治体の制度を照合します。")}<SelectAnswer value={input.pref} options={PREFS} placeholder="選択してください（未選択のままでも進めます）" onChange={(v) => update("pref", v)} onNext={next} /></>;
   if (step === 3) return <>{heading("事業者区分を教えてください", "法人・個人事業主の区分は制度要件の確認に使います。")}<div className="space-y-2">{([ ["corporation", "法人・団体"], ["sole_proprietor", "個人事業主"] ] as [EntityType, string][]).map(([v, label]) => button(label, () => { update("entityType", v); update("bizType", "business"); update("customerKind", v === "sole_proprietor" ? "individual" : "company"); }, input.entityType === v))}</div></>;
   if (step === 4) return <>{heading("事業規模を教えてください", "資本金・従業員数による最終判定は、候補表示後に確認します。")}<div className="space-y-2">{([ ["sme", "中小企業・小規模事業者"], ["middle", "中堅企業"], ["large", "大企業"] ] as [SizeType, string][]).map(([v, label]) => button(label, () => update("size", v), input.size === v))}</div></>;
   if (step === 5) return <>{heading("建物の用途は？", "用途限定制度の判定と、後段の省エネ概算に使います。")}<div className="space-y-2">{BUILDINGS.map(([v, label]) => button(label, () => update("building", v), input.building === v))}</div></>;
   return <>{heading("空調更新の予算・見積額は？", "おおよその税抜金額で構いません。補助額と実質負担の概算に使います。")}<NumberAnswer value={input.invest} onChange={(v) => update("invest", v)} onNext={finish} /><button type="button" onClick={() => handleAssist("現時点では500万円として仮計算します。結果後に詳しい設備情報から上書きできます。", () => update("invest", 500))} className="w-full rounded-xl border border-cobalt-500/35 bg-cobalt-500/10 px-4 py-3 text-left text-sm font-semibold text-cobalt-100 hover:bg-cobalt-500/20 flex items-center gap-2"><Sparkles className="w-4 h-4" /> 分からない（500万円で仮診断）</button></>;
 }
 
-function SelectAnswer({ value, options, onChange, onNext }: { value: string; options: string[]; onChange: (value: string) => void; onNext: () => void }) {
-  return <div><select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-white/20 bg-night-800 px-4 py-3.5 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-ehc-500/50">{options.map((option) => <option key={option}>{option}</option>)}</select><button type="button" onClick={onNext} className="mt-3 w-full rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 py-3.5 text-sm font-bold text-white inline-flex items-center justify-center gap-2">次へ <Check className="w-4 h-4" /></button></div>;
+/* 2026-09-10 EHC-0031 P0-D:
+   都道府県の既定値を撤去したため value="" を取りうる。
+   プレースホルダーの選択肢が無いと、React が selectedIndex=-1 で
+   空白を描くだけになり「なぜ空欄なのか」が伝わらない。明示的に出す。 */
+function SelectAnswer({ value, options, onChange, onNext, placeholder }: { value: string; options: string[]; onChange: (value: string) => void; onNext: () => void; placeholder?: string }) {
+  return <div><select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-white/20 bg-night-800 px-4 py-3.5 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-ehc-500/50">{placeholder !== undefined && <option value="">{placeholder}</option>}{options.map((option) => <option key={option} value={option}>{option}</option>)}</select><button type="button" onClick={onNext} className="mt-3 w-full rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 py-3.5 text-sm font-bold text-white inline-flex items-center justify-center gap-2">次へ <Check className="w-4 h-4" /></button></div>;
 }
 
 function NumberAnswer({ value, onChange, onNext }: { value: number; onChange: (value: number) => void; onNext: () => void }) {

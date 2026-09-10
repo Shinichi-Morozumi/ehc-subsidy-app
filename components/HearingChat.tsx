@@ -186,15 +186,21 @@ const STEPS: Step[] = [
   },
   {
     id: "pref",
-    ask: () => "設備がある場所の都道府県はどちらですか？国だけでなく、地域の補助金も自動で判定します。",
+    ask: () => "設備がある場所の都道府県はどちらですか？国の制度に加えて、地域の制度も候補に含めて判定します。",
     chips: PREFS_IN_SELECT.map((p) => ({ label: p, value: p })),
     freeInput: "text",
     placeholder: "自由入力でもOK（例: 兵庫県）",
     parse: (raw) => prefFromAddress(raw.trim()) ?? null,
     apply: (v, { setInput }) => setInput((p) => ({ ...p, pref: v })),
+    /* 2026-09-10 EHC-0031 P0-D:
+       以前は答えを取れなかったときに「東京都」で埋めていた。
+       所在地は地域制度の該当可否を直接決める条件なので、
+       勝手に埋めると聞いていない条件で「該当」と表示することになる。
+       未入力のまま進め、地域要件は判定しない（lib/eligibility.ts が
+       「所在地（都道府県）が未入力のため、地域要件を判定できません。」を出す）。 */
     fallback: ({ setInput }) => {
-      setInput((p) => ({ ...p, pref: "東京都" }));
-      return { note: "都道府県：東京都として概算（地域補助金は要確認）" };
+      setInput((p) => ({ ...p, pref: "" }));
+      return { note: "都道府県：未確認（地域制度は判定していません）" };
     },
   },
   {

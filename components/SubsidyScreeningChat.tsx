@@ -238,7 +238,8 @@ export function SubsidyScreeningChat({
           <div className="min-w-0 flex-1">
             <div id="screening-chat-title" className="text-sm font-bold text-white truncate">補助金 該当診断ガイド</div>
             <div className="text-xs text-slate-400 truncate">
-              {input.pref}・候補 {candidates.length} 制度をまとめて判定します
+              {/* 所在地は未入力のことがある（既定値を持たせない方針・P0-D）。空文字を出さない */}
+              {input.pref ? `${input.pref}・` : ""}候補 {candidates.length} 制度をまとめて判定します
             </div>
           </div>
           <button onClick={onClose} aria-label="閉じる" className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1">
@@ -248,8 +249,15 @@ export function SubsidyScreeningChat({
 
         {/* 会話エリア */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          {/* 2026-09-10 EHC-0031 P0-A:
+              「自動で判定済み」と言い切っていたが、判定できるのは入力済みの項目だけで、
+              所在地が未入力なら地域要件は判定していない。断定をやめ、
+              未入力の項目はその場で明示する。 */}
           <Bubble>
-            補助金が使えるかどうかを先に確認しましょう。所在地・事業規模・対象設備は入力内容から自動で判定済みです。
+            補助金が使えるかどうかを先に確認しましょう。
+            {input.pref
+              ? "所在地・事業規模・対象設備は、入力済みの内容から判定しています。"
+              : "事業規模・対象設備は入力済みの内容から判定していますが、所在地（都道府県）が未入力のため地域制度の要件は判定していません。"}
             ここでは<strong className="text-ehc-200">どの制度にも共通する前提条件</strong>を {QUESTIONS.length} 問だけ伺います。
           </Bubble>
 
