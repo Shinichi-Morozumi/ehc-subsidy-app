@@ -38,22 +38,26 @@ export default function Page() {
         className="max-w-5xl mx-auto p-4 md:p-8 print-container"
         style={{ display: started ? undefined : "none" }}
       >
-        <header className="relative overflow-hidden rounded-3xl mb-5 no-print bg-night-900 border border-white/10">
-          <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-ehc-600/20 blur-3xl" />
-          <div className="absolute -bottom-32 -left-20 w-80 h-80 rounded-full bg-cobalt-700/10 blur-3xl" />
+        {/* 2026-09-10 EHC-0032 LIGHT-01
+            ツールの入口をメインページ（HomeV17）の紙面に合わせる。
+            ダーク時代はここに blur-3xl の光の玉を2つ置いて奥行きを作っていたが、
+            白地の上で同じことをすると光ではなく「にじみ・汚れ」に見えるので消す。
+            奥行きは HomeV17 と同じ「淡いセージの面＋1pxの罫線」だけで出す。
+            見出しの色は真っ黒ではなく ink(#143b2d)。HomeV17 の本文色と同じ。 */}
+        <header className="relative overflow-hidden rounded-3xl mb-5 no-print bg-paper-tint border border-ink-line">
           <div className="relative px-6 py-10 md:px-12 md:py-14">
             <div className="flex items-center gap-2 mb-5">
-              <span className="w-6 h-6 rounded-full bg-gradient-to-br from-ehc-400 to-ehc-700" />
-              <span className="text-xs tracking-[0.18em] text-slate-300 font-medium">EHC SOLUTIONS</span>
+              <span className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-bright to-brand" />
+              <span className="text-xs tracking-[0.18em] text-ink-soft font-medium">EHC SOLUTIONS</span>
             </div>
-            <h1 className="font-display text-white text-3xl md:text-5xl font-black leading-tight tracking-tight max-w-3xl">
+            <h1 className="font-display text-ink text-3xl md:text-5xl font-black leading-tight tracking-tight max-w-3xl">
               空調更新で使える可能性のある<br className="hidden md:block" />補助金・助成金と期限を確認
             </h1>
-            <p className="mt-4 text-sm md:text-base text-slate-300 max-w-2xl leading-relaxed">
+            <p className="mt-4 text-sm md:text-base text-ink-soft max-w-2xl leading-relaxed">
               更新時期・所在地・事業規模から、候補制度と「今から何をすべきか」を匿名で整理します。
             </p>
-            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-400">
-              <ShieldCheck className="w-3.5 h-3.5 text-ehc-300" />
+            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-ink-line bg-paper-card px-3 py-1.5 text-xs text-ink-soft">
+              <ShieldCheck className="w-3.5 h-3.5 text-brand" />
               公式一次情報の確認範囲を表示・採択や受給は保証しません
             </div>
           </div>
@@ -65,7 +69,7 @@ export default function Page() {
           <SubsidyMatcher />
         </ProjectProvider>
 
-        <footer className="text-center text-xs text-slate-500 mt-10 py-4 no-print border-t border-white/5">
+        <footer className="text-center text-xs text-ink-soft mt-10 py-4 no-print border-t border-ink-line">
           © 2026 株式会社EHCソリューションズ ｜ 業務用空調・補助金マッチング
         </footer>
       </div>

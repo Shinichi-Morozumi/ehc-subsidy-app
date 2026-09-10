@@ -36,11 +36,11 @@ export function HowItWorks() {
   };
 
   return (
-    <section className="no-print mb-5 rounded-2xl border border-white/10 bg-night-900 p-5 md:p-6 shadow-soft">
-      <h2 className="text-sm md:text-base font-bold text-white mb-1">
+    <section className="no-print mb-5 rounded-3xl border border-ink-line bg-paper-card p-5 md:p-6">
+      <h2 className="text-sm md:text-base font-bold text-ink mb-1">
         空調更新に使える制度と期限を、3分で確認
       </h2>
-      <p className="text-xs text-slate-400 mb-4">
+      <p className="text-xs text-ink-soft mb-4">
         個人情報なしで候補を確認できます。採択・受給を保証する診断ではありません。
       </p>
 
@@ -48,12 +48,19 @@ export function HowItWorks() {
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_HEARING_EVENT))}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-ehc-600 to-ehc-500 text-white font-bold text-sm shadow-glow hover:from-ehc-500 hover:to-ehc-400 transition-all active:scale-[0.98]"
+          /* 2026-09-10 EHC-0032 LIGHT-01
+             メインページ（HomeV17）の CTA と同じ形・同じ色にする。
+               .ehc17 .primary{background:var(--yellow)=#d6ee86;color:var(--ink);border:0;box-shadow:none}
+               .ehc17 .primary{border-radius:100px}  .primary:hover{background:#c6e377;transform:translateY(-2px)}
+             ここはユーザーが直前に押したボタンと**同じボタン**なので、
+             緑グラデーション＋発光ではなくライムの丸ボタンに揃える。
+             こうしないと「押したボタンが別の色に変わった」ように見える。 */
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-brand-lime text-ink font-bold text-sm hover:bg-[#c6e377] hover:-translate-y-0.5 transition-all active:translate-y-0"
         >
           <ClipboardList className="w-4 h-4" />
           3分で診断を始める
         </button>
-        <button type="button" onClick={() => scrollTo("project-info-section")} className="min-h-[44px] inline-flex items-center text-xs text-slate-400 underline underline-offset-2 hover:text-slate-200">詳しい設備情報を直接入力する</button>
+        <button type="button" onClick={() => scrollTo("project-info-section")} className="min-h-[44px] inline-flex items-center text-xs text-ink-soft underline underline-offset-2 hover:text-ink">詳しい設備情報を直接入力する</button>
       </div>
 
       <ol className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -62,16 +69,21 @@ export function HowItWorks() {
           return (
             <li
               key={s.n}
-              className="relative rounded-xl border border-white/10 bg-white/[0.03] p-4"
+              /* 2026-09-10 EHC-0032 LIGHT-01
+                 手順カードは HomeV17 の淡いセージ面（.result-summary の #e8f0d9 系）。
+                 白いカードの中に白い枠を置くと段差が出ないので、面の色で1段だけ沈める。
+                 番号の丸は HomeV17 の .stamp（#d7e7ae のライム地＋インク文字）に合わせる。
+                 白抜き文字の濃い丸にすると、3つ並んだときに点が強すぎて本文より先に目が行く。 */
+              className="relative rounded-2xl border border-ink-line bg-paper-tint p-4"
             >
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-ehc-500 to-ehc-700 text-white text-xs font-black flex-shrink-0">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#d7e7ae] text-ink text-xs font-black flex-shrink-0">
                   {s.n}
                 </span>
-                <Icon className="w-4 h-4 text-ehc-300 flex-shrink-0" />
-                <span className="text-[13px] font-bold text-white leading-tight">{s.title}</span>
+                <Icon className="w-4 h-4 text-brand flex-shrink-0" />
+                <span className="text-[13px] font-bold text-ink leading-tight">{s.title}</span>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed">{s.body}</p>
+              <p className="text-xs text-ink-soft leading-relaxed">{s.body}</p>
             </li>
           );
         })}

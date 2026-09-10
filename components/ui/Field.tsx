@@ -28,7 +28,10 @@ export function Field({
     <div className="flex flex-col">
       {/* 対応する control を持たない <label> は支援技術側で「孤立ラベル」と警告される。
           役割は aria-labelledby が担うので、要素自体は div にする（見た目は同一）。 */}
-      <div className="text-xs text-slate-300 mb-1.5 font-semibold flex items-center gap-1.5">
+      {/* 2026-09-10 EHC-0032 LIGHT-01: 項目名は白地では ink。
+          ヘルプの ? は ink-soft、ホバーで brand。青(cobalt)は使わない
+          — 寄せる先の HomeV17 の紙面に青が1色も無いため。 */}
+      <div className="text-xs text-ink mb-1.5 font-semibold flex items-center gap-1.5">
         <span id={labelId}>{label}</span>
         {help && (
           <span
@@ -37,7 +40,7 @@ export function Field({
             role="note"
             aria-label={`補足: ${help}`}
           >
-            <HelpCircle className="w-3.5 h-3.5 text-slate-500 hover:text-cobalt-300 transition-colors" aria-hidden="true" />
+            <HelpCircle className="w-3.5 h-3.5 text-ink-soft hover:text-brand transition-colors" aria-hidden="true" />
             <span className="tooltip">{help}</span>
           </span>
         )}
@@ -54,18 +57,28 @@ function useFieldLabelledBy(explicitLabel?: string, explicitLabelledBy?: string)
   return ctx ?? undefined;
 }
 
+/* 2026-09-10 EHC-0032 LIGHT-01
+   HomeV17 の入力欄: border:1.5px solid #859f8c / radius:12px / 背景白 / 文字 ink。
+   枠線を 1px の薄い罫線ではなく 1.5px の中間色にしているのは、
+   入力欄だけは「触れる場所」だと分かる必要があるため（カードの罫線と同じ濃さだと
+   ただの区切り線に見えて、クリックできることが伝わらない）。
+   フォーカスリングは青(cobalt)ではなく緑。寄せる先の紙面に青は1色も無い。
+   Select / Input / Button の3つで同じ枠線・同じ角丸・同じフォーカス色を使う。 */
+const CONTROL_BASE =
+  "min-h-[44px] px-3 py-2.5 border-[1.5px] border-[#859f8c] rounded-xl text-sm bg-paper-card text-ink transition-all " +
+  "focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand hover:border-brand/60";
+
 export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   const labelledBy = useFieldLabelledBy(props["aria-label"], props["aria-labelledby"]);
   return (
     <select
       aria-labelledby={labelledBy}
       className={cn(
-        "min-h-[44px] px-3 py-2.5 border border-white/15 rounded-lg text-sm bg-night-800 text-white shadow-soft transition-all",
-        "focus:outline-none focus:ring-2 focus:ring-cobalt-500/40 focus:border-cobalt-500 hover:border-white/30",
+        CONTROL_BASE,
         "appearance-none bg-no-repeat bg-[right_0.7rem_center] pr-8",
         className
       )}
-      style={{ backgroundImage: "url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%2394a3b8'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E\")", backgroundSize: "16px" }}
+      style={{ backgroundImage: "url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%2357685e'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E\")", backgroundSize: "16px" }}
       {...props}
     />
   );
@@ -77,8 +90,8 @@ export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInp
     <input
       aria-labelledby={labelledBy}
       className={cn(
-        "min-h-[44px] px-3 py-2.5 border border-white/15 rounded-lg text-sm bg-night-800 text-white placeholder:text-slate-500 shadow-soft transition-all",
-        "focus:outline-none focus:ring-2 focus:ring-cobalt-500/40 focus:border-cobalt-500 hover:border-white/30",
+        CONTROL_BASE,
+        "placeholder:text-ink-soft/70",
         className
       )}
       {...props}
@@ -86,13 +99,20 @@ export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInp
   );
 }
 
+/* 2026-09-10 EHC-0032 LIGHT-01
+   主ボタンを HomeV17 の「質問フォームの送信ボタン」に合わせる。
+     .ehc17 .question-foot .primary{background:#254d39;color:white}
+     .ehc17 .primary{border-radius:100px;box-shadow:none}
+   青のグラデーション＋発光影は、ダークの上で押せる場所を目立たせるための作りだった。
+   紙面では単色の濃い緑＋丸い形だけで十分に押せると分かる。影は消す（紙が濁る）。
+   浮き上がり（-translate-y）は残す。押せることが動きで伝わるのは白地でも同じ。 */
 export function Button({ className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       className={cn(
-        "bg-gradient-to-r from-cobalt-600 to-cobalt-500 hover:from-cobalt-700 hover:to-cobalt-600",
-        "text-white font-semibold px-6 py-3.5 rounded-xl w-full transition-all",
-        "shadow-card hover:shadow-glow hover:-translate-y-0.5 active:translate-y-0",
+        "bg-brand-deep hover:bg-brand",
+        "text-white font-bold px-6 py-3.5 rounded-full w-full transition-all",
+        "hover:-translate-y-0.5 active:translate-y-0",
         "flex items-center justify-center gap-2",
         className
       )}

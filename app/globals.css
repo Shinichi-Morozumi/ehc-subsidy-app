@@ -3,13 +3,22 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 2026-09-10 EHC-0032 LIGHT-01
+   ツール側をメインページ（HomeV17）と同じ紙テーマへ切り替える。
+   値は tailwind.config.ts の ink / paper トークンと同じで、出所は
+   app/home-v17.css。ここを変えるときは3箇所を必ず一緒に動かす。
+
+   これまでは地色が #0a0a0a のダークだったため、
+   ・印刷のたびに color-scheme:dark を打ち消す規則が必要だった（下の @media print）
+   ・提案書のダークブロックを紙向けライトへ変換する規則が必要だった
+   地をライトに揃えたので、画面と紙で色が食い違う理由そのものが減る。 */
 :root {
-  --bg-page: #0a0a0a;
-  --bg-card: #131313;
-  --text-primary: #f5f5f5;
-  --text-secondary: #b4b4b4;
-  --text-tertiary: #7a7a7a;
-  --border-soft: rgba(255,255,255,0.10);
+  --bg-page: #f6f6ed;
+  --bg-card: #ffffff;
+  --text-primary: #193e33;
+  --text-secondary: #57685e;
+  --text-tertiary: #7a8b82;
+  --border-soft: #d4ddd4;
 }
 
 html, body {
@@ -19,18 +28,18 @@ html, body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* ネイティブフォーム部品(select等)をダーク描画にする */
-  color-scheme: dark;
+  /* ネイティブフォーム部品(select等)をライト描画にする */
+  color-scheme: light;
 }
 
-/* select / option をダークで確実に表示（白被り対策） */
+/* select / option。ライトでも OS 既定に任せず明示する（機種差で灰被りするため） */
 select, option {
-  background-color: #1f1f1f;
-  color: #f5f5f5;
+  background-color: #ffffff;
+  color: #193e33;
 }
 select option:checked,
 select option:hover {
-  background-color: #00a651;
+  background-color: #286644;
   color: #ffffff;
 }
 
@@ -47,7 +56,8 @@ select option:hover {
   text-transform: uppercase;
 }
 /* 点線リング（円形アイコンボタン用） */
-.dotted-ring { border: 1px dashed rgba(255,255,255,0.5); border-radius: 9999px; }
+/* 2026-09-10 EHC-0032 LIGHT-01: 白の破線は白地では見えないためインク色へ */
+.dotted-ring { border: 1px dashed rgba(25,62,51,0.35); border-radius: 9999px; }
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -64,7 +74,9 @@ select option:hover {
   bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  background: #1e293b;
+  /* 2026-09-10 EHC-0032 LIGHT-01: 吹き出しは白地の上に載るので暗いままでよいが、
+     青寄りのスレート(#1e293b)は紙面のインク色から浮くため ink(#143b2d) に揃える。 */
+  background: #143b2d;
   color: #fff;
   font-size: 11px;
   font-weight: 400;
@@ -86,7 +98,7 @@ select option:hover {
   transform: translateX(-50%);
   border-width: 5px;
   border-style: solid;
-  border-color: #1e293b transparent transparent transparent;
+  border-color: #143b2d transparent transparent transparent;
 }
 .tooltip-trigger:hover .tooltip,
 .tooltip-trigger:focus-within .tooltip { opacity: 1; }
@@ -351,7 +363,9 @@ select option:hover {
   letter-spacing: 0.2em;
   font-size: 18px;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.04);
+  /* 2026-09-10 EHC-0032 LIGHT-01: 地が白になったので白の透かしは消える。
+     提案書側の .watermark-layer と同じインク色の極薄に合わせる。 */
+  color: rgba(20, 59, 45, 0.045);
 }
 @media print { .site-watermark { display: none !important; } }
 
