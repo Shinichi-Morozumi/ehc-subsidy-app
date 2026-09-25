@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import EhcScrollHero from "./EhcScrollHero";
 import EntryWelcome from "./EntryWelcome";
 import { OPEN_HEARING_EVENT } from "../HowItWorks";
+import { SiteFooter } from "../SiteFooter";
 import {
   useCardStack,
   useRevealOnScroll,
@@ -83,6 +84,20 @@ export function HomeV17() {
     [motionPaused],
   );
 
+  /* ボタンからページ内の節へ移る（a 要素でない所から呼ぶ用）。 */
+  const scrollToId = useCallback(
+    (id: string) => {
+      setMenuOpen(false);
+      const quiet =
+        motionPaused ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      rootRef.current
+        ?.querySelector(`#${id}`)
+        ?.scrollIntoView({ behavior: quiet ? "auto" : "smooth", block: "start" });
+    },
+    [motionPaused],
+  );
+
   /* ヘッダーの地色・モバイルドック・章ナビの現在地。rAF で間引く。 */
   useEffect(() => {
     let raf = 0;
@@ -133,6 +148,9 @@ export function HomeV17() {
   const rootClass = [
     "ehc17",
     motionPaused ? "motion-paused" : "",
+    /* 2026-09-25 UXレビュー No.15: 画面下の固定バーが出ている間の目印。
+       本文の下端にバーの高さ分の余白を足し、ヘッダーの同じボタンを隠す（home-v17.css の末尾）。 */
+    dockShow ? "dock-on" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -176,8 +194,10 @@ export function HomeV17() {
           </a>
         </nav>
         <div className="header-actions">
+          {/* 2026-09-25 UXレビュー No.16: 「↗」は一般に「別サイトが開く」の印。
+              同じページで診断が始まるボタンには「→」を使い、外部リンクだけ「↗」にする。 */}
           <button type="button" className="header-start" onClick={startDiagnosis}>
-            無料診断 ↗
+            無料診断 →
           </button>
           <button
             type="button"
@@ -200,19 +220,22 @@ export function HomeV17() {
         hidden={!menuOpen}
       >
         <a href="#about-diagnosis" onClick={(e) => jump(e, "about-diagnosis")}>
-          EHCの診断について ↗
+          EHCの診断について
         </a>
         <a href="#what-you-get" onClick={(e) => jump(e, "what-you-get")}>
-          診断でわかること ↗
+          診断でわかること
         </a>
         <a
           href="#diagnosis-report-preview"
           onClick={(e) => jump(e, "diagnosis-report-preview")}
         >
-          診断書の見本 ↗
+          診断書の見本
         </a>
         <a href="#support" onClick={(e) => jump(e, "support")}>
-          空調更新のサポート ↗
+          空調更新のサポート
+        </a>
+        <a href="#site-footer" onClick={(e) => jump(e, "site-footer")}>
+          運営会社・お問い合わせ
         </a>
         <a href="#home" onClick={(e) => jump(e, "home")}>
           空調更新の映像へ ↑
@@ -264,7 +287,7 @@ export function HomeV17() {
               >
                 無料で今すぐ診断{" "}
                 <span className="button-arrow" aria-hidden="true">
-                  ↗
+                  →
                 </span>
               </button>
               <p>7問・名前やメールアドレスは不要。</p>
@@ -298,7 +321,6 @@ export function HomeV17() {
                   <h3>今わかる条件を答える</h3>
                   <p>予定・所在地・事業規模から。</p>
                 </div>
-                <span aria-hidden="true">↗</span>
               </li>
               <li>
                 <span className="flow-number">02</span>
@@ -306,7 +328,6 @@ export function HomeV17() {
                   <h3>候補と費用を比べる</h3>
                   <p>設備情報を足してシミュレーション。</p>
                 </div>
-                <span aria-hidden="true">↗</span>
               </li>
               <li>
                 <span className="flow-number">03</span>
@@ -314,7 +335,6 @@ export function HomeV17() {
                   <h3>PDFで保存・相談する</h3>
                   <p>同意後に、次の行動へ。</p>
                 </div>
-                <span aria-hidden="true">↗</span>
               </li>
             </ol>
           </section>
@@ -475,14 +495,16 @@ export function HomeV17() {
                 </li>
               </ul>
               <button type="button" className="primary" onClick={startDiagnosis}>
-                無料で今すぐ診断 ↗
+                無料で今すぐ診断 →
               </button>
+              {/* 2026-09-25: 「流れを見る」と書いてあるのに診断が始まっていた。書いてあるとおり、
+                  3ステップの説明（#how-it-works）へ移る。 */}
               <button
                 type="button"
                 className="report-how"
-                onClick={startDiagnosis}
+                onClick={() => scrollToId("how-it-works")}
               >
-                PDFの保存・相談の流れを見る ↗
+                PDFの保存・相談までの流れを見る ↑
               </button>
               <p className="report-consent-note">
                 最初の7問で制度の候補を確認します。
@@ -578,6 +600,7 @@ export function HomeV17() {
                   rel="noopener noreferrer"
                 >
                   SIIの公式案内 ↗
+                  <span className="sr-only">（新しいタブで開きます）</span>
                 </a>
               </p>
             </figure>
@@ -640,7 +663,7 @@ export function HomeV17() {
                   className="text-link light-link"
                   onClick={startDiagnosis}
                 >
-                  無料診断へ ↗
+                  無料診断へ →
                 </button>
               </div>
 
@@ -661,20 +684,19 @@ export function HomeV17() {
                     <span>01</span>
                   </div>
                   <div className="card-visual candidate-visual">
+                    {/* 2026-09-25 UXレビュー No.18: 「↗ ＋ −」は操作（開く・追加）に見えるため外し、
+                        診断結果（第3段階）と同じ呼び名で状態を示す。 */}
                     <div>
                       <span className="state-dot" />
-                      申請できる可能性
-                      <i>↗</i>
+                      使える見込みが高い
                     </div>
                     <div>
                       <span className="state-dot amber" />
-                      条件の確認が必要
-                      <i>＋</i>
+                      条件次第
                     </div>
                     <div>
                       <span className="state-dot gray" />
-                      対象外・受付終了
-                      <i>－</i>
+                      今回は対象外
                     </div>
                   </div>
                   <h3>うちに合う候補が、見える。</h3>
@@ -790,8 +812,9 @@ export function HomeV17() {
                 <br />
                 設備・工事の進め方も、EHCに相談できます。
               </p>
+              {/* 2026-09-25: 「設備入力のイメージを見る」と書いてあるのに7問の診断が始まっていた。書いてあることに合わせる。 */}
               <button type="button" className="text-link" onClick={startDiagnosis}>
-                設備入力のイメージを見る ↗
+                7問の診断から始める →
               </button>
             </div>
             <div className="partner-record reveal">
@@ -866,7 +889,7 @@ export function HomeV17() {
                 <span className="closing-line">確認だけでも。</span>
               </h2>
               <button type="button" className="primary" onClick={startDiagnosis}>
-                無料で今すぐ診断 ↗
+                無料で今すぐ診断 →
               </button>
               <p>7問から、匿名で確認。分からない項目は後から。</p>
             </div>
@@ -877,6 +900,11 @@ export function HomeV17() {
         </section>
       </main>
 
+      {/* 2026-09-25 UXレビュー No.22: 運営会社の所在地・電話・メール（値は lib/company.ts） */}
+      <footer className="site-footer" id="site-footer">
+        <SiteFooter variant="home" />
+      </footer>
+
       <div
         ref={dockRef}
         className={`mobile-dock${dockShow ? " show" : ""}`}
@@ -884,7 +912,7 @@ export function HomeV17() {
       >
         <span>空調更新に使える制度を確認</span>
         <button type="button" onClick={startDiagnosis} tabIndex={dockShow ? 0 : -1}>
-          無料診断 ↗
+          無料診断 →
         </button>
       </div>
     </div>

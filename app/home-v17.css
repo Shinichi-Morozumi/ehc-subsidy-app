@@ -1382,3 +1382,112 @@ body.ehc17-home{background:#fffdf7}
 :where(.print-container) div.flex.gap-2 > input{min-width:0}
 :where(.print-container) [data-pdf-sheet] div.flex.gap-2 > input,
 :where(.print-container) .print-page div.flex.gap-2 > input{min-width:auto}
+
+/* ===== v6 / 2026-09-25 / UXレビュー（見やすさ・使いやすさ）の反映 =====
+   ■ No.14 文字の小ささ
+     スマホでは文章の約75%が14px未満、約45%が12px未満だった（ヘッダーの副題は8px）。
+     本文16px・補足14px・注記12pxを下限にそろえる。
+     この上の規則は何段にも上書きされていて、#home や !important を含むものもあるので、
+     この節はファイルの最後に置き、[data-screen="home"] と #home を足して確実に勝たせる。
+     色・角丸・余白の設計値は変えない（読みやすさのための文字の大きさと、必要な行間だけ）。
+   ■ No.30 見本カードの「条件次第」などの小さな文字のコントラスト不足（4.21:1）→ 12px以上・4.5:1以上
+   ■ No.19 章の切り替え（01・02・03）の押せる範囲 34px → 44px
+   ■ No.15 画面下の固定バーが本文の末尾を隠す → バーが出ている間は下端に余白を足し、
+           ヘッダーの同じボタンは隠す（スマホのみ。固定バーはスマホでしか出ない）
+   ■ No.22 運営会社のフッター */
+
+/* ── 本文 16px ── */
+.ehc17[data-screen="home"] #home .discover-intro > p:not(.section-label),
+.ehc17[data-screen="home"] #home .discovery-card > p,
+.ehc17[data-screen="home"] #home .decision-copy .decision-body,
+.ehc17[data-screen="home"] #home .decision-copy .chapter-lead,
+.ehc17[data-screen="home"] #home .report-chapter-heading .chapter-lead,
+.ehc17[data-screen="home"] #home .report-chapter-heading .report-ease,
+.ehc17[data-screen="home"] #home .support-copy > p,
+.ehc17[data-screen="home"] #home .flow-list li h3{font-size:16px;line-height:1.75}
+
+/* ── 補足 14px ── */
+.ehc17[data-screen="home"] #home .flow-list li p,
+.ehc17[data-screen="home"] #home .report-usecases li p,
+.ehc17[data-screen="home"] #home .report-usecases .usecase-label,
+.ehc17[data-screen="home"] #home .closing-inner > p:not(.section-label),
+.ehc17[data-screen="home"] #home .decision-tip b,
+.ehc17[data-screen="home"] #home .decision-tip span,
+.ehc17[data-screen="home"] #home .decision-next,
+.ehc17[data-screen="home"] #home .report-how,
+.ehc17[data-screen="home"] #home .report-consent-note,
+.ehc17[data-screen="home"] #home .ehc-film__cta .hero-report-link,
+.ehc17[data-screen="home"] #home .partner-record article p{font-size:14px;line-height:1.7}
+
+/* ── 見出しの上の小さなラベル 13px ── */
+.ehc17[data-screen="home"] #home .section-label,
+.ehc17[data-screen="home"] #home .chapter-eyebrow,
+.ehc17[data-screen="home"] #home .discovery-card .card-heading p,
+.ehc17[data-screen="home"] #home .report-preview-caption,
+.ehc17[data-screen="home"] #home .decision-visual figcaption,
+.ehc17[data-screen="home"] #home .decision-visual figcaption span{font-size:13px}
+
+/* ── 注記 12px（小さく置く断り書きも、読める大きさにする） ── */
+.ehc17[data-screen="home"] #home .discovery-card > small,
+.ehc17[data-screen="home"] #home .cost-visual > p,
+.ehc17[data-screen="home"] #home .timeline-visual > p,
+.ehc17[data-screen="home"] #home .timeline-track span,
+.ehc17[data-screen="home"] #home .cost-row > span,
+.ehc17[data-screen="home"] #home .cost-bar,
+.ehc17[data-screen="home"] #home .cost-bar b,
+.ehc17[data-screen="home"] #home .cost-bar i,
+.ehc17[data-screen="home"] #home .order-path li b,
+.ehc17[data-screen="home"] #home .decision-source,
+.ehc17[data-screen="home"] #home .decision-source a,
+.ehc17[data-screen="home"] #home .partner-record > small,
+.ehc17[data-screen="home"] #home .partner-record article > span,
+.ehc17[data-screen="home"] #home .report-chapter-preview > figcaption{font-size:12px;line-height:1.7}
+.ehc17[data-screen="home"] #home .candidate-visual b,
+.ehc17[data-screen="home"] #home .candidate-visual > div{font-size:13px!important}
+
+/* ── 見本カード（架空の診断書）の中の文字も 12px 以上・濃い色にする（No.30） ── */
+.ehc17[data-screen="home"] #home .sample-report,
+.ehc17[data-screen="home"] #home .sample-report p,
+.ehc17[data-screen="home"] #home .sample-report dt,
+.ehc17[data-screen="home"] #home .sample-report dd,
+.ehc17[data-screen="home"] #home .sample-report footer,
+.ehc17[data-screen="home"] #home .sample-report header p,
+.ehc17[data-screen="home"] #home .sample-report-brand span,
+.ehc17[data-screen="home"] #home .sample-report h4,
+.ehc17[data-screen="home"] #home .sample-report h4 small,
+.ehc17[data-screen="home"] #home .sample-candidate b,
+.ehc17[data-screen="home"] #home .sample-money span,
+.ehc17[data-screen="home"] #home .sample-money-note{font-size:12px;line-height:1.6}
+.ehc17[data-screen="home"] #home .sample-candidate span{font-size:12px;color:#6b4a00;font-weight:700}
+.ehc17[data-screen="home"] #home .sample-money strong small{font-size:12px}
+
+/* ── ヘッダーの副題（8〜10px だった） ── */
+.ehc17[data-screen="home"] .header .brand span{font-size:12px;line-height:1.35;letter-spacing:.02em}
+
+/* ── 章の切り替え 01・02・03（No.19）── */
+.ehc17[data-screen="home"] #home .chapter-nav a{width:44px;height:44px;font-size:13px}
+
+/* ── 画面下の固定バー（No.15） ── */
+@media (max-width:767px){
+  .ehc17[data-screen="home"] .mobile-dock > span{font-size:13px;line-height:1.4}
+  .ehc17[data-screen="home"] .mobile-dock button{font-size:14px}
+  .ehc17[data-screen="home"].dock-on .wrap{padding-bottom:96px}
+  .ehc17[data-screen="home"].dock-on .site-footer{padding-bottom:112px}
+  .ehc17[data-screen="home"].dock-on .header .header-start{visibility:hidden}
+}
+
+/* ── 運営会社のフッター（No.22） ── */
+.ehc17 .site-footer{background:var(--paper);border-top:1px solid var(--line);padding:40px 6vw 48px;color:#193e33}
+.ehc17 .site-footer-inner{max-width:1120px;margin:0 auto;display:grid;gap:10px}
+.ehc17 .site-footer .ehc-site-footer-lead{font-size:13px;font-weight:700;color:#286644;margin:0}
+.ehc17 .site-footer .ehc-site-footer-address{font-style:normal;display:grid;gap:4px;font-size:14px;line-height:1.7}
+.ehc17 .site-footer .ehc-site-footer-address strong{font-size:16px}
+.ehc17 .site-footer .ehc-site-footer-address a{color:#254d39;font-weight:700;text-decoration:underline;text-underline-offset:4px}
+.ehc17 .site-footer .ehc-site-footer-copy{font-size:12px;color:#57685e;margin:8px 0 0}
+/* 上の .ehc17 #home .hero-report-link{font-size:12px!important} に勝たせるため、ここだけ !important */
+.ehc17[data-screen="home"] #home .ehc-film__cta .hero-report-link{font-size:14px!important}
+/* axe（color-contrast）: 施工実績カードの分類ラベル（OFFICE・BANK）が 4.21:1 → 濃くして 4.5:1 以上に */
+.ehc17[data-screen="home"] #home .partner-record article > span{color:#4a5a41}
+/* 押しやすさ: 電話・メール・公式案内のリンクは高さ44px を確保（文章中の見た目は変えない） */
+.ehc17 .site-footer .ehc-site-footer-address a,
+.ehc17[data-screen="home"] #home .decision-source a{display:inline-flex;align-items:center;min-height:44px}

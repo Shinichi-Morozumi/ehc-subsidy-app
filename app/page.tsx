@@ -16,11 +16,23 @@ import { SubsidyMatcher } from "@/components/SubsidyMatcher";
 import { DiagnosisFlow } from "@/components/DiagnosisFlow";
 import { ProjectProvider } from "@/components/ProjectContext";
 import { HomeV17 } from "@/components/home/HomeV17";
+import { SiteFooter } from "@/components/SiteFooter";
+import { legacyAccessFromSearch } from "@/lib/legacyAccess";
 import { ArrowLeft, ClipboardList, ShieldCheck } from "lucide-react";
 import "./diagnosis-ui.css";
 
 export default function Page() {
   const [started, setStarted] = useState(false);
+  const [staffMode, setStaffMode] = useState(false);
+
+  /* 2026-09-25 UXレビュー No.3:
+     担当者用の入口（?staff=1）と旧シミュレーターの共有リンク（?d=）は、
+     ホームを飛ばして診断画面をそのまま開く。旧シミュレーターはこの2つの入口でしか出さない。 */
+  useEffect(() => {
+    const access = legacyAccessFromSearch(window.location.search);
+    if (access.showLegacy) setStarted(true);
+    setStaffMode(access.staff);
+  }, []);
 
   useEffect(() => {
     const onOpen = () => setStarted(true);
@@ -36,7 +48,13 @@ export default function Page() {
     <>
       {!started && <HomeV17 />}
 
-      <div
+      {/* 2026-09-25 UXレビュー No.29: 診断画面を main で囲み、読み上げソフトで本文へ直接移動できるようにする。
+          ホーム（HomeV17）も main を持つ。隠れている側には hidden を付け、
+          「hidden の付いていない main は1つだけ」という HTML の決まりを守る。
+          要素の種類は切り替えない（切り替えると中身が作り直され、入力が消える）。 */}
+      <main
+        id="diagnosis-main"
+        hidden={!started}
         className="ehc-workspace max-w-5xl mx-auto print-container"
         style={{ display: started ? undefined : "none" }}
       >
@@ -50,7 +68,7 @@ export default function Page() {
           <button type="button" onClick={() => { setStarted(false); window.scrollTo({ top: 0, behavior: "auto" }); }} className="ehc-home-link" aria-label="入力を残してホームへ戻る">
             <ArrowLeft size={18} aria-hidden="true" /><span className="ehc-wordmark">EHC</span><span>ホーム</span>
           </button>
-          <span className="ehc-workspace-tag">空調更新の診断</span>
+          <span className="ehc-workspace-tag">{staffMode ? "担当者モード" : "空調更新の診断"}</span>
         </header>
         <div className="ehc-workspace-intro no-print">
           <div>
@@ -75,9 +93,9 @@ export default function Page() {
 
         <footer className="ehc-workspace-footer no-print">
           <p><ShieldCheck size={18} aria-hidden="true" />公式情報の確認範囲を表示。採択・受給を保証するものではありません。</p>
-          <p>© 2026 株式会社EHCソリューションズ</p>
+          <SiteFooter variant="workspace" />
         </footer>
-      </div>
+      </main>
     </>
   );
 }

@@ -39,6 +39,7 @@ import {
   UNRESOLVED_REASON_NOTE,
   type EquipProjection,
 } from "@/lib/diagnosisProjection";
+import { COMPANY } from "@/lib/company";
 
 /* ───────────────────────────────────────────────────────────
    E段「診断書を受け取って相談」（EHC-0039 第7片 / 2026-09-14 v1）
@@ -185,11 +186,16 @@ export function ContactStage({
 
   const sheetRef = useRef<HTMLDivElement | null>(null);
 
+  /* 2026-09-25 UXレビュー No.12: 空欄のときに「形式をご確認ください」と出していた。
+     空欄は「ご入力ください」、形式違いは例を添えて伝える。 */
   const nameError = touched && name.trim().length === 0 ? "お名前をご入力ください。" : null;
-  const emailError =
-    touched && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
-      ? "メールアドレスの形式をご確認ください。"
-      : null;
+  const emailError = !touched
+    ? null
+    : email.trim().length === 0
+      ? "メールアドレスをご入力ください。"
+      : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+        ? "メールアドレスの形式をご確認ください（例：name@example.co.jp）。"
+        : null;
   const canSubmit =
     privacyAgreed &&
     name.trim().length > 0 &&
@@ -245,7 +251,27 @@ export function ContactStage({
   const handleSubmit = useCallback(() => {
     setTouched(true);
     setError(null);
-    if (!canSubmit) return;
+    if (!canSubmit) {
+      /* 2026-09-25 UXレビュー No.12: 送信ボタンは画面の下にあり、エラー文は上の欄の下に出る。
+         気づかずに何度も押さないよう、最初に直す欄へ画面を戻してカーソルを置く。 */
+      if (phase !== "input") return;
+      const firstId =
+        name.trim().length === 0
+          ? "contact-name"
+          : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+            ? "contact-email"
+            : !privacyAgreed
+              ? "contact-privacy"
+              : null;
+      if (firstId && typeof window !== "undefined") {
+        window.requestAnimationFrame(() => {
+          const el = document.getElementById(firstId);
+          el?.scrollIntoView({ block: "center", behavior: "auto" });
+          el?.focus({ preventScroll: true });
+        });
+      }
+      return;
+    }
 
     const contact: DiagnosisContact = {
       name: name.trim(),
@@ -277,6 +303,8 @@ export function ContactStage({
     setPhase("rendering");
   }, [
     canSubmit,
+    phase,
+    privacyAgreed,
     name,
     email,
     company,
@@ -462,25 +490,8 @@ export function ContactStage({
               送信後に入力条件が変わっています。下は送信時の内容です。最新の内容で作り直す場合は「入力内容を確認する」へ進んでください。
             </p>
           )}
-          <SubmitReport result={result} snapshot={frozen} />
-          {pdfFile && result.pdf === "ok" && (
-            <div className="space-y-1">
-              <a
-                href={pdfFile.url}
-                download={pdfFile.filename}
-                className={cn(
-                  "min-h-[48px] w-full rounded-2xl bg-brand px-4 text-[16px] font-bold leading-[1.7] text-white",
-                  "flex items-center justify-center gap-2",
-                  "focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep"
-                )}
-              >
-                診断書PDFを保存する
-              </a>
-              <p className="text-[14px] leading-relaxed text-ink-soft">
-                スマートフォンでは、開いたPDFの共有ボタンから「ファイルに保存」できます。
-              </p>
-            </div>
-          )}
+          {/* 2026-09-25 UXレビュー No.9: 保存ボタンは「受け付けました」のすぐ下へ（SubmitReport の中に移した） */}
+          <SubmitReport result={result} snapshot={frozen} pdfFile={pdfFile} />
           <button type="button" className="min-h-[48px] w-full rounded-2xl border border-brand bg-paper-card px-4 py-3 text-[16px] font-bold text-brand-deep"
             onClick={() => { startedRef.current = null; replacePdfFile(null); setFrozen(null); setResult(null); setError(null); setTouched(false); setPrivacyAgreed(false); setPhase("input"); }}>
             入力内容を確認する（修正・再送）
@@ -490,7 +501,8 @@ export function ContactStage({
       ) : (
         <>
           <div className="ehc-contact-fields rounded-2xl border border-ink-line bg-paper-card p-4">
-            <h3 className="text-[16px] font-bold leading-[1.7] text-ink">診断書の送り先</h3>
+            {/* 2026-09-25 UXレビュー No.11: お客様宛にメールを送らない運用では「送り先」は事実と合わない */}
+            <h3 className="text-[16px] font-bold leading-[1.7] text-ink">{CUSTOMER_MAIL_ON ? "診断書の送り先" : "ご連絡先"}</h3>
             {/* 結果はメールと引き換えではない、と先に書く。
                 入力欄の下に書くと、書く前に閉じた人には届かない。 */}
             <p className="mt-1 text-[16px] leading-[1.7] text-ink-soft">
@@ -519,11 +531,10 @@ export function ContactStage({
                 note={CUSTOMER_MAIL_ON ? "このアドレスへ診断書PDFをお送りします。" : "担当者からのご連絡に使います。診断書PDFは、送信後にこの画面から保存できます。"}
               />
             </div>
-            <details className="mt-4 border-t border-ink-line">
-              <summary className="min-h-[48px] cursor-pointer py-3 text-[16px] font-bold leading-[1.7] text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep">
-                会社名・電話番号を追加する（任意）
-              </summary>
-              <div className="grid grid-cols-1 gap-5 pt-2 sm:grid-cols-2">
+            {/* 2026-09-25 UXレビュー No.27: 電話は一番連絡がつきやすいのに、畳まれていて入力されにくかった。
+                任意のまま、畳まずに出す。 */}
+            <div className="mt-5 border-t border-ink-line pt-5">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <TextField
                   id="contact-company"
                   label="会社名"
@@ -539,10 +550,10 @@ export function ContactStage({
                   value={phone}
                   onChange={setPhone}
                   autoComplete="tel"
-                  note="お急ぎの場合はお電話でご連絡します。"
+                  note="ご入力いただくと、お急ぎの場合にお電話でご連絡できます。"
                 />
               </div>
-            </details>
+            </div>
           </div>
 
           <WhatYouGet input={input} projection={projection} receiptRecord={issuedRecord} />
@@ -554,10 +565,10 @@ export function ContactStage({
               {CUSTOMER_MAIL_ON ? "送信すると、お客様宛と担当者宛に診断内容が送られます。" : "送信すると、診断内容が担当者に届きます。お客様宛のメールは現在お送りしていません（診断書PDFは送信後にこの画面から保存できます）。"}制度の採択・受給・補助額、削減効果を保証するものではありません。
             </p>
             <label className="mt-4 flex min-h-[48px] cursor-pointer items-start gap-3 rounded-xl border border-ink-line bg-paper-card p-3 text-[16px] leading-[1.7] text-ink">
-              <input type="checkbox" checked={privacyAgreed} onChange={(event) => setPrivacyAgreed(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-brand" />
+              <input id="contact-privacy" type="checkbox" checked={privacyAgreed} onChange={(event) => setPrivacyAgreed(event.target.checked)} aria-invalid={touched && !privacyAgreed ? true : undefined} className="mt-1 h-5 w-5 shrink-0 accent-brand" />
               <span>{CUSTOMER_MAIL_ON ? "取得目的・利用範囲を確認し、診断書の送付と相談内容の共有に同意します。" : "取得目的・利用範囲を確認し、相談内容の共有に同意します。"}</span>
             </label>
-            {touched && !privacyAgreed && <p role="alert" className="mt-2 text-[14px] leading-relaxed text-amber-800">内容をご確認のうえ、同意欄にチェックしてください。</p>}
+            {touched && !privacyAgreed && <p role="alert" className="mt-2 flex items-start gap-1.5 text-[14px] font-bold leading-relaxed text-red-700"><AlertCircle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />内容をご確認のうえ、同意欄にチェックしてください。</p>}
           </div>
 
           {error && (
@@ -692,7 +703,9 @@ function TextField({
         className={cn(
           "mt-1 min-h-[48px] w-full rounded-2xl border bg-paper-card px-4 text-[16px] leading-[1.7] text-ink",
           "focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep",
-          error ? "border-ink" : "border-ink-line"
+          /* 2026-09-25 UXレビュー No.12: エラーは枠と文字の両方で示す（色だけにしない＝下に文章も出す）。
+             赤は入力エラー専用。amber は「未算定・未確認」の予約色なので使わない。 */
+          error ? "border-[1.5px] border-red-700 bg-red-50/40" : "border-ink-line"
         )}
       />
       {note && (
@@ -704,7 +717,7 @@ function TextField({
         <p
           id={`${id}-error`}
           role="alert"
-          className="mt-1 flex items-start gap-1.5 text-[14px] leading-[1.7] text-ink"
+          className="mt-1 flex items-start gap-1.5 text-[14px] font-bold leading-[1.7] text-red-700"
         >
           <AlertCircle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{error}</span>
@@ -794,9 +807,12 @@ function WhatYouGet({
 function SubmitReport({
   result,
   snapshot,
+  pdfFile,
 }: {
   result: SubmitResult;
   snapshot: DiagnosisSnapshot | null;
+  /** 画面から保存できる診断書PDF（作れなかったときは null） */
+  pdfFile: { url: string; filename: string } | null;
 }) {
   /* 2026-09-15 EHC-0039 修正4:
      PDFが作れていないのに「診断書をお送りしました」と読める書き方をしない。
@@ -833,7 +849,11 @@ function SubmitReport({
     }
   };
 
-  const rows: { label: string; value: string; good: boolean }[] = [
+  /* 2026-09-25 UXレビュー No.9: お客様宛メールを止めている運用（customerMail=off）では、
+     「お客様宛メール：お送りしていません」という否定の行を一覧の上に出さない。
+     保存ボタンのすぐ下で「この画面から保存してください」と肯定形で案内する。 */
+  const customerMailOff = result.customerMail === "off" && result.customer === "skipped";
+  const allRows: { label: string; value: string; good: boolean }[] = [
     {
       label: "診断書PDF",
       value:
@@ -862,6 +882,8 @@ function SubmitReport({
       good: result.staff === "sent" || result.staff === "already_sent",
     },
   ];
+  const rows = customerMailOff ? allRows.filter((r) => r.label !== "お客様宛メール") : allRows;
+  const pdfReady = !!pdfFile && result.pdf === "ok";
 
   return (
     <div className="space-y-4">
@@ -893,6 +915,28 @@ function SubmitReport({
           </p>
         )}
       </div>
+
+      {pdfReady && pdfFile && (
+        <div className="space-y-1">
+          <a
+            href={pdfFile.url}
+            download={pdfFile.filename}
+            className={cn(
+              "min-h-[56px] w-full rounded-2xl bg-brand px-4 text-[16px] font-bold leading-[1.7] text-white",
+              "flex items-center justify-center gap-2",
+              "focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep"
+            )}
+          >
+            診断書PDFを保存する
+          </a>
+          <p className="text-[14px] leading-relaxed text-ink-soft">
+            {customerMailOff ? "診断書はこの画面から保存してください（メールではお送りしていません）。" : ""}
+            スマートフォンでは、開いたPDFの共有ボタンから「ファイルに保存」できます。
+          </p>
+        </div>
+      )}
+
+      {result.ok && <NextStepsAfterSubmit receiptNo={result.receiptNo} phoneGiven={!!snapshot?.contact.phone} />}
 
       <dl className="divide-y divide-ink-line rounded-2xl border border-ink-line bg-paper-card">
         {rows.map((r) => (
@@ -976,7 +1020,7 @@ function SubmitReport({
           「『送信できた』と画面に出さないこと」に反する表示だった。
           実際に送れたとき（customer === "sent"）だけ到達前提の案内を出し、
           それ以外は何が起きているかをそのまま書く。 */}
-      {snapshot && (
+      {snapshot && !customerMailOff && (
         <details
           open={result.customer !== "sent" && result.customer !== "already_sent" && result.customer !== "dry_run"}
           className="rounded-2xl border border-ink-line bg-paper-card"
@@ -1024,6 +1068,37 @@ function SubmitReport({
         </details>
       )}
     </div>
+  );
+}
+
+/* ───────── 送信後の見通し（2026-09-25 UXレビュー No.10） ─────────
+   「いつ・誰から連絡が来るか」「待つ間に何を用意すればよいか」が無く、
+   待っていてよいのか分からなかった。流れは D段の「相談から工事までの4ステップ」と同じ言葉で書く。
+   何営業日以内といった約束は、運用で決まっていないので書かない（決まったらここに足す）。 */
+function NextStepsAfterSubmit({ receiptNo, phoneGiven }: { receiptNo: string; phoneGiven: boolean }) {
+  return (
+    <section aria-labelledby="after-submit-heading" className="ehc-after-submit rounded-2xl border border-ink-line bg-paper-card p-4 sm:p-5">
+      <h3 id="after-submit-heading" className="text-[18px] font-bold leading-[1.6] text-ink">このあとの流れ</h3>
+      <ol className="mt-3 space-y-3">
+        {[
+          `EHC の担当者から、ご入力のメールアドレス${phoneGiven ? "またはお電話" : ""}へご連絡します。`,
+          "現地で設置場所・銘板（機種・馬力・冷媒）を確認し、概算を正式なお見積りに置き換えます。",
+          "補助金を使う場合は、候補制度の受付状況と必要書類を確かめ、申請の準備を一緒に進めます。",
+        ].map((text, i) => (
+          <li key={text} className="grid grid-cols-[32px_minmax(0,1fr)] items-start gap-3">
+            <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-full bg-paper-tint text-[14px] font-bold text-brand-deep">{i + 1}</span>
+            <span className="pt-1 text-[16px] leading-[1.7] text-ink">{text}</span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-4 rounded-xl bg-paper-sub px-4 py-3 text-[14px] leading-[1.8] text-ink">
+        <span className="font-bold">用意しておくと話が早いもの：</span>
+        室外機の銘板の写真、電気料金の明細（直近1年分があれば）
+      </p>
+      <p className="mt-3 text-[14px] leading-[1.8] text-ink-soft">
+        お急ぎの場合は、お電話（<a className="font-bold text-brand-deep underline underline-offset-4" href={COMPANY.telHref}>{COMPANY.tel}</a>）で受付番号 {receiptNo} をお伝えください。
+      </p>
+    </section>
   );
 }
 

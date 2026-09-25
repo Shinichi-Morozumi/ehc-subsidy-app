@@ -55,6 +55,20 @@
   .ehc-contact-privacy { background:#f7f8f2; }
   .ehc-result-program { box-shadow:0 8px 24px -22px rgb(25 62 51 / .35); }
   .ehc-result-fit-summary { gap:10px; }
+  /* 2026-09-25 UXレビュー: 第1段階の件数・候補、第3段階の内訳チップ、運営会社のフッター */
+  .ehc-find-counts { display:flex; flex-wrap:wrap; gap:8px; margin:0; }
+  .ehc-find-counts > span { display:inline-flex; align-items:baseline; gap:4px; padding:6px 14px; border-radius:100px; background:#f4f7ec; font-size:14px; color:#193e33; }
+  .ehc-find-counts strong { font-size:20px; font-weight:800; }
+  .ehc-find-program { background:#fff; }
+  .ehc-result-chips { list-style:none; padding:0; }
+  .ehc-result-chips > li { display:inline-flex; align-items:baseline; gap:6px; padding:6px 12px; border:1px solid #d4ddd4; border-radius:100px; background:#fff; font-size:14px; color:#57685e; }
+  .ehc-result-chips > li strong { font-size:16px; color:#193e33; }
+  .ehc-result-summary dd { overflow-wrap:anywhere; }
+  .ehc-site-footer { display:grid; gap:6px; }
+  .ehc-site-footer-lead { font-weight:700; color:#286644; margin:0; }
+  .ehc-site-footer-address { font-style:normal; display:grid; gap:2px; color:#193e33; }
+  .ehc-site-footer-address a { color:#254d39; font-weight:700; text-decoration:underline; text-underline-offset:4px; display:inline-flex; align-items:center; min-height:44px; }
+  .ehc-site-footer-copy { margin:6px 0 0; font-size:14px; }
   @media (hover:hover) {
     .ehc-review-answers:hover, .ehc-legacy-toggle:hover { background:#edf2e4; }
     .ehc-stage-panel button.bg-brand:hover { background:#193e33; }

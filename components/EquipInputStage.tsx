@@ -177,6 +177,8 @@ export function EquipInputStage({ state, onChange }: EquipInputStageProps) {
           const reasons = reasonsFor(g.id);
           const hpInvalid = g.hp != null && (!Number.isFinite(g.hp) || g.hp <= 0);
           const hpMissing = g.hp == null || hpInvalid;
+          /* 2026-09-25 UXレビュー No.13: この設備の入力が始まっているか。始まるまでは「未算定」を言わない。 */
+          const groupStarted = g.kind !== null || g.units !== null || g.installYear !== null || g.hp !== null;
           /* 「金額を出せない」ことと「入力が足りない」ことは別。
              ルームエアコン・分からない は入力が足りているのに算定しない群なので、
              未入力の催促（赤系）ではなく説明として出す。 */
@@ -234,7 +236,6 @@ export function EquipInputStage({ state, onChange }: EquipInputStageProps) {
                   <fieldset>
                     <legend className="text-[16px] leading-[1.7] text-ink mb-2 font-semibold">
                       {choosingKind ? "種類を選ぶ" : "設備の種類"}
-                      {g.kind === null && <span className="ml-2 text-[14px] font-normal text-ink-soft">未選択</span>}
                     </legend>
                     {choosingKind ? <>
                     <div className="ehc-equipment-options grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -342,7 +343,7 @@ export function EquipInputStage({ state, onChange }: EquipInputStageProps) {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     <Field
                       labelSize="md"
-                      label={`室内機の台数${blocking.includes("units_missing") ? g.units == null ? "（未入力）" : "（要確認）" : ""}`}
+                      label={`室内機の台数${blocking.includes("units_missing") && g.units != null ? "（要確認）" : ""}`}
                     >
                       <Input
                         id={`equip-units-${g.id}`}
@@ -359,7 +360,7 @@ export function EquipInputStage({ state, onChange }: EquipInputStageProps) {
                     </Field>
                     <Field
                       labelSize="md"
-                      label={`設置年（西暦）${blocking.includes("install_year_missing") ? g.installYear == null ? "・未入力" : "・要確認" : ""}`}
+                      label={`設置年（西暦）${blocking.includes("install_year_missing") && g.installYear != null ? "（要確認）" : ""}`}
                     >
                       <Input
                         type="number"
@@ -375,7 +376,7 @@ export function EquipInputStage({ state, onChange }: EquipInputStageProps) {
                       />
                     </Field>
                     <div className="sm:col-span-2 lg:col-span-1">
-                      <Field labelSize="md" label={`1台あたりの馬力（HP）${g.hp == null ? "・未入力" : hpInvalid ? "・要確認" : ""}`}>
+                      <Field labelSize="md" label={`1台あたりの馬力（HP）${hpInvalid ? "（要確認）" : ""}`}>
                         <Input
                           type="number"
                           inputMode="decimal"
@@ -397,23 +398,36 @@ export function EquipInputStage({ state, onChange }: EquipInputStageProps) {
                       </Field>
                     </div>
                   </div>
-                  {(reasons.length > 0 || hpMissing) && (
+                  {/* 2026-09-25 UXレビュー No.13:
+                      何も入力していないうちから「未算定です／未選択です」を出すと、
+                      始める前から失敗したように見える。ルームエアコン・分からない（入力は済んでいて
+                      算定しない群）か、数字の入力が始まってからだけ出し、足りない項目を具体的に書く。 */}
+                  {(reasons.length > 0 || hpMissing) &&
+                    (g.kind === "room" || g.kind === "unknown" || g.units !== null || g.installYear !== null || g.hp !== null) && (
                     <div className="rounded-2xl border border-ink-line bg-paper-tint p-3">
                       <p className="flex items-start gap-2 text-[16px] font-bold leading-[1.7] text-ink">
                         <AlertCircle className="mt-1 h-4 w-4 shrink-0 text-brand" aria-hidden="true" />
-                        この設備の概算金額は未算定です
+                        {g.kind === "room"
+                          ? "ルームエアコンは、この診断では金額を出しません"
+                          : g.kind === "unknown"
+                            ? "種類が分からない設備は、現地で確認します"
+                            : `概算には「${[
+                                blocking.includes("kind_unselected") ? "種類" : null,
+                                blocking.includes("units_missing") ? "台数" : null,
+                                blocking.includes("install_year_missing") ? "設置年" : null,
+                                hpMissing ? "馬力" : null,
+                              ].filter(Boolean).join("・")}」が必要です`}
                       </p>
                       <p className="mt-1 text-[14px] leading-[1.7] text-ink-soft">
-                        {g.kind === "room" ? "ルームエアコンは、この診断では金額を算定しません。"
-                          : g.kind === "unknown" ? "種類不明のため、銘板や現地調査で確認します。"
-                          : g.kind === null ? "設備の種類が未選択です。"
-                          : "未入力・要確認の数字は、あとの概算画面でも補えます。"}
+                        {g.kind === "room" ? "業務用の制度・単価の対象外のため、担当者が別途ご案内します。"
+                          : g.kind === "unknown" ? "銘板の写真や現地調査で種類を確かめてから、金額を出します。"
+                          : "分からない欄は空欄のままでも先へ進めます。あとの概算の画面でも補えます。"}
                       </p>
                     </div>
                   )}
                   <details className="rounded-2xl border border-ink-line">
                     <summary className="min-h-[48px] cursor-pointer px-4 text-[14px] leading-[1.7] text-ink-soft">
-                      入力の確認方法{(reasons.length > 0 || hpMissing) && "・未算定の理由"}
+                      入力の確認方法{groupStarted && (reasons.length > 0 || hpMissing) && "・概算できない理由"}
                     </summary>
                     <div className="space-y-3 px-4 pb-4 text-[14px] leading-[1.7] text-ink-soft">
                       <dl className="space-y-3">

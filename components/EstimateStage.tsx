@@ -18,6 +18,8 @@ import {
 } from "@/lib/pricing";
 import { buildConstructionTimeline } from "@/lib/timeline";
 import { pricedGroupsOf } from "@/lib/diagnosisSnapshot";
+import type { InvestChoice, InvestSource } from "@/lib/amountBasis";
+import { InvestBasisChooser } from "./InvestBasisChooser";
 import {
   UNRESOLVED_REASON_LABEL,
   UNRESOLVED_REASON_NOTE,
@@ -87,6 +89,9 @@ export interface EstimateStageProps {
   groups: DiagnosisEquipGroup[];
   onApplyInputs: (patches: EstimateGroupPatch[]) => void;
   onEditEquipment: () => void;
+  /** 2026-09-25 UXレビュー No.2: 補助額の計算に使う金額（C段と同じ値）。lib/amountBasis.ts */
+  investChoice?: InvestChoice;
+  onInvestSourceChange?: (source: InvestSource) => void;
 }
 
 export function EstimateStage({
@@ -99,6 +104,8 @@ export function EstimateStage({
   groups,
   onApplyInputs,
   onEditEquipment,
+  investChoice,
+  onInvestSourceChange,
 }: EstimateStageProps) {
   return (
     <section aria-labelledby="estimate-heading" className="ehc-estimate-stage space-y-6">
@@ -119,6 +126,8 @@ export function EstimateStage({
           projection={projection}
           customerBudgetYen={customerBudgetYen}
           desiredTiming={desiredTiming}
+          investChoice={investChoice}
+          onInvestSourceChange={onInvestSourceChange}
         />
       ) : (
         <NotEstimated projection={projection} />
@@ -177,11 +186,15 @@ function Estimated({
   projection,
   customerBudgetYen,
   desiredTiming,
+  investChoice,
+  onInvestSourceChange,
 }: {
   input: MatchInput;
   projection: EquipProjection;
   customerBudgetYen: number | null;
   desiredTiming: DesiredTiming | null;
+  investChoice?: InvestChoice;
+  onInvestSourceChange?: (source: InvestSource) => void;
 }) {
   /* 金額を出せる群＝種類・台数・設置年が揃っていて（projection が保証済み）、
      さらに馬力が入っている群。馬力が無い群は冒頭のコメントのとおり外す。
@@ -231,7 +244,13 @@ function Estimated({
       {est && low && high ? (
         <>
           <TotalCard est={est} low={low} high={high} />
-          {mismatch && <InvestMismatch {...mismatch} />}
+          {/* 2026-09-25 UXレビュー No.2: 「一致していません」と注意するだけでなく、
+              どちらで計算するかをここで選べるようにする（C段と同じ選択。どちらで選んでも両段に反映）。 */}
+          {investChoice && onInvestSourceChange ? (
+            <InvestBasisChooser choice={investChoice} onChange={onInvestSourceChange} idPrefix="estimate" />
+          ) : (
+            mismatch && <InvestMismatch {...mismatch} />
+          )}
         </>
       ) : (
         <p className="text-[16px] font-bold leading-[1.7] text-amber-800">概算金額は未算定です。</p>

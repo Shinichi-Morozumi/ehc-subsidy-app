@@ -26,6 +26,7 @@ import {
 import { canShowAmount, canCombine } from "@/lib/eligibility";
 import { GroupSavingsChart } from "./GroupSavingsChart";
 import { useProject } from "./ProjectContext";
+import { legacyAccessFromSearch, NO_LEGACY_ACCESS, type LegacyAccess } from "@/lib/legacyAccess";
 import { RoadmapView } from "./RoadmapView";
 import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
@@ -116,6 +117,16 @@ const HELP = {
 
 export function SubsidyMatcher({ workspaceMode = false }: { workspaceMode?: boolean }) {
   const [legacyOpen, setLegacyOpen] = useState(false);
+  /* 2026-09-25 UXレビュー No.3: お客様向けの画面（workspaceMode）では旧シミュレーターを出さない。
+     担当者用の入口（?staff=1）と共有リンク（?d=）のときだけ出す。判定は lib/legacyAccess.ts。
+     workspaceMode でない呼び出し（単体の旧画面）は従来どおり常に出す。 */
+  const [legacyAccess, setLegacyAccess] = useState<LegacyAccess>(NO_LEGACY_ACCESS);
+  useEffect(() => {
+    const access = legacyAccessFromSearch(window.location.search);
+    setLegacyAccess(access);
+    if (access.sharedLink) setLegacyOpen(true);
+  }, []);
+  const showLegacy = !workspaceMode || legacyAccess.showLegacy;
   const [input, setInput] = useState<MatchInput>({
     bizType: "business",
     size: "sme",
@@ -394,13 +405,14 @@ export function SubsidyMatcher({ workspaceMode = false }: { workspaceMode?: bool
       <GuidedDiagnosis input={input} setInput={setInput} onComplete={run} />
       </div>
 
-      {workspaceMode && (
+      {workspaceMode && showLegacy && (
         <button type="button" className="ehc-legacy-toggle no-print" aria-expanded={legacyOpen} aria-controls="legacy-simulation-tools" onClick={() => setLegacyOpen((value) => !value)}>
-          <span><strong>詳細シミュレーター・従来の帳票</strong><span>細かな条件の調整や、従来の診断書を使う方へ</span></span>
+          <span><strong>担当者用｜詳細シミュレーター・従来の帳票</strong><span>{legacyAccess.sharedLink && !legacyAccess.staff ? "共有リンクの診断内容を表示しています" : "提案書の作成・送付や、細かな条件の調整に使います（お客様向けの画面には表示されません）"}</span></span>
           <span aria-hidden="true">{legacyOpen ? "−" : "＋"}</span>
         </button>
       )}
       {/* 画面だけ畳む。ガイドはこの外に常時マウント、既存印刷DOMは保持する。 */}
+      {showLegacy && (
       <div id="legacy-simulation-tools" className={workspaceMode ? "ehc-legacy-body" : undefined} data-open={legacyOpen}>
 
       {/* 入力順は「設備 → 診断結果 → 必要な場合だけ連絡先」。
@@ -965,6 +977,7 @@ export function SubsidyMatcher({ workspaceMode = false }: { workspaceMode?: bool
         </div>
       )}
       </div>
+      )}
     </div>
   );
 }

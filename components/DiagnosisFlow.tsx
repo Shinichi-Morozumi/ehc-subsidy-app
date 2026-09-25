@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import { ArrowRight, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { matchSubsidies } from "@/lib/match";
+import type { Subsidy } from "@/lib/types";
+import { applyInvestChoice, resolveInvestChoice, type InvestSource } from "@/lib/amountBasis";
+import { applyEquipmentEnergy } from "@/lib/diagnosisEnergy";
 import { newDiagnosisState, type DiagnosisState } from "@/lib/diagnosisState";
 import { projectEquipGroups, toMatchInput } from "@/lib/diagnosisProjection";
 import { useProject } from "./ProjectContext";
@@ -14,6 +17,7 @@ import { ResultStage } from "./ResultStage";
 import { EstimateStage } from "./EstimateStage";
 import { applyEstimateGroupPatches } from "./estimateInputFields";
 import { ContactStage } from "./ContactStage";
+import { GlossaryDetails } from "./Glossary";
 
 /* ───────────────────────────────────────────────────────────
    5段の診断フローの器（EHC-0039 第9片 / 2026-09-14 v1）
@@ -72,7 +76,7 @@ export function DiagnosisFlow() {
      1台も入れていない間は undefined で、判定側は従来どおり未確認として扱う。 */
   const targetProduct = useTargetProduct(state.plannedUnits);
 
-  const { input, projection } = useMemo(
+  const { input: projectedInput, projection } = useMemo(
     () =>
       base
         ? toMatchInput(
@@ -84,6 +88,30 @@ export function DiagnosisFlow() {
           )
         : { input: null, projection: projectEquipGroups(state) },
     [state, base, targetProduct.data]
+  );
+
+  /* 2026-09-25 UXレビュー 追加所見: 年間の電力使用量。
+     5段の診断は kWh を聞いていないのに、旧シミュレーターの初期値（80,000kWh）が
+     計算入力に残っていた。入力した設備（台数×馬力）と建物用途からの推計に置き換える。
+     推計できないとき（馬力が未入力の設備がある）は不明として扱う。判定と式は lib/diagnosisEnergy.ts。 */
+  const energyApplied = useMemo(
+    () => (projectedInput ? applyEquipmentEnergy(projectedInput) : null),
+    [projectedInput]
+  );
+  const energy = energyApplied?.energy ?? null;
+
+  /* 2026-09-25 UXレビュー No.2: 補助額の計算に使う金額を1本にする。
+     既定は「この診断の概算（税抜）」。7問目で答えた金額と違うときは、
+     C段・D段の同じ選択肢から1回だけ選んでもらい、全段が同じ invest を読む。
+     決め方は lib/amountBasis.ts。ここに式を書かない。 */
+  const [investSource, setInvestSource] = useState<InvestSource>("estimate");
+  const investChoice = useMemo(
+    () => resolveInvestChoice(energyApplied?.input ?? null, investSource),
+    [energyApplied, investSource]
+  );
+  const input = useMemo(
+    () => (energyApplied ? applyInvestChoice(energyApplied.input, investChoice) : null),
+    [energyApplied, investChoice]
   );
 
   /* matchSubsidies は equipGroups が空だと既定の設備群（R410A・パッケージ・
@@ -138,8 +166,8 @@ export function DiagnosisFlow() {
       {stage === "find" && (
         <FindStage
           base={confirmed}
-          programNames={(confirmedResult?.matched ?? []).map((s) => s.name)}
-          needsCheckCount={confirmedResult?.needsCheck.length ?? 0}
+          matched={confirmedResult?.matched ?? []}
+          needsCheck={confirmedResult?.needsCheck ?? []}
           onNext={() => go("equip")}
         />
       )}
@@ -181,7 +209,8 @@ export function DiagnosisFlow() {
           </div>
           {/* 進めないようにはしない。足りない入力があることは次の段が理由つきで出す。
               ここでボタンを無効にすると、何が足りないのか分からないまま行き止まりになる。 */}
-          {!projection.canCompute && (
+          {/* 2026-09-25 UXレビュー No.13: 何も入力していないうちは出さない（始める前から失敗したように見えるため）。 */}
+          {!projection.canCompute && hasAnyEquipInput(state) && (
             <p className="flex items-start gap-2 rounded-2xl border border-ink-line bg-paper-sub p-4 text-[14px] leading-[1.7] text-ink-soft">
               <Info aria-hidden className="mt-0.5 h-5 w-5 shrink-0" />
               <span>
@@ -204,6 +233,10 @@ export function DiagnosisFlow() {
                画面側はそれを未確認として表示する。 */
             targetProduct={targetProduct.data}
             targetProductError={targetProduct.error}
+            investChoice={investChoice}
+            onInvestSourceChange={setInvestSource}
+            energy={energy}
+            stage1Matched={confirmedResult?.matched ?? []}
           />
           <button
             type="button"
@@ -229,6 +262,8 @@ export function DiagnosisFlow() {
           onEditEquipment={() => go("equip")}
           onBack={() => go("result")}
           onNext={() => go("docs")}
+          investChoice={investChoice}
+          onInvestSourceChange={setInvestSource}
         />
       )}
 
@@ -254,17 +289,23 @@ export function DiagnosisFlow() {
 /* ───────── A段「候補を見る」 ─────────
    ここは新しい判定を持たない。
    上のヒアリングで matchSubsidies() が出した候補の名前を並べ、
-   次の段（設備を入力）へ渡すだけ。 */
+   次の段（設備を入力）へ渡すだけ。
+
+   2026-09-25 UXレビュー No.5:
+   以前は制度名が「候補の制度名を見る＋」の中に畳まれていて、7問に答えて
+   一番知りたい「どの制度が使えそうか」が隠れていた。畳まずに出し、
+   補助率・上限・受付状況も並べる。値は制度データ（lib/subsidies.ts）の文字そのままで、
+   ここで計算や判定はしない。 */
 
 function FindStage({
   base,
-  programNames,
-  needsCheckCount,
+  matched,
+  needsCheck,
   onNext,
 }: {
   base: unknown;
-  programNames: string[];
-  needsCheckCount: number;
+  matched: Subsidy[];
+  needsCheck: Subsidy[];
   onNext: () => void;
 }) {
 
@@ -280,7 +321,7 @@ function FindStage({
           </p>
         </header>
         <p className="rounded-2xl border border-ink-line bg-paper-sub p-4 text-[14px] leading-[1.7] text-ink-soft">
-          まずは「基本条件を確認する」から始めてください。名前やメールアドレスは不要です。
+          まずは上の「基本条件を確認・変更」から始めてください。名前やメールアドレスは不要です。
         </p>
       </section>
     );
@@ -293,43 +334,71 @@ function FindStage({
           候補を見る
         </h2>
         <p className="text-[16px] leading-[1.7] text-ink-soft">
-          次に空調の情報を加えて、候補を絞りましょう。
+          7問の答えから、使えそうな制度を探しました。次に空調の情報を加えると、補助額の目安と申請の時期まで確認できます。
         </p>
       </header>
 
-      <div className="ehc-candidate-summary rounded-2xl border border-ink-line bg-paper-card p-4">
-        <h3 className="text-[16px] font-bold leading-[1.7] text-ink">
-          いま候補に挙がっている制度（{programNames.length} 件）
-        </h3>
-        {programNames.length > 0 ? (
-          <details className="mt-2">
-          <summary className="min-h-[48px] cursor-pointer py-3 text-[16px] font-bold text-brand-deep">候補の制度名を見る</summary>
-          <ul className="space-y-2">
-            {programNames.map((n) => (
-              <li
-                key={n}
-                className="flex items-start gap-2 text-[14px] leading-[1.7] text-ink-soft"
-              >
-                <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-                <span>{n}</span>
+      <p className="ehc-find-counts">
+        <span>
+          候補 <strong>{matched.length}</strong> 件
+        </span>
+        <span>
+          条件の確認が必要 <strong>{needsCheck.length}</strong> 件
+        </span>
+      </p>
+
+      {matched.length > 0 ? (
+        <ul className="ehc-find-programs space-y-3" aria-label="候補に挙がっている制度">
+          {matched.map((s) => (
+            <li key={s.id} className="ehc-find-program rounded-2xl border border-ink-line bg-paper-card p-4">
+              <p className="text-[16px] font-bold leading-[1.6] text-ink">{s.name}</p>
+              <dl className="ehc-find-facts mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-[14px] leading-[1.7] sm:grid-cols-3">
+                <div className="flex gap-2 sm:block">
+                  <dt className="shrink-0 text-ink-soft">補助率</dt>
+                  <dd className="font-bold text-ink">{s.rate}</dd>
+                </div>
+                <div className="flex gap-2 sm:block">
+                  <dt className="shrink-0 text-ink-soft">上限</dt>
+                  <dd className="font-bold text-ink">{s.max}</dd>
+                </div>
+                <div className="flex gap-2 sm:block">
+                  <dt className="shrink-0 text-ink-soft">受付</dt>
+                  <dd className="font-bold text-ink">{receptionLabel(s)}</dd>
+                </div>
+              </dl>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="rounded-2xl border border-ink-line bg-paper-sub p-4 text-[14px] leading-[1.7] text-ink-soft">
+          現時点で確定した候補はありません。設備の内容や不足している条件を確認すると、候補になる制度があります。
+        </p>
+      )}
+
+      {needsCheck.length > 0 && (
+        <details className="ehc-find-needs rounded-2xl border border-ink-line bg-paper-sub px-4">
+          <summary className="min-h-[48px] cursor-pointer py-3 text-[16px] font-bold leading-[1.7] text-ink">
+            条件の確認が必要な制度（{needsCheck.length}件）
+          </summary>
+          <p className="text-[14px] leading-[1.7] text-ink-soft">
+            対象外と決まったわけではありません。設備の情報や条件を確かめると、判定が進みます。
+          </p>
+          <ul className="mt-2 space-y-1 pb-4">
+            {needsCheck.map((s) => (
+              <li key={s.id} className="flex items-start gap-2 text-[14px] leading-[1.7] text-ink">
+                <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-ink-soft" />
+                <span>{s.name}</span>
               </li>
             ))}
           </ul>
-          </details>
-        ) : (
-          <p className="mt-2 text-[14px] leading-[1.7] text-ink-soft">
-            現時点で確定した候補はありません。設備の内容や不足条件を確認すると、候補になる制度があります。
-          </p>
-        )}
-        {needsCheckCount > 0 && (
-          <p className="mt-3 text-[14px] leading-[1.7] text-ink-soft">
-            条件確認が必要な制度：{needsCheckCount} 件。対象外とは限りません。
-          </p>
-        )}
-        <p className="mt-3 text-[14px] leading-[1.7] text-ink-soft">
-          候補に挙がっていることは、採択・受給を保証するものではありません。
-        </p>
-      </div>
+        </details>
+      )}
+
+      <p className="text-[14px] leading-[1.7] text-ink-soft">
+        候補に挙がっていることは、採択・受給を保証するものではありません。
+      </p>
+
+      <GlossaryDetails />
 
       <details className="ehc-next-details"><summary>このあと確認できること</summary>
       <ol className="ehc-next-overview grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="このあと確認できること">
@@ -357,5 +426,28 @@ function FindStage({
         <ArrowRight aria-hidden className="h-5 w-5 shrink-0" />
       </button>
     </section>
+  );
+}
+
+/* 受付状況の短い表示。制度データの status と日付をそのまま言い換えるだけで、判定はしない。
+   年が今年と違うときだけ年を付ける（2027年1月の回を「1月18日」と書かない）。 */
+function jpDate(value: string): string {
+  const [y, m, d] = value.split("-").map(Number);
+  if (!y || !m || !d) return value;
+  return y === new Date().getFullYear() ? `${m}月${d}日` : `${y}年${m}月${d}日`;
+}
+
+function receptionLabel(s: Subsidy): string {
+  if (s.status === "open") return s.applyClose ? `受付中（${jpDate(s.applyClose)}まで）` : "受付中";
+  if (s.status === "upcoming") return s.applyOpen ? `受付予定（${jpDate(s.applyOpen)}から）` : "受付予定";
+  if (s.status === "closed") return "受付終了";
+  return "受付時期は公式発表待ち";
+}
+
+/* 2026-09-25 UXレビュー No.13: 設備の入力が1つでも始まっているか。
+   未入力の注意は、入力が始まってから出す。 */
+function hasAnyEquipInput(state: DiagnosisState): boolean {
+  return state.groups.some(
+    (g) => g.kind !== null || g.units !== null || g.installYear !== null || g.hp !== null
   );
 }

@@ -1,10 +1,17 @@
 "use client";
 
-import { CheckCircle2, HelpCircle, XCircle, AlertCircle, Clock, ExternalLink } from "lucide-react";
+import { CheckCircle2, HelpCircle, XCircle, AlertCircle, Clock, ExternalLink, CalendarClock, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { MatchInput } from "@/lib/types";
+import type { MatchInput, Subsidy } from "@/lib/types";
 import { co2TonLabel, type MatchResult } from "@/lib/match";
 import type { FitLevel5 } from "@/lib/eligibility";
+import { judgePrep, type PrepJudgement } from "@/lib/prep";
+import { buildRoiSnapshot } from "@/lib/roiState";
+import { ELECTRIC_PRICE_YEN_PER_KWH } from "@/lib/pricing";
+import { INVEST_SOURCE_LABEL, type InvestChoice, type InvestSource } from "@/lib/amountBasis";
+import { ENERGY_SOURCE_NOTE, type EnergyBasis } from "@/lib/diagnosisEnergy";
+import { InvestBasisChooser } from "./InvestBasisChooser";
+import { GlossaryDetails } from "./Glossary";
 import {
   useProgramAssessments,
   type ProgramAssessment,
@@ -64,8 +71,15 @@ const FIT_VIEW: Record<
   FitLevel5,
   { label: string; note: string; icon: typeof CheckCircle2; tone: string }
 > = {
+  /* 2026-09-25 UXレビュー No.7: 呼び名を短く、意味が伝わる語にする。
+     判定そのもの（lib/eligibility.ts の assessFit）は変えていない。語だけを替えた。
+       適合は高い → 使える見込みが高い
+       確認すれば候補（余地あり） → 条件次第
+       判定保留 → 制度の発表待ち（お客様側で埋められる項目ではないことが伝わる語）
+       適合は低い → 一部の設備だけ対象（実際の意味そのもの）
+       今回は対象外（不可） → 今回は対象外 */
   high: {
-    label: "適合は高い",
+    label: "使える見込みが高い",
     /* 「入力した設備」と書かない。この見出しが指しているのは
        試算に含めた群（input.equipGroups）だけで、お客様が入力した全群ではない。
        ルームエアコンなど計算に回せなかった群は、この判定に入っていない。
@@ -79,19 +93,19 @@ const FIT_VIEW: Record<
     tone: "border-brand/35 bg-[#edf6e8] text-brand-deep",
   },
   possible: {
-    label: "確認すれば候補（余地あり）",
-    note: "対象外と決まったわけではありません。お伺いすれば埋まる項目が残っています。何が分かれば判定できるかを下に並べています。",
+    label: "条件次第",
+    note: "対象外と決まったわけではありません。確認できれば候補になります。何が分かれば判定できるかを各制度に並べています。",
     icon: HelpCircle,
     tone: "border-amber-500/45 bg-amber-50 text-amber-800",
   },
   on_hold: {
-    label: "判定保留",
-    note: "制度側の情報が揃っていないため、まだ判定できません。公募要領の公表や公式確認を待つ段階で、お客様側で埋められる項目ではありません。",
+    label: "制度の発表待ち",
+    note: "制度側の情報（公募要領など）がまだ公表されていないため、判定できません。お客様側で埋められる項目ではありません。",
     icon: Clock,
     tone: "border-ink-line bg-paper-tint text-ink",
   },
   low: {
-    label: "適合は低い",
+    label: "一部の設備だけ対象",
     /* 2026-09-16 EHC-0039 修正2:
        旧文は「…または、この制度から補助額を算定できません」と書いていた。
        本アプリが金額を出せないことと、制度への適合が低いことは別である。
@@ -104,16 +118,14 @@ const FIT_VIEW: Record<
     tone: "border-ink-line bg-paper-sub text-ink",
   },
   not_possible: {
-    label: "今回は対象外（不可）",
+    label: "今回は対象外",
     note: "受付が終了しているか、要件と明確に矛盾する点があります。理由を下に出しています。",
     icon: XCircle,
     tone: "border-ink-line bg-paper-sub text-ink-soft",
   },
 };
 
-/* 並び順は「次に手が動くか」で決める。
-   高い → 余地あり（聞けば進む） → 判定保留（待つ） → 低い → 不可。 */
-const FIT_ORDER: FitLevel5[] = ["high", "possible", "on_hold", "low", "not_possible"];
+/* 2026-09-25: 並び順は ComputedResult の中で段ごとに決める（今回の公募 → 次回の公募 → 発表待ち → 一部のみ → 対象外）。 */
 
 export interface ResultStageProps {
   /** projection.canCompute が false のときは null。null なら計算していない */
@@ -131,6 +143,14 @@ export interface ResultStageProps {
   targetProduct?: TargetProductApiResponse;
   /** 照合結果を取れなかった理由。取れなかったことを黙って未確認にしない */
   targetProductError?: string | null;
+  /* ───────── 2026-09-25 UXレビュー ─────────
+     investChoice … 補助額の計算に使っている金額の出どころ（No.2。lib/amountBasis.ts）
+     energy       … 年間kWh の出どころ（追加所見。lib/diagnosisEnergy.ts）
+     stage1Matched … 第1段階（7問の直後）で候補に挙がっていた制度。件数の変化を説明するため（No.6） */
+  investChoice?: InvestChoice;
+  onInvestSourceChange?: (source: InvestSource) => void;
+  energy?: EnergyBasis | null;
+  stage1Matched?: Subsidy[];
 }
 
 export function ResultStage({
@@ -140,6 +160,10 @@ export function ResultStage({
   onBack,
   targetProduct,
   targetProductError,
+  investChoice,
+  onInvestSourceChange,
+  energy,
+  stage1Matched,
 }: ResultStageProps) {
   /* 計算していないときは、数字の器そのものを出さない。
      「—」や「0万円」を並べた枠を見せると、枠があること自体が
@@ -157,6 +181,10 @@ export function ResultStage({
       onBack={onBack}
       targetProduct={targetProduct}
       targetProductError={targetProductError}
+      investChoice={investChoice}
+      onInvestSourceChange={onInvestSourceChange}
+      energy={energy ?? null}
+      stage1Matched={stage1Matched ?? []}
     />
   );
 }
@@ -237,6 +265,20 @@ function NotComputed({
 
 /* ───────── 計算したとき ───────── */
 
+/* 2026-09-25 UXレビュー No.1: 締切に間に合うかで段を分ける。
+   適合度（assessFit）は「条件が合うか」だけを見ていて、締切までの日数は見ていない。
+   そのため、締切まで約4日・準備の目安35〜56日の制度が、最上位に金額つきで並んでいた。
+   ここでは判定を作らない。lib/prep.ts の judgePrep()（受付中の制度の残日数と準備日数の比較）
+   が「日程が厳しい（short）」と出した制度を、「次回の公募に備える制度」へ分けて表示するだけ。 */
+function prepOf(s: Subsidy, now: Date): PrepJudgement | null {
+  return s.status === "open" ? judgePrep(s, now) : null;
+}
+
+/* 万円の表示。カードとまとめで同じ関数を使い、同じ数字が違う桁で出ないようにする。 */
+function manYenText(v: number): string {
+  return v.toLocaleString("ja-JP", { maximumFractionDigits: 1 });
+}
+
 function ComputedResult({
   input,
   result,
@@ -244,6 +286,10 @@ function ComputedResult({
   onBack,
   targetProduct,
   targetProductError,
+  investChoice,
+  onInvestSourceChange,
+  energy,
+  stage1Matched,
 }: {
   input: MatchInput;
   result: MatchResult;
@@ -251,56 +297,73 @@ function ComputedResult({
   onBack?: () => void;
   targetProduct?: TargetProductApiResponse;
   targetProductError?: string | null;
+  investChoice?: InvestChoice;
+  onInvestSourceChange?: (source: InvestSource) => void;
+  energy: EnergyBasis | null;
+  stage1Matched: Subsidy[];
 }) {
   /* 第3引数は「試算に含めなかった群の種類」（2026-09-16 EHC-0039 修正2 で件数から変更）。
      ルームエアコン2台を入れた画面で、計算に入った1群だけを見て
-     「入力した設備はすべて対象」と読ませないこと（lib/eligibility.ts 冒頭の禁止事項）。
-     件数だけを渡していた頃は、ルームエアコン（対象種別でないと分かっている）と
-     種類未選択（何も分かっていない）が同じ1件として届いていたため、
-     判定側はどちらとも言えず、結局どの制度も「すべて対象種別」になっていた。 */
+     「入力した設備はすべて対象」と読ませないこと（lib/eligibility.ts 冒頭の禁止事項）。 */
   const { assessments, monitorCheckedAt } = useProgramAssessments(
     input,
     result,
     projection.excludedKinds
   );
 
+  const now = new Date();
   /* 判定は assessFit() が済ませてある。ここは仕分けるだけ。 */
   const byFit = (level: FitLevel5) =>
     assessments.filter((a) => a.fit.level === level);
+  const promising = assessments.filter((a) => a.fit.level === "high" || a.fit.level === "possible");
+  const isNextRound = (a: ProgramAssessment) => prepOf(a.subsidy, now)?.verdict === "short";
+  /* 並びは 高い → 条件次第。同じ段の中は制度データの並び（assessPrograms の順）を保つ。 */
+  const levelRank = (a: ProgramAssessment) => (a.fit.level === "high" ? 0 : 1);
+  const current = promising.filter((a) => !isNextRound(a)).sort((x, y) => levelRank(x) - levelRank(y));
+  const nextRound = promising.filter(isNextRound).sort((x, y) => levelRank(x) - levelRank(y));
 
   /* 計算に回せなかった群が「1つも無い」のか「一部あった」のかを区別する。
      一部だけ計算した結果を、全設備の結果として読ませない。 */
   const partial = projection.unresolvedGroups.length > 0;
 
+  /* No.6: 第1段階（7問の直後）で候補だった制度が、設備を入れたあと候補から外れたときは理由を1行で言う。 */
+  const changed = stage1Matched
+    .map((s) => ({ s, a: assessments.find((x) => x.subsidy.id === s.id) }))
+    .filter((x): x is { s: Subsidy; a: ProgramAssessment } => !!x.a && x.a.fit.level !== "high" && x.a.fit.level !== "possible");
+
+  const secondaryLevels: FitLevel5[] = ["on_hold", "low", "not_possible"];
+
   return (
     <section aria-labelledby="result-heading" className="ehc-result-stage space-y-6">
       <header className="ehc-result-header">
-        <p className="mb-2 text-[14px] font-semibold text-brand-deep">{assessments.length}制度の判定結果</p>
+        <p className="mb-2 text-[14px] font-semibold text-brand-deep">{assessments.length}制度を判定しました</p>
         <h2 id="result-heading" className="text-2xl font-bold leading-relaxed tracking-tight text-ink">
-          制度の候補と、申請時期を確認
+          使える制度と、申請の時期
         </h2>
         <p className="mt-3 text-[16px] leading-[1.8] text-ink-soft">
-          採択や補助額を保証するものではありません。
+          入力いただいた設備で、制度ごとの条件と締切を確認しました。採択や補助額を保証するものではありません。
         </p>
+        <ul className="ehc-result-chips mt-4 flex flex-wrap gap-2" aria-label="判定の内訳">
+          <li><span>今回の公募で進められる</span><strong>{current.length}</strong>件</li>
+          {nextRound.length > 0 && <li><span>次回の公募に備える</span><strong>{nextRound.length}</strong>件</li>}
+          {secondaryLevels.map((level) =>
+            byFit(level).length > 0 ? (
+              <li key={level}><span>{FIT_VIEW[level].label}</span><strong>{byFit(level).length}</strong>件</li>
+            ) : null
+          )}
+        </ul>
         <details className="mt-3">
           <summary className="min-h-[48px] cursor-pointer py-3 text-[16px] font-bold leading-[1.7] text-brand-deep focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep">
-            判定の見方と内訳
+            判定の見方
           </summary>
-          <p className="mt-2 text-[16px] leading-[1.8] text-ink-soft">
-            制度ごとの適合度と申請時期を整理しました。判定の根拠・未確認事項は、各制度から開けます。
-          </p>
-          <dl className="ehc-result-counts mt-5 grid grid-cols-2 gap-3">
-            {(["high", "possible"] as const).map((level) => (
-              <div key={level} className="rounded-2xl bg-[#f0f5e5] px-4 py-3">
-                <dt className="text-[14px] font-semibold leading-relaxed text-ink-soft">{FIT_VIEW[level].label}</dt>
-                <dd className="mt-2 text-2xl font-bold tabular-nums text-brand-deep">
-                  {byFit(level).length}<span className="ml-1 text-[14px] font-medium">件</span>
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <dl className="mt-4 space-y-3">
-            {FIT_ORDER.map((level) => (
+          <dl className="mt-2 space-y-3">
+            <div>
+              <dt className="text-[14px] font-bold leading-[1.8] text-ink">次回の公募に備える</dt>
+              <dd className="mt-1 text-[14px] leading-[1.8] text-ink-soft">
+                条件は合う見込みですが、今回の締切までの日数が、申請の準備にかかる日数の目安より短い制度です。準備日数は運用上の目安です。
+              </dd>
+            </div>
+            {(["high", "possible", "on_hold", "low", "not_possible"] as FitLevel5[]).map((level) => (
               <div key={level}>
                 <dt className="text-[14px] font-bold leading-[1.8] text-ink">{FIT_VIEW[level].label}</dt>
                 <dd className="mt-1 text-[14px] leading-[1.8] text-ink-soft">{FIT_VIEW[level].note}</dd>
@@ -308,7 +371,35 @@ function ComputedResult({
             ))}
           </dl>
         </details>
+        <GlossaryDetails />
       </header>
+
+      <ResultSummary
+        input={input}
+        result={result}
+        current={current}
+        nextRound={nextRound}
+        energy={energy}
+        investChoice={investChoice}
+      />
+
+      {investChoice && onInvestSourceChange && (
+        <InvestBasisChooser choice={investChoice} onChange={onInvestSourceChange} idPrefix="result" />
+      )}
+
+      {changed.length > 0 && (
+        <div className="ehc-result-changed rounded-2xl border border-ink-line bg-paper-sub p-4">
+          <p className="text-[16px] font-bold leading-[1.7] text-ink">第1段階の候補から変わった制度</p>
+          <ul className="mt-2 space-y-2">
+            {changed.map(({ s, a }) => (
+              <li key={s.id} className="text-[14px] leading-[1.7] text-ink-soft">
+                <span className="font-bold text-ink">{s.name}</span>：設備の情報を加えた結果、「{FIT_VIEW[a.fit.level].label}」になりました。
+                {a.fit.why[0] ? <span className="block">{a.fit.why[0]}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {partial && <PartialNotice projection={projection} onBack={onBack} />}
 
@@ -319,57 +410,96 @@ function ComputedResult({
         </p>
       )}
 
-      {FIT_ORDER.map((level) => {
+      <section aria-labelledby="result-group-current" className="ehc-result-fit-group space-y-3">
+        <h3 id="result-group-current" className="flex items-start gap-2 rounded-2xl border border-brand/35 bg-[#edf6e8] px-4 py-3 text-[16px] font-bold leading-[1.7] text-brand-deep">
+          <CheckCircle2 aria-hidden="true" className="mt-1 h-5 w-5 shrink-0" />
+          <span className="min-w-0">今回の公募で進められる制度</span>
+          <span className="ml-auto shrink-0 tabular-nums">{current.length}件</span>
+        </h3>
+        {current.length > 0 ? (
+          <ul className="mt-4 space-y-4">
+            {current.map((a) => (
+              <li key={a.subsidy.id}>
+                <ProgramCard
+                  assessment={a}
+                  level={a.fit.level}
+                  prep={prepOf(a.subsidy, now)}
+                  targetProduct={targetProduct?.details[a.subsidy.id]}
+                  targetProductFiscalYear={targetProduct?.details[a.subsidy.id]?.fiscalYear ?? targetProduct?.fiscalYear}
+                  targetProductStore={targetProduct?.store}
+                  targetProductError={targetProductError}
+                />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-2xl border border-ink-line bg-paper-card p-4 text-[16px] leading-[1.8] text-ink">
+            {nextRound.length > 0
+              ? "今回の締切に間に合う制度は見つかりませんでした。下の「次回の公募に備える制度」で、今から準備できることを確認できます。"
+              : "今回の条件で進められる制度は見つかりませんでした。条件が変われば候補になる制度もあります。担当者にご相談ください。"}
+          </p>
+        )}
+      </section>
+
+      {nextRound.length > 0 && (
+        <section aria-labelledby="result-group-next" className="ehc-result-fit-group space-y-3">
+          <h3 id="result-group-next" className="flex items-start gap-2 rounded-2xl border border-ink-line bg-paper-tint px-4 py-3 text-[16px] font-bold leading-[1.7] text-ink">
+            <CalendarClock aria-hidden="true" className="mt-1 h-5 w-5 shrink-0" />
+            <span className="min-w-0">次回の公募に備える制度</span>
+            <span className="ml-auto shrink-0 tabular-nums">{nextRound.length}件</span>
+          </h3>
+          <p className="text-[14px] leading-[1.8] text-ink-soft">
+            条件は合う見込みですが、今回の締切までに申請の準備が間に合わない可能性が高い制度です。次回の公募に向けて、今から準備を進められます。
+          </p>
+          <ul className="mt-2 space-y-4">
+            {nextRound.map((a) => (
+              <li key={a.subsidy.id}>
+                <ProgramCard
+                  assessment={a}
+                  level={a.fit.level}
+                  prep={prepOf(a.subsidy, now)}
+                  nextRound
+                  targetProduct={targetProduct?.details[a.subsidy.id]}
+                  targetProductFiscalYear={targetProduct?.details[a.subsidy.id]?.fiscalYear ?? targetProduct?.fiscalYear}
+                  targetProductStore={targetProduct?.store}
+                  targetProductError={targetProductError}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {secondaryLevels.map((level) => {
         const items = byFit(level);
         if (items.length === 0) return null;
         const view = FIT_VIEW[level];
         const Icon = view.icon;
-        const content = (
-          <>
-            <ul className="mt-4 space-y-4">
-              {items.map((a) => (
-                <li key={a.subsidy.id}>
-                  <ProgramCard
-                    assessment={a}
-                    level={level}
-                    targetProduct={targetProduct?.details[a.subsidy.id]}
-                    /* 2026-09-16 台帳#32。年度は制度ごとに決まる（SIIの設備単位型／
-                       GX設備単位型は令和7年度補正＝2025年度の事業で、3次公募の受付だけが
-                       2026年度に行われる）。応答トップの fiscalYear は「今日の年度」の既定値なので、
-                       それをカードに出すと、実際に照合した年度と1年ずれた年度を画面が名乗る。
-                       制度ごとの年度があればそれを使い、無い場合だけ既定値へ落とす。 */
-                    targetProductFiscalYear={
-                      targetProduct?.details[a.subsidy.id]?.fiscalYear ?? targetProduct?.fiscalYear
-                    }
-                    targetProductStore={targetProduct?.store}
-                    targetProductError={targetProductError}
-                  />
-                </li>
-              ))}
-            </ul>
-          </>
-        );
-
-        if (level === "high" || level === "possible") {
-          return (
-            <section key={level} aria-labelledby={`result-fit-${level}`} className="ehc-result-fit-group space-y-3">
-              <h3 id={`result-fit-${level}`} className={cn("flex items-start gap-2 rounded-2xl border px-4 py-3 text-[16px] font-bold leading-[1.7]", view.tone)}>
-                <Icon aria-hidden="true" className="mt-1 h-5 w-5 shrink-0" />
-                <span className="min-w-0">{view.label}</span>
-                <span className="ml-auto shrink-0 tabular-nums">{items.length}件</span>
-              </h3>
-              {content}
-            </section>
-          );
-        }
-
         return (
           <details key={level} className="ehc-result-fit-group ehc-result-secondary-group rounded-2xl border border-ink-line bg-paper-card px-4 py-2">
             <summary className="ehc-result-fit-summary min-h-[56px] cursor-pointer py-3 text-[16px] font-bold leading-[1.7] text-ink focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep">
+              <Icon aria-hidden="true" className="mr-1 inline h-5 w-5 align-[-4px]" />
               <span className="ml-1">{view.label}</span>
               <span className="ml-2 whitespace-nowrap text-[14px] font-semibold tabular-nums text-ink-soft">{items.length}件</span>
             </summary>
-            <div className="pb-3">{content}</div>
+            <div className="pb-3">
+              <p className="mt-1 text-[14px] leading-[1.8] text-ink-soft">{view.note}</p>
+              <ul className="mt-4 space-y-4">
+                {items.map((a) => (
+                  <li key={a.subsidy.id}>
+                    <ProgramCard
+                      assessment={a}
+                      level={level}
+                      prep={prepOf(a.subsidy, now)}
+                      targetProduct={targetProduct?.details[a.subsidy.id]}
+                      targetProductFiscalYear={targetProduct?.details[a.subsidy.id]?.fiscalYear ?? targetProduct?.fiscalYear}
+                      targetProductStore={targetProduct?.store}
+                      targetProductError={targetProductError}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
           </details>
         );
       })}
@@ -389,10 +519,10 @@ function ComputedResult({
 
       <details className="ehc-result-energy rounded-2xl border border-ink-line bg-[#f5f7ef] px-4 py-2 sm:px-5">
         <summary className="min-h-[56px] cursor-pointer py-3 text-[16px] font-bold leading-[1.7] text-ink focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep">
-          更新後の省エネ見込みと算定根拠
+          省エネ見込みの算定根拠
         </summary>
         <div className="space-y-4 pt-3 pb-4">
-          <EffectSummary result={result} />
+          <EffectSummary result={result} energy={energy} />
 
           {/* 削減率の根拠と未確定の係数を、数値と同じ展開内に保持する。 */}
           <ReductionBasisPanel groups={result.groups} />
@@ -403,6 +533,128 @@ function ComputedResult({
         </div>
       </details>
     </section>
+  );
+}
+
+/* ───────── まとめ（2026-09-25 UXレビュー No.8） ─────────
+   段の先頭に、お客様を動かす数字（補助額の目安・工事費・実質負担・年間の削減額・回収の目安）を
+   まとめて出す。以前は削減額が畳まれた「省エネ見込み」の中にしか無かった。
+   計算は1本も書かない。補助額は assessPrograms() の potentialManYen、
+   実質負担と回収年数は lib/roiState.ts の buildRoiSnapshot() が出した値だけを読む。 */
+function ResultSummary({
+  input,
+  result,
+  current,
+  nextRound,
+  energy,
+  investChoice,
+}: {
+  input: MatchInput;
+  result: MatchResult;
+  current: ProgramAssessment[];
+  nextRound: ProgramAssessment[];
+  energy: EnergyBasis | null;
+  investChoice?: InvestChoice;
+}) {
+  /* 補助額の目安は「今回の公募で進められる制度」だけから取る。
+     次回向けの制度の金額を、今回の見込みとして混ぜない。 */
+  const best = current
+    .filter((a) => a.amountShown)
+    .sort((x, y) => y.potentialManYen - x.potentialManYen)[0] ?? null;
+  const energyKnown = energy?.source !== "unknown";
+  const roi = buildRoiSnapshot({
+    investManYen: input.invest,
+    subsidyConfirmed: !!best,
+    subsidyManYen: best ? best.potentialManYen : null,
+    saveYenPerYear: energyKnown ? result.saveYenPerYear : 0,
+    investQuoted: input.investQuoted,
+  });
+  const investSourceLabel =
+    investChoice?.source != null ? INVEST_SOURCE_LABEL[investChoice.source] : null;
+
+  const subsidyNote = best
+    ? best.subsidy.name
+    : current.length === 0
+      ? nextRound.length > 0
+        ? `今回の締切に間に合う制度がありません（次回の公募に備える制度 ${nextRound.length}件）`
+        : "今回の条件で進められる制度がありません"
+      : roi.investState === "unknown"
+        ? "工事費が未算定のため出していません（馬力を入れると概算できます）"
+        : "条件の確認が済むまで、金額は出していません";
+
+  return (
+    <section aria-labelledby="result-summary-heading" className="ehc-result-summary rounded-2xl border border-brand/35 bg-[#f3f8ea] p-4 sm:p-5">
+      <h3 id="result-summary-heading" className="flex items-center gap-2 text-[18px] font-bold leading-[1.6] text-ink">
+        <ListChecks aria-hidden="true" className="h-5 w-5 shrink-0 text-brand-deep" />
+        診断のまとめ
+      </h3>
+      <dl className="ehc-result-summary-grid mt-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
+        <SummaryItem
+          term="補助額の目安（最大）"
+          value={best ? `約${manYenText(best.potentialManYen)}万円` : current.length === 0 ? "今回はなし" : "未算定"}
+          note={subsidyNote}
+          strong
+          wide
+        />
+        <SummaryItem
+          term="工事費（税抜）"
+          value={roi.investManYen != null ? `約${manYenText(roi.investManYen)}万円` : "未算定"}
+          note={roi.investManYen != null ? investSourceLabel ?? "" : "馬力を入れると、設備から概算できます"}
+        />
+        <SummaryItem
+          term="実質負担の目安"
+          value={roi.investManYen != null && best ? `約${manYenText(roi.netInvestManYen ?? 0)}万円` : "未算定"}
+          note={roi.investManYen != null && best ? "工事費 − 補助額の目安" : "工事費と補助額がそろうと出します"}
+        />
+        <SummaryItem
+          term="年間の電気代削減"
+          value={energyKnown && result.saveYenPerYear > 0 ? `約${manYenText(result.saveYenPerYear / 10000)}万円` : "未算定"}
+          note={
+            energyKnown
+              ? `電気代は ${ELECTRIC_PRICE_YEN_PER_KWH.toFixed(1)}円/kWh（推計）で計算`
+              : "馬力が未入力の設備があるため、出していません"
+          }
+        />
+        <SummaryItem
+          term="回収の目安"
+          value={roi.recoveryYears != null && best ? `約${roi.recoveryYears}年` : roi.recoveryYearsNoSubsidy != null ? `約${roi.recoveryYearsNoSubsidy}年` : "未算定"}
+          note={
+            roi.recoveryYears != null && best
+              ? "補助金を使った場合"
+              : roi.recoveryYearsNoSubsidy != null
+                ? "補助金を使わない場合"
+                : "工事費と削減額がそろうと出します"
+          }
+        />
+        <SummaryItem
+          term="CO2の削減量（年間）"
+          value={energyKnown ? co2TonLabel(result.co2ReductionTon, "t") : "未算定"}
+          note={energyKnown ? "設備からの推計" : "馬力が未入力の設備があるため、出していません"}
+        />
+      </dl>
+      <p className="mt-4 rounded-xl bg-paper-card px-4 py-3 text-[14px] leading-[1.8] text-ink">
+        <span className="font-bold">次にやること：</span>
+        {current.length > 0
+          ? "「概算費用と工事」で工事費の内訳を確かめ、診断書を受け取って担当者にご相談ください。締切のある制度は、準備を早めに始めるほど選べる手が増えます。"
+          : "診断書を受け取って担当者にご相談ください。次回の公募に向けた準備や、ほかの進め方をご提案します。"}
+      </p>
+      <p className="mt-3 text-[14px] leading-[1.7] text-ink-soft">
+        金額はすべて概算です。工事費は現地確認後の正式見積で、補助額は公募要領と審査で変わります。
+      </p>
+    </section>
+  );
+}
+
+/* dl の中の div には dt と dd しか置けない（補足も dd の中に入れる）。 */
+function SummaryItem({ term, value, note, strong, wide }: { term: string; value: string; note: string; strong?: boolean; wide?: boolean }) {
+  return (
+    <div className={cn("rounded-xl bg-paper-card px-3 py-3 sm:px-4", wide && "col-span-2 lg:col-span-1")}>
+      <dt className="text-[14px] leading-[1.6] text-ink-soft">{term}</dt>
+      <dd className="mt-1">
+        <span className={cn("block font-bold tabular-nums leading-[1.3]", strong ? "text-[24px] text-brand-deep" : "text-[20px] text-ink")}>{value}</span>
+        {note ? <span className="mt-1 block text-[14px] leading-[1.6] text-ink-soft">{note}</span> : null}
+      </dd>
+    </div>
   );
 }
 
@@ -455,15 +707,25 @@ function PartialNotice({
 }
 
 /* 削減の概算。金額計算はしない——match.ts が出した値をそのまま並べる。 */
-function EffectSummary({ result }: { result: MatchResult }) {
+function EffectSummary({ result, energy }: { result: MatchResult; energy: EnergyBasis | null }) {
+  /* 2026-09-25 UXレビュー 追加所見: 年間kWh は設備からの推計。推計できないときは数字を出さない。 */
+  if (energy?.source === "unknown") {
+    return (
+      <div className="rounded-2xl border border-ink-line bg-paper-card p-4">
+        <h3 className="text-base/[1.7] font-bold text-ink">更新したときの年間の見込み</h3>
+        <p className="mt-2 text-sm/[1.7] leading-[1.7] text-ink-soft">{ENERGY_SOURCE_NOTE.unknown}</p>
+      </div>
+    );
+  }
   return (
     <div className="rounded-2xl border border-ink-line bg-paper-card p-4">
       <h3 className="text-base/[1.7] font-bold text-ink">更新したときの年間の見込み</h3>
+      <p className="mt-1 text-sm/[1.7] leading-[1.7] text-ink-soft">{ENERGY_SOURCE_NOTE.equipment_estimate}</p>
       <dl className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         <Stat
           term="電気の使用量"
           value={`${result.totalKwh.toLocaleString("ja-JP")} kWh`}
-          note="いまの年間使用量（入力した総量を設備群へ按分した値）"
+          note="いまの年間使用量（設備からの推計）"
         />
         <Stat
           term="減らせる見込み"
@@ -529,6 +791,8 @@ function ProvisionalNotice({
 function ProgramCard({
   assessment: a,
   level,
+  prep,
+  nextRound = false,
   targetProduct,
   targetProductFiscalYear,
   targetProductStore,
@@ -536,6 +800,10 @@ function ProgramCard({
 }: {
   assessment: ProgramAssessment;
   level: FitLevel5;
+  /** 受付中の制度だけ。lib/prep.ts の judgePrep() の結果（2026-09-25 UXレビュー No.1） */
+  prep?: PrepJudgement | null;
+  /** 今回の締切に準備が間に合わない見込みで、「次回の公募に備える」段に置いたカード */
+  nextRound?: boolean;
   /* この制度についての照合結果。サーバが作った物をそのまま出すだけで、
      ここで判定し直したり、無いものを既定値で埋めたりしない。 */
   targetProduct?: TargetProductDetail;
@@ -561,26 +829,54 @@ function ProgramCard({
         {view.label}
       </p>
 
+      {prep?.verdict === "tight" && !nextRound && (
+        <p className="ml-2 mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-500/45 bg-amber-50 px-2 py-1 text-sm/[1.7] font-bold text-amber-800">
+          <CalendarClock aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+          締切が近い（残り約{Math.max(0, prep.daysLeft ?? 0)}日）
+        </p>
+      )}
+
       <div className="ehc-result-timing mt-4 rounded-xl bg-[#f4f7ec] px-4 py-3">
         <p className="text-[14px] font-bold text-brand-deep">申請時期</p>
         <p className="mt-1 text-[16px] leading-[1.8] text-ink">{a.timing}</p>
       </div>
 
-      {/* 金額か、金額を出さない理由。どちらか必ず出す（空欄にしない）。 */}
-      <p className="mt-4 text-sm/[1.7]">
-        {a.amountShown ? (
-          <>
-            <span className="text-ink-soft text-sm/[1.7]">補助額の目安 </span>
-            <span className="font-black text-ink tabular-nums">
-              最大 約{a.potentialManYen.toLocaleString("ja-JP")}万円
+      {nextRound ? (
+        /* 2026-09-25 UXレビュー No.1: 間に合わない制度は金額を主役にしない。
+           「次回の公募の目安」と「今からできる準備」を先に出し、金額は参考として小さく添える。 */
+        <div className="ehc-result-nextround mt-4 rounded-xl border border-ink-line bg-paper-card px-4 py-3">
+          <p className="text-[14px] font-bold leading-[1.7] text-ink">次回の公募に向けて</p>
+          <p className="mt-1 text-[16px] leading-[1.8] text-ink">
+            今回の締切までの準備は難しい見込みです。次回の公募の日程は、公式の発表をお待ちください。
+          </p>
+          {a.subsidy.docs && (
+            <p className="mt-2 text-[14px] leading-[1.8] text-ink-soft">
+              <span className="font-bold text-ink">今からできる準備：</span>必要書類（{a.subsidy.docs}）をそろえておく
+            </p>
+          )}
+          {a.amountShown && (
+            <p className="mt-2 text-[14px] leading-[1.7] text-ink-soft">
+              参考：今回と同じ条件なら、補助額の目安は最大 約{manYenText(a.potentialManYen)}万円（次回の公募要領で変わることがあります）
+            </p>
+          )}
+        </div>
+      ) : (
+        /* 金額か、金額を出さない理由。どちらか必ず出す（空欄にしない）。 */
+        <p className="mt-4 text-sm/[1.7]">
+          {a.amountShown ? (
+            <>
+              <span className="text-ink-soft text-sm/[1.7]">補助額の目安 </span>
+              <span className="font-black text-ink tabular-nums">
+                最大 約{manYenText(a.potentialManYen)}万円
+              </span>
+            </>
+          ) : (
+            <span className="text-ink-soft text-sm/[1.7] leading-[1.7]">
+              {a.subsidy.infoOnly ? "設備費の概算には含めません。" : "補助額は未算定です。"}
             </span>
-          </>
-        ) : (
-          <span className="text-ink-soft text-sm/[1.7] leading-[1.7]">
-            {a.subsidy.infoOnly ? "設備費の概算には含めません。" : "補助額は未算定です。"}
-          </span>
-        )}
-      </p>
+          )}
+        </p>
+      )}
 
       {a.missing.length > 0 && (
         <p className="mt-2 text-sm/[1.7] leading-[1.7] text-amber-800">

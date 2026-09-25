@@ -19,6 +19,17 @@ const BUILDINGS = [
 ] as const;
 const TOTAL_STEPS = 7;
 
+/* 2026-09-25 UXレビュー No.4:
+   MatchInput には旧シミュレーター用の初期値（updatePlan="considering"・size="sme"・
+   building="office" など）が入っており、それをそのまま aria-pressed に使っていたため、
+   答える前から5問で「選択済み」の印が付いていた。答えたのか既定なのかが見分けられず、
+   よく読まずに進むと既定の答えで判定される。
+   初期値そのものは旧シミュレーターの計算にも使われるので変えない。
+   代わりに「この画面で実際に選んだ問い」だけを選択済みとして表示する。
+   共有リンク（?d=）で回答を復元したときは、全問を回答済みとして扱う。 */
+type AnswerKey = "updatePlan" | "desiredTiming" | "entityType" | "size" | "building";
+const ALL_ANSWER_KEYS: AnswerKey[] = ["updatePlan", "desiredTiming", "entityType", "size", "building"];
+
 export function GuidedDiagnosis({ input, setInput, onComplete }: {
   input: MatchInput;
   setInput: React.Dispatch<React.SetStateAction<MatchInput>>;
@@ -27,6 +38,11 @@ export function GuidedDiagnosis({ input, setInput, onComplete }: {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [assist, setAssist] = useState<string | null>(null);
+  const [answered, setAnswered] = useState<ReadonlySet<AnswerKey>>(() => new Set<AnswerKey>());
+  const markAnswered = (key: AnswerKey) => setAnswered((prev) => (prev.has(key) ? prev : new Set<AnswerKey>(Array.from(prev).concat(key))));
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("d")) setAnswered(new Set(ALL_ANSWER_KEYS));
+  }, []);
   const completeRef = useRef(onComplete);
   const assistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => { completeRef.current = onComplete; }, [onComplete]);
@@ -91,12 +107,13 @@ export function GuidedDiagnosis({ input, setInput, onComplete }: {
             {Array.from({ length: TOTAL_STEPS }, (_, i) => <span key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-brand-olive" : "bg-ink-line"}`} />)}
           </div>
         </div>
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6" aria-labelledby="guided-question-title">
+        {/* 2026-09-25: main はページ本体（app/page.tsx）が持つ。ダイアログの中に2つ目の main を置かない。 */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 sm:px-6" role="group" aria-labelledby="guided-question-title">
           {/* 自動補完のお知らせ。青(cobalt)をやめて紙面のセージに寄せる。
               これは警告ではないので amber は使わない（amber は未算定・未確認の予約色）。 */}
           {assist ? <div role="status" className="mb-4 flex items-start gap-2 rounded-2xl border border-ink-line bg-paper-tint p-4 text-[14px] leading-relaxed text-ink"><Sparkles className="mt-1 h-4 w-4 shrink-0 text-brand" aria-hidden="true" /> {assist}</div> : null}
-          <Question step={step} input={input} choose={choose} next={next} update={update} handleAssist={handleAssist} finish={finish} />
-        </main>
+          <Question step={step} input={input} answered={answered} markAnswered={markAnswered} choose={choose} next={next} update={update} handleAssist={handleAssist} finish={finish} />
+        </div>
         {/* 2026-09-11 EHC-0038 第2便 4-J:
             フッターの2ボタンは 48px＋左右の余白。どちらも独立したボタンなので
             文中リンクの免除（WCAG 2.5.8）は使えない。
@@ -108,8 +125,8 @@ export function GuidedDiagnosis({ input, setInput, onComplete }: {
   );
 }
 
-function Question({ step, input, choose, next, update, handleAssist, finish }: {
-  step: number; input: MatchInput; choose: (fn: () => void) => void; next: () => void;
+function Question({ step, input, answered, markAnswered, choose, next, update, handleAssist, finish }: {
+  step: number; input: MatchInput; answered: ReadonlySet<AnswerKey>; markAnswered: (key: AnswerKey) => void; choose: (fn: () => void) => void; next: () => void;
   update: <K extends keyof MatchInput>(key: K, value: MatchInput[K]) => void;
   handleAssist: (message: string, fn: () => void) => void; finish: () => void;
 }) {
@@ -132,19 +149,19 @@ function Question({ step, input, choose, next, update, handleAssist, finish }: {
      タップ領域は py-3.5＋text-sm で 48px を満たす（4-H）。 */
   const button = (label: string, action: () => void, active = false) => <button key={label} type="button" aria-pressed={active} onClick={() => choose(action)} className={`flex w-full min-h-[56px] items-center justify-between gap-3 rounded-2xl border-[1.5px] px-4 py-3.5 text-left text-[16px] font-semibold leading-relaxed transition-colors focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? "border-brand ring-1 ring-brand bg-[#edf6e8] text-ink" : "border-[#57685e] bg-paper-card text-ink hover:border-brand hover:bg-[#f0f6df]"}`}><span className="min-w-0">{label}</span><span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${active ? "bg-brand-deep text-white" : "border border-[#859f8c] text-ink-soft"}`}>{active ? <Check className="h-4 w-4" /> : <ArrowRight className="h-3.5 w-3.5" />}</span></button>;
 
-  if (step === 0) return <>{heading("業務用空調の更新予定はありますか？", "制度は契約・発注前の申請が必要な場合があります。予定の確度から確認します。")}<div className="space-y-2">{([ ["planned", "更新する予定がある"], ["considering", "更新を検討している"], ["none", "まだ予定はない"] ] as [UpdatePlan, string][]).map(([v, label]) => button(label, () => { update("updatePlan", v); update("interest", "subsidy"); }, input.updatePlan === v))}</div></>;
-  if (step === 1) return <>{heading("いつ頃、更新したいですか？", "受付期限と申請準備に間に合う可能性を先に判定します。")}<div className="space-y-2">{([ ["within_1m", "1か月以内"], ["within_3m", "3か月以内"], ["within_6m", "6か月以内"], ["within_12m", "1年以内"], ["undecided", "まだ決めていない"] ] as [DesiredTiming, string][]).map(([v, label]) => button(label, () => update("desiredTiming", v), input.desiredTiming === v))}</div></>;
+  if (step === 0) return <>{heading("業務用空調の更新予定はありますか？", "制度は契約・発注前の申請が必要な場合があります。予定の確度から確認します。")}<div className="space-y-2">{([ ["planned", "更新する予定がある"], ["considering", "更新を検討している"], ["none", "まだ予定はない"] ] as [UpdatePlan, string][]).map(([v, label]) => button(label, () => { markAnswered("updatePlan"); update("updatePlan", v); update("interest", "subsidy"); }, answered.has("updatePlan") && input.updatePlan === v))}</div></>;
+  if (step === 1) return <>{heading("いつ頃、更新したいですか？", "受付期限と申請準備に間に合う可能性を先に判定します。")}<div className="space-y-2">{([ ["within_1m", "1か月以内"], ["within_3m", "3か月以内"], ["within_6m", "6か月以内"], ["within_12m", "1年以内"], ["undecided", "まだ決めていない"] ] as [DesiredTiming, string][]).map(([v, label]) => button(label, () => { markAnswered("desiredTiming"); update("desiredTiming", v); }, answered.has("desiredTiming") && input.desiredTiming === v))}</div></>;
   if (step === 2) return <>{heading("設備がある都道府県は？", "国の制度に加えて、自治体の制度を照合します。")}<SelectAnswer value={input.pref} options={PREFS} placeholder="選択してください（未選択のままでも進めます）" onChange={(v) => update("pref", v)} onNext={next} /></>;
-  if (step === 3) return <>{heading("事業者区分を教えてください", "法人・個人事業主の区分は制度要件の確認に使います。")}<div className="space-y-2">{([ ["corporation", "法人・団体"], ["sole_proprietor", "個人事業主"] ] as [EntityType, string][]).map(([v, label]) => button(label, () => { update("entityType", v); update("bizType", "business"); update("customerKind", v === "sole_proprietor" ? "individual" : "company"); }, input.entityType === v))}</div></>;
-  if (step === 4) return <>{heading("事業規模を教えてください", "資本金・従業員数による最終判定は、候補表示後に確認します。")}<div className="space-y-2">{([ ["sme", "中小企業・小規模事業者"], ["middle", "中堅企業"], ["large", "大企業"] ] as [SizeType, string][]).map(([v, label]) => button(label, () => update("size", v), input.size === v))}</div></>;
-  if (step === 5) return <>{heading("建物の用途は？", "用途限定制度の判定と、後段の省エネ概算に使います。")}<div className="space-y-2">{BUILDINGS.map(([v, label]) => button(label, () => update("building", v), input.building === v))}</div></>;
+  if (step === 3) return <>{heading("事業者区分を教えてください", "法人・個人事業主の区分は制度要件の確認に使います。")}<div className="space-y-2">{([ ["corporation", "法人・団体"], ["sole_proprietor", "個人事業主"] ] as [EntityType, string][]).map(([v, label]) => button(label, () => { markAnswered("entityType"); update("entityType", v); update("bizType", "business"); update("customerKind", v === "sole_proprietor" ? "individual" : "company"); }, answered.has("entityType") && input.entityType === v))}</div></>;
+  if (step === 4) return <>{heading("事業規模を教えてください", "資本金・従業員数による最終判定は、候補表示後に確認します。")}<div className="space-y-2">{([ ["sme", "中小企業・小規模事業者"], ["middle", "中堅企業"], ["large", "大企業"] ] as [SizeType, string][]).map(([v, label]) => button(label, () => { markAnswered("size"); update("size", v); }, answered.has("size") && input.size === v))}</div></>;
+  if (step === 5) return <>{heading("建物の用途は？", "用途限定制度の判定と、後段の省エネ概算に使います。")}<div className="space-y-2">{BUILDINGS.map(([v, label]) => button(label, () => { markAnswered("building"); update("building", v); }, answered.has("building") && input.building === v))}</div></>;
   /* 2026-09-10 EHC-0038 P0-1
      ここは以前「分からない → 500万円で仮診断」だった。
      聞いていない金額を既知の見積額として置くと、補助額・実質負担・回収年が
      そのまま数字で出てしまい、後段のどこにも「これは仮」と残らない。
      未入力は未入力のまま持ち回る（0 は resolveInvestState() で未算定扱い）。
      制度候補の判定は金額を使わないので、診断はそのまま続けられる。 */
-  return <>{heading("空調更新の予算・見積額は？", "おおよその税抜金額で構いません。分からなければ空欄のまま進めます（制度候補は金額なしで判定します）。")}<NumberAnswer value={input.invest} onChange={(v) => update("invest", v)} onNext={finish} /><button type="button" onClick={() => handleAssist("金額は未算定のまま進みます。制度の候補と期限はこのまま判定し、補助額・実質負担・回収年は「未算定」と表示します。", () => update("invest", 0))} className="flex min-h-[56px] w-full items-start gap-3 rounded-2xl border-[1.5px] border-[#57685e] bg-paper-sub px-4 py-4 text-left text-[16px] font-medium leading-relaxed text-ink hover:border-brand hover:bg-paper-tint focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"><Sparkles className="mt-1 h-4 w-4 shrink-0 text-brand" aria-hidden="true" /><span>分からない<span className="mt-1 block text-[14px] font-normal text-ink-soft">金額は未算定のまま進む</span></span></button></>;
+  return <>{heading("空調更新の予算・見積額は？", "見積があれば、おおよその税抜金額を。分からなければ空欄のまま進めてください（制度候補は金額なしで判定し、あとで設備の情報から概算も出します）。")}<NumberAnswer value={input.invest} onChange={(v) => update("invest", v)} onNext={finish} /><button type="button" onClick={() => handleAssist("金額は未算定のまま進みます。制度の候補と期限はこのまま判定し、補助額・実質負担・回収年は「未算定」と表示します。", () => update("invest", 0))} className="flex min-h-[56px] w-full items-start gap-3 rounded-2xl border-[1.5px] border-[#57685e] bg-paper-sub px-4 py-4 text-left text-[16px] font-medium leading-relaxed text-ink hover:border-brand hover:bg-paper-tint focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"><Sparkles className="mt-1 h-4 w-4 shrink-0 text-brand" aria-hidden="true" /><span>分からない<span className="mt-1 block text-[14px] font-normal text-ink-soft">金額は未算定のまま進む</span></span></button></>;
 }
 
 /* 2026-09-10 EHC-0031 P0-D:
