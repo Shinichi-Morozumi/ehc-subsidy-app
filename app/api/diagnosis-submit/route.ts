@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { clientKeyFromHeaders, overSubmitRateLimit } from "@/lib/submitRateLimit";
 import {
   buildDiagnosisSnapshot,
   customerMailText,
@@ -91,7 +92,8 @@ export const dynamic = "force-dynamic";
    　　未承認の実送信を、実装を進めた副作用として起こさないため。
 
    ■ 環境変数
-   　　DIAGNOSIS_MAIL_MODE … "send" のときだけ実送信。既定は dry run
+   　　DIAGNOSIS_MAIL_MODE … "send"＝お客様宛・担当者宛の両方を実送信 ／ "staff"＝担当者宛だけ実送信
+　　　　　　　　　　　　 （お客様宛は送らない。EHC-0043）／ それ以外・未設定＝dry run（既定）
    　　SMTP_USER / SMTP_PASS / SMTP_HOST / SMTP_PORT … send-proposal と共通
    　　DIAGNOSIS_FROM_EMAIL … 省略時 PROPOSAL_FROM_EMAIL → SMTP_USER
    　　DIAGNOSIS_STAFF_TO_EMAIL … 省略時 PROPOSAL_TO_EMAIL → info@ehcjpn.com
@@ -576,8 +578,16 @@ export async function POST(req: Request) {
   const subjectStaff = `【Web診断 ${receiptNo}】${contact.company || contact.name} 様からのご相談`;
 
   // ───────── 送信 ─────────
-  const mode = (process.env.DIAGNOSIS_MAIL_MODE || "").toLowerCase();
-  const live = mode === "send";
+  /* 2026-09-25 EHC-0043: "staff" を追加した。担当者宛だけ実際に送り、お客様宛は送らない。
+     お客様宛は「画面から来た宛先へ、画面から来たPDFを、EHC の Gmail から送る」ため、
+     サーバ側でPDFを作る仕組みと送信回数の制限が揃うまでは、踏み台にされる余地が残る。
+     担当者宛は宛先が社内に固定なので、その余地が無い。
+       live         … 何かしら実送信する（staff / send）
+       liveCustomer … お客様宛も実送信する（send のときだけ） */
+  const mailMode = (process.env.DIAGNOSIS_MAIL_MODE || "").toLowerCase();
+  const liveCustomer = mailMode === "send";
+  const live = liveCustomer || mailMode === "staff";
+  const customerMail: "on" | "off" | "dry_run" = liveCustomer ? "on" : live ? "off" : "dry_run";
 
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
@@ -605,6 +615,28 @@ export async function POST(req: Request) {
   /* ───────── ここから台帳（修正3） ─────────
      同じ診断IDへの要求を直列にする。直列にしないと、連打した2つの要求が
      どちらも「未送信」を読んでから両方送り、同じ宛先へ2通出る。 */
+  /* 2026-09-25 EHC-0043: 実送信する設定のときだけ、接続元ごとの連続送信を止める。
+     上限に触れたら1通も送らず、台帳にも触れない。 */
+  if (live && overSubmitRateLimit(clientKeyFromHeaders(req.headers))) {
+    console.warn("[diagnosis-submit] 連続送信の上限に触れたため受け付けません:", receiptNo);
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "短い時間に送信が続いたため、いったん受付を止めています。1時間ほどおいてから、もう一度お試しください。お急ぎの場合はお電話（03-5937-4340）でご連絡ください。",
+        mode: "not_sent",
+        receiptNo,
+        issuedAtJst,
+        pdf: "not_sent",
+        customer: "skipped",
+        staff: "skipped",
+        customerMail,
+        rateLimited: true,
+      },
+      { status: 429 }
+    );
+  }
+
   const outcome = await withSubmitLock(receiptNo, async () => {
     const existing = await loadEntry(receiptNo);
 
@@ -650,7 +682,8 @@ export async function POST(req: Request) {
 
     const customerRec = channelRecord(entry, "customer", contact.email);
     const staffRec = channelRecord(entry, "staff", staffTarget);
-    const sendCustomer = shouldSend(customerRec);
+    /* staff 運用ではお客様宛を送る対象に入れない。送らないので「未送信で残っている宛先」にもしない。 */
+    const sendCustomer = live && !liveCustomer ? false : shouldSend(customerRec);
     const sendStaff = shouldSend(staffRec);
     /* 前回1度でも試していて、まだ届いていない宛先。画面に出して
        「どこを送り直したか」が分かるようにする。 */
@@ -661,6 +694,13 @@ export async function POST(req: Request) {
 
     const mode = live ? "send" : "dry_run";
 
+    /* 2026-09-25 EHC-0043: staff 運用では、お客様宛は方針として送らない。
+       skipped は送信回数に数えない（lib/submitLedger.ts の markChannel）。
+       以前の send 運用で届いた記録（sent）や結果不明（unknown）は上書きしない。 */
+    if (live && !liveCustomer && customerRec.state !== "sent" && customerRec.state !== "unknown") {
+      markChannel(entry, "customer", contact.email, "skipped", "お客様宛の自動送付は停止中（担当者宛のみ運用）");
+    }
+
     if (!sendCustomer && !sendStaff) {
       /* 送るべき宛先が無い。すでに全部届いている、または
          結果不明で自動再送しない宛先しか残っていない。
@@ -669,6 +709,7 @@ export async function POST(req: Request) {
       const payload = {
         ok: staffRec.state === "sent" || staffRec.state === "dry_run",
         mode,
+        customerMail,
         receiptNo,
         issuedAtJst,
         pdf: pdfStatus,
@@ -697,7 +738,7 @@ export async function POST(req: Request) {
          dry_run を送信済みとして台帳に書かない（書くと、実送信に
          切り替えた日に「もう送った」と判定されて誰にも届かない）。 */
       console.info(
-        "[diagnosis-submit] DRY RUN（DIAGNOSIS_MAIL_MODE=send が未設定のため送信しません）",
+        "[diagnosis-submit] DRY RUN（DIAGNOSIS_MAIL_MODE が staff / send ではないため送信しません）",
         JSON.stringify({
           receiptNo,
           pdf: pdfStatus,
@@ -778,6 +819,7 @@ export async function POST(req: Request) {
     const payload = {
       ok: staffState === "sent" || staffState === "dry_run",
       mode,
+      customerMail,
       receiptNo,
       issuedAtJst,
       pdf: pdfStatus,

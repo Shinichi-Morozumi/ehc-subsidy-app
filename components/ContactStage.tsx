@@ -121,7 +121,16 @@ interface SubmitResult {
      できていないことを画面側でも黙らないため、型に残す。 */
   ledger?: { persistence: string; shared: boolean; crossProcessRetry: boolean };
   note?: string;
+  /** お客様宛メールの運用（EHC-0043）。off＝担当者宛だけ送る運用で、お客様宛は送っていない */
+  customerMail?: "on" | "off" | "dry_run";
 }
+
+/* 2026-09-25 EHC-0043:
+   画面の説明文は、実際の送り方と同じ値から作る。next.config.mjs が
+   サーバの DIAGNOSIS_MAIL_MODE から NEXT_PUBLIC_DIAGNOSIS_CUSTOMER_MAIL を作る
+   （send のときだけ "on"）。お客様宛を送らない運用なのに
+   「このアドレスへお送りします」と約束する画面にしないため。 */
+const CUSTOMER_MAIL_ON = process.env.NEXT_PUBLIC_DIAGNOSIS_CUSTOMER_MAIL === "on";
 
 export interface ContactStageProps {
   input: MatchInput | null;
@@ -323,6 +332,23 @@ export function ContactStage({
   }, []);
   const startedRef = useRef<DiagnosisSnapshot | null>(null);
 
+  /* 2026-09-25 EHC-0043: 作ったPDFを画面から保存できるようにする。
+     お客様宛メールを止めている間は、これがお客様の唯一の受け取り方になる。
+     作り直したら古いURLは解放する（端末のメモリに数MBずつ残さない）。 */
+  const [pdfFile, setPdfFile] = useState<{ url: string; filename: string } | null>(null);
+  const pdfUrlRef = useRef<string | null>(null);
+  const replacePdfFile = (next: { url: string; filename: string } | null) => {
+    if (pdfUrlRef.current) URL.revokeObjectURL(pdfUrlRef.current);
+    pdfUrlRef.current = next ? next.url : null;
+    setPdfFile(next);
+  };
+  useEffect(
+    () => () => {
+      if (pdfUrlRef.current) URL.revokeObjectURL(pdfUrlRef.current);
+    },
+    []
+  );
+
   /* 隠しシートが描かれてからPDFにする。
      handleSubmit の中で続けて呼ぶと、まだ古いDOM（または空）を撮ってしまう。 */
   useEffect(() => {
@@ -343,6 +369,18 @@ export function ContactStage({
         }
         pdfBase64 = pdf.base64;
         filename = pdf.filename;
+        try {
+          /* data URI を自前で Blob にする（fetch に data: を渡すと、端末の設定次第で拒まれるため）。 */
+          const b64 = pdf.base64.slice(pdf.base64.indexOf(",") + 1);
+          const bin = atob(b64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+          if (alive()) replacePdfFile({ url, filename: pdf.filename });
+          else URL.revokeObjectURL(url);
+        } catch (e) {
+          console.error("[ContactStage] 保存用のPDFを用意できませんでした:", e);
+        }
       } catch (e) {
         /* PDFだけ失敗しても、相談の受付は続ける。
            ここで止めると、入力した人は何も起きないまま放置される。
@@ -425,8 +463,26 @@ export function ContactStage({
             </p>
           )}
           <SubmitReport result={result} snapshot={frozen} />
+          {pdfFile && result.pdf === "ok" && (
+            <div className="space-y-1">
+              <a
+                href={pdfFile.url}
+                download={pdfFile.filename}
+                className={cn(
+                  "min-h-[48px] w-full rounded-2xl bg-brand px-4 text-[16px] font-bold leading-[1.7] text-white",
+                  "flex items-center justify-center gap-2",
+                  "focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep"
+                )}
+              >
+                診断書PDFを保存する
+              </a>
+              <p className="text-[14px] leading-relaxed text-ink-soft">
+                スマートフォンでは、開いたPDFの共有ボタンから「ファイルに保存」できます。
+              </p>
+            </div>
+          )}
           <button type="button" className="min-h-[48px] w-full rounded-2xl border border-brand bg-paper-card px-4 py-3 text-[16px] font-bold text-brand-deep"
-            onClick={() => { startedRef.current = null; setFrozen(null); setResult(null); setError(null); setTouched(false); setPrivacyAgreed(false); setPhase("input"); }}>
+            onClick={() => { startedRef.current = null; replacePdfFile(null); setFrozen(null); setResult(null); setError(null); setTouched(false); setPrivacyAgreed(false); setPhase("input"); }}>
             入力内容を確認する（修正・再送）
           </button>
           <p className="text-[14px] leading-relaxed text-ink-soft">このボタンでは送信しません。内容と同意を確認してから、改めて送信します。</p>
@@ -460,7 +516,7 @@ export function ContactStage({
                 onChange={setEmail}
                 error={emailError}
                 autoComplete="email"
-                note="このアドレスへ診断書PDFをお送りします。"
+                note={CUSTOMER_MAIL_ON ? "このアドレスへ診断書PDFをお送りします。" : "担当者からのご連絡に使います。診断書PDFは、送信後にこの画面から保存できます。"}
               />
             </div>
             <details className="mt-4 border-t border-ink-line">
@@ -495,11 +551,11 @@ export function ContactStage({
             <h3 className="text-[16px] font-bold leading-[1.7] text-ink">送信前にご確認ください</h3>
             <p className="mt-2 text-[16px] leading-[1.8] text-ink-soft">
               入力情報と診断結果を、PDFの作成・送付、相談への回答、EHCおよび施工連携先PNでの顧客対応・診断履歴の管理に使用します。
-              送信すると、お客様宛と担当者宛に診断内容が送られます。制度の採択・受給・補助額、削減効果を保証するものではありません。
+              {CUSTOMER_MAIL_ON ? "送信すると、お客様宛と担当者宛に診断内容が送られます。" : "送信すると、診断内容が担当者に届きます。お客様宛のメールは現在お送りしていません（診断書PDFは送信後にこの画面から保存できます）。"}制度の採択・受給・補助額、削減効果を保証するものではありません。
             </p>
             <label className="mt-4 flex min-h-[48px] cursor-pointer items-start gap-3 rounded-xl border border-ink-line bg-paper-card p-3 text-[16px] leading-[1.7] text-ink">
               <input type="checkbox" checked={privacyAgreed} onChange={(event) => setPrivacyAgreed(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-brand" />
-              <span>取得目的・利用範囲を確認し、診断書の送付と相談内容の共有に同意します。</span>
+              <span>{CUSTOMER_MAIL_ON ? "取得目的・利用範囲を確認し、診断書の送付と相談内容の共有に同意します。" : "取得目的・利用範囲を確認し、相談内容の共有に同意します。"}</span>
             </label>
             {touched && !privacyAgreed && <p role="alert" className="mt-2 text-[14px] leading-relaxed text-amber-800">内容をご確認のうえ、同意欄にチェックしてください。</p>}
           </div>
@@ -718,13 +774,13 @@ function WhatYouGet({
             ) : (
               <>受付番号は送信時に発行します。</>
             )}
-            画面・PDF・お客様宛メール・担当者宛メールは、すべて同じ番号で揃えます。
+            {CUSTOMER_MAIL_ON ? "画面・PDF・お客様宛メール・担当者宛メールは、すべて同じ番号で揃えます。" : "画面・PDF・担当者宛メールは、すべて同じ番号で揃えます。"}
           </p>
         </div>
       </details>
       {!projection.canCompute && (
         <p className="text-[16px] leading-[1.7] text-ink-soft">
-          概算金額は未算定です。金額欄は空のまま、設備の一覧とご相談内容をお送りします。
+          概算金額は未算定です。金額欄は空のまま、設備の一覧とご相談内容を担当者にお送りします。
         </p>
       )}
     </div>
@@ -792,7 +848,12 @@ function SubmitReport({
     },
     {
       label: "お客様宛メール",
-      value: channelText(result.customer, "customer"),
+      value:
+        result.customerMail === "off" && result.customer === "skipped"
+          ? pdfAttached
+            ? "お送りしていません（現在、お客様宛のメール送付は行っていません）。診断書PDFは下の「診断書PDFを保存する」から保存できます。"
+            : "お送りしていません（現在、お客様宛のメール送付は行っていません）。診断書PDFは担当者から個別にお送りします。"
+          : channelText(result.customer, "customer"),
       good: result.customer === "sent" || result.customer === "already_sent",
     },
     {
@@ -938,6 +999,14 @@ function SubmitReport({
                 {snapshot.contact.email} 宛の送信結果を確認できませんでした。
                 届いている場合と届いていない場合があります。重ねてお送りすると同じ内容が2通になるため、
                 自動では送り直していません。受付番号 {result.receiptNo} をお伝えいただければ、こちらで確認します。
+              </>
+            ) : result.customerMail === "off" && result.customer === "skipped" ? (
+              <>
+                現在、お客様宛のメール送付は行っていません（{snapshot.contact.email} 宛には届きません）。
+                {pdfAttached
+                  ? "診断書PDFは、この画面の「診断書PDFを保存する」から保存してください。"
+                  : "診断書PDFは担当者から個別にお送りします。"}
+                ご相談内容は受付番号 {result.receiptNo} で担当者に届いています。担当者からご連絡します。
               </>
             ) : result.customer === "dry_run" ? (
               <>

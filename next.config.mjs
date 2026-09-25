@@ -16,6 +16,14 @@
    ".next-verify" のように相対で渡し、使い終わったら消す。 */
 const nextConfig = {
   reactStrictMode: true,
+  /* 2026-09-25 EHC-0043: 画面の説明文を、実際の送り方と同じ値から作る。
+     サーバの DIAGNOSIS_MAIL_MODE が "send" のときだけ "on"（お客様宛にもお送りします）。
+     staff / dry_run / 未設定は "off"（お客様宛のメールは送らない前提の文言）。
+     どちらもビルド時の値で動くので、DIAGNOSIS_MAIL_MODE を変えたら再デプロイする。 */
+  env: {
+    NEXT_PUBLIC_DIAGNOSIS_CUSTOMER_MAIL:
+      (process.env.DIAGNOSIS_MAIL_MODE || "").toLowerCase() === "send" ? "on" : "off",
+  },
   ...(process.env.EHC_DIST_DIR ? { distDir: process.env.EHC_DIST_DIR } : {}),
 };
 
