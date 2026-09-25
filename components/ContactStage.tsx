@@ -28,10 +28,12 @@ import {
   EQUIP_LABEL_JA,
   TIMING_LABEL_JA,
   buildDiagnosisSnapshot,
+  normalizeSubsidyCheck,
   nowJstText,
   pricedGroupsOf,
   type DiagnosisContact,
   type DiagnosisSnapshot,
+  type SnapshotSubsidyCheck,
   type SnapshotUnpricedItem,
 } from "@/lib/diagnosisSnapshot";
 import {
@@ -144,6 +146,9 @@ export interface ContactStageProps {
   result: MatchResult | null;
   customerBudgetYen: number | null;
   desiredTiming: DesiredTiming | null;
+  /* 2026-09-25 補助金の候補と適合チェックの結果（DiagnosisFlow が C段と同じ判定結果から作る）。
+     診断書PDFと担当者宛メールに載せる。 */
+  subsidyCheck?: SnapshotSubsidyCheck | null;
   /** 「概算費用と工事」へ戻す */
   onBack?: () => void;
 }
@@ -154,6 +159,7 @@ export function ContactStage({
   result: matchResult,
   customerBudgetYen,
   desiredTiming,
+  subsidyCheck,
   onBack,
 }: ContactStageProps) {
   /* 2026-09-15 EHC-0039 修正1:
@@ -297,6 +303,9 @@ export function ContactStage({
          照合をまだ行えていない（result が null）ときは null。[] にしない。
          [] は「確かめた結果、対象の群が無かった」の意味で、いまは確かめていない。 */
       reductionBasis: matchResult ? buildReductionBasisViews(matchResult.groups) : null,
+      /* 2026-09-25: 補助金の候補と適合チェック。サーバと同じ切り詰め（normalizeSubsidyCheck）を
+         ここでも通し、PDFに載る内容とサーバが担当者宛メールに載せる内容を同じにする。 */
+      subsidyCheck: normalizeSubsidyCheck(subsidyCheck ?? null),
     });
     fingerprintRef.current = record.fingerprint;
     setFrozen(snapshot);
@@ -315,6 +324,7 @@ export function ContactStage({
     unpriced,
     customerBudgetYen,
     desiredTiming,
+    subsidyCheck,
   ]);
 
   /* 2026-09-14 EHC-0039: 送信が終わっても「送信しています…」から戻らなかった不具合の修正
@@ -391,7 +401,9 @@ export function ContactStage({
       try {
         const el = sheetRef.current;
         if (!el) throw new Error("診断書の描画が見つかりません。");
-        const pdf = await buildDiagnosisPdf(el, frozen.receiptNo);
+        /* 2026-09-25: お客様ごとの個別のPDFなので、ファイル名にもお名前（会社名）を入れる。
+           担当者が転送するときに、どのお客様のものか一目で分かるようにする。 */
+        const pdf = await buildDiagnosisPdf(el, frozen.receiptNo, frozen.contact.company || frozen.contact.name);
         if (pdf.base64Length > MAX_PDF_BASE64_CHARS) {
           throw new Error("PDFのサイズが大きすぎます。");
         }
@@ -441,6 +453,8 @@ export function ContactStage({
                検証できたわけではない。指紋は画面側の申告として扱う。 */
             contentFingerprint: fingerprintRef.current,
             estimateDigest: estimateDigest(frozen.estimate),
+            /* 2026-09-25 補助金の候補と適合チェック（指紋には入れない。サーバ側のコメント参照） */
+            subsidyCheck: frozen.subsidyCheck ?? null,
             pdfBase64,
             filename,
           }),
@@ -507,6 +521,7 @@ export function ContactStage({
                 入力欄の下に書くと、書く前に閉じた人には届かない。 */}
             <p className="mt-1 text-[16px] leading-[1.7] text-ink-soft">
               お名前とメールアドレスをご入力ください。結果は、入力せずに前の画面でも確認できます。
+              送信後、{COMPANY.replyDays}営業日以内に担当者からご連絡します。
             </p>
 
             <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -560,6 +575,13 @@ export function ContactStage({
 
           <div className="ehc-contact-privacy rounded-2xl border border-ink-line bg-paper-sub p-4">
             <h3 className="text-[16px] font-bold leading-[1.7] text-ink">送信前にご確認ください</h3>
+            <p className="mt-1 text-[14px] leading-[1.7] text-ink-soft">
+              個人情報の取扱いは
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="mx-1 font-bold text-brand-deep underline underline-offset-4">
+                プライバシーポリシー<span className="sr-only">（新しいタブで開きます）</span> ↗
+              </a>
+              をご覧ください（診断の入力は消えません）。
+            </p>
             <p className="mt-2 text-[16px] leading-[1.8] text-ink-soft">
               入力情報と診断結果を、PDFの作成・送付、相談への回答、EHCおよび施工連携先PNでの顧客対応・診断履歴の管理に使用します。
               {CUSTOMER_MAIL_ON ? "送信すると、お客様宛と担当者宛に診断内容が送られます。" : "送信すると、診断内容が担当者に届きます。お客様宛のメールは現在お送りしていません（診断書PDFは送信後にこの画面から保存できます）。"}制度の採択・受給・補助額、削減効果を保証するものではありません。
@@ -764,6 +786,7 @@ function WhatYouGet({
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[
               `ご入力の設備${totalGroups}群（算定${priced.length}群・未算定${notPriced}群）`,
+              "補助金の候補と、適合チェックのご回答・結果",
               "概算費用の内訳・算定の仮定・含まない費用",
               "工事の流れ（現地確認 → 手続き → 機器手配と工事 → 試運転と引渡し）",
               "お問い合わせに使える受付番号",
@@ -1074,14 +1097,14 @@ function SubmitReport({
 /* ───────── 送信後の見通し（2026-09-25 UXレビュー No.10） ─────────
    「いつ・誰から連絡が来るか」「待つ間に何を用意すればよいか」が無く、
    待っていてよいのか分からなかった。流れは D段の「相談から工事までの4ステップ」と同じ言葉で書く。
-   何営業日以内といった約束は、運用で決まっていないので書かない（決まったらここに足す）。 */
+   連絡の目安（5営業日以内）と受付時間は 2026-09-25 に運用として決まった値（lib/company.ts）。 */
 function NextStepsAfterSubmit({ receiptNo, phoneGiven }: { receiptNo: string; phoneGiven: boolean }) {
   return (
     <section aria-labelledby="after-submit-heading" className="ehc-after-submit rounded-2xl border border-ink-line bg-paper-card p-4 sm:p-5">
       <h3 id="after-submit-heading" className="text-[18px] font-bold leading-[1.6] text-ink">このあとの流れ</h3>
       <ol className="mt-3 space-y-3">
         {[
-          `EHC の担当者から、ご入力のメールアドレス${phoneGiven ? "またはお電話" : ""}へご連絡します。`,
+          `${COMPANY.replyDays}営業日以内（土日祝を除く）に、EHC の担当者から、ご入力のメールアドレス${phoneGiven ? "またはお電話" : ""}へご連絡します。`,
           "現地で設置場所・銘板（機種・馬力・冷媒）を確認し、概算を正式なお見積りに置き換えます。",
           "補助金を使う場合は、候補制度の受付状況と必要書類を確かめ、申請の準備を一緒に進めます。",
         ].map((text, i) => (
@@ -1096,7 +1119,7 @@ function NextStepsAfterSubmit({ receiptNo, phoneGiven }: { receiptNo: string; ph
         室外機の銘板の写真、電気料金の明細（直近1年分があれば）
       </p>
       <p className="mt-3 text-[14px] leading-[1.8] text-ink-soft">
-        お急ぎの場合は、お電話（<a className="font-bold text-brand-deep underline underline-offset-4" href={COMPANY.telHref}>{COMPANY.tel}</a>）で受付番号 {receiptNo} をお伝えください。
+        お急ぎの場合は、お電話（<a className="font-bold text-brand-deep underline underline-offset-4" href={COMPANY.telHref}>{COMPANY.tel}</a>・{COMPANY.hours}）で受付番号 {receiptNo} をお伝えください。
       </p>
     </section>
   );
@@ -1178,6 +1201,12 @@ function DiagnosisSheet({ snapshot: s }: { snapshot: DiagnosisSnapshot }) {
           )}
         </tbody>
       </table>
+
+      {/* 2026-09-25 補助金の候補と、ご自身での確認（適合チェック）。
+          C段で表示した制度と、お客様の回答・結果をそのまま載せる。ここで判定し直さない。 */}
+      {s.subsidyCheck && (s.subsidyCheck.programs.length > 0 || s.subsidyCheck.answers.length > 0) && (
+        <SubsidyCheckSheetSection no={nextNo()} check={s.subsidyCheck} />
+      )}
 
       {/* 2026-09-16 EHC-0039 v2 §4 作業3（台帳 #31）:
           C段の画面（components/ReductionBasisPanel.tsx）に出した根拠を、
@@ -1262,6 +1291,59 @@ function DiagnosisSheet({ snapshot: s }: { snapshot: DiagnosisSnapshot }) {
         株式会社EHCソリューションズ　／　受付番号 {s.receiptNo}
       </div>
     </div>
+  );
+}
+
+/* ───────── 補助金の候補と適合チェック（紙面）2026-09-25 ─────────
+   字の大きさは他の章と同じ（表12px・注記11px）。 */
+function SubsidyCheckSheetSection({ no, check }: { no: number; check: SnapshotSubsidyCheck }) {
+  const cell = { borderBottom: "1px solid #d4ddd4", padding: "5px 8px 5px 0", verticalAlign: "top" as const, wordBreak: "break-word" as const };
+  return (
+    <>
+      <SheetHeading>{no}. 補助金の候補と、ご自身での確認</SheetHeading>
+      {check.programs.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: "34%" }} />
+            <col style={{ width: "66%" }} />
+          </colgroup>
+          <tbody>
+            {check.programs.map((p, i) => (
+              <tr key={i}>
+                <td style={cell}>
+                  <div style={{ fontWeight: 700 }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: "#5a6b5f" }}>{p.group}／{p.fit}</div>
+                </td>
+                <td style={cell}>
+                  {p.timing && <div>申請時期：{p.timing}</div>}
+                  {p.amount && <div>補助額の目安：{p.amount}</div>}
+                  {p.selfCheck && <div style={{ fontWeight: 700 }}>適合チェック：{p.selfCheck}</div>}
+                  {p.ehcItems.length > 0 && (
+                    <div style={{ fontSize: 11, color: "#5a6b5f" }}>EHC が確認すること：{p.ehcItems.join("／")}</div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {check.answers.length > 0 && (
+        <div style={{ fontSize: 12, marginTop: 6 }}>
+          <div style={{ fontWeight: 700 }}>適合チェックのご回答</div>
+          <ul style={{ margin: "2px 0 0", paddingLeft: 16 }}>
+            {check.answers.map((a, i) => (
+              <li key={i}>
+                {a.question} → <b>{a.answer}</b>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <p style={{ fontSize: 11, color: "#5a6b5f", marginTop: 4 }}>
+        適合チェックは、ご回答にもとづく目安です。申請できることや採択を保証するものではありません。
+        対象製品の型番・省エネ量の計算などは、EHC が公募要領と照らして確認します。
+      </p>
+    </>
   );
 }
 

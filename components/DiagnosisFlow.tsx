@@ -7,6 +7,11 @@ import { matchSubsidies } from "@/lib/match";
 import type { Subsidy } from "@/lib/types";
 import { applyInvestChoice, resolveInvestChoice, type InvestSource } from "@/lib/amountBasis";
 import { applyEquipmentEnergy } from "@/lib/diagnosisEnergy";
+import type { ContractStatus } from "@/lib/types";
+import type { ContractAnswer } from "@/lib/diagnosisState";
+import type { SelfCheckAnswers, SelfCheckKey } from "@/lib/selfCheck";
+import { useProgramAssessmentsOrEmpty } from "./ProgramMatchBoard";
+import { buildSubsidyCheckSummary } from "./subsidyInquiry";
 import { newDiagnosisState, type DiagnosisState } from "@/lib/diagnosisState";
 import { projectEquipGroups, toMatchInput } from "@/lib/diagnosisProjection";
 import { useProject } from "./ProjectContext";
@@ -118,6 +123,30 @@ export function DiagnosisFlow() {
      15年前・1台）を勝手に立てて結果を返す。canCompute を見ずに呼ぶと、
      誰も答えていない設備の削減額が画面に出る。input が null なら呼ばない。 */
   const result = useMemo(() => (input ? matchSubsidies(input) : null), [input]);
+
+  /* 2026-09-25: 制度ごとの判定結果を1回だけ作り、C段の表示とE段の問い合わせの両方に渡す。
+     C段の中で作ると、C段を離れたあとに設備を直したとき、問い合わせに古い結果が残る。 */
+  const { assessments, monitorCheckedAt } = useProgramAssessmentsOrEmpty(input, result, projection.excludedKinds);
+
+  /* 2026-09-25 適合チェックの回答。DiagnosisState に持ち、toMatchInput 経由で判定（lib/eligibility.ts）へ入る。 */
+  const selfCheckAnswers: SelfCheckAnswers = useMemo(
+    () => ({ contract: state.contractAnswer, sizeDocs: state.sizeDocs, siiPortal: state.siiPortal }),
+    [state.contractAnswer, state.sizeDocs, state.siiPortal]
+  );
+  const answerSelfCheck = (key: SelfCheckKey, value: string) =>
+    setState((prev) => {
+      if (key === "contract") {
+        const answer = value as ContractAnswer;
+        const status: ContractStatus = answer === "unknown" ? null : answer;
+        return { ...prev, contractAnswer: answer, contractStatus: status };
+      }
+      if (key === "sizeDocs") return { ...prev, sizeDocs: value as SelfCheckAnswers["sizeDocs"] };
+      return { ...prev, siiPortal: value as SelfCheckAnswers["siiPortal"] };
+    });
+  const subsidyCheck = useMemo(
+    () => buildSubsidyCheckSummary(assessments, selfCheckAnswers),
+    [assessments, selfCheckAnswers]
+  );
 
   /* 2026-09-14 EHC-0039: 希望時期（ご希望条件）の出どころ
      ─────────────────────────────────────────────
@@ -237,6 +266,10 @@ export function DiagnosisFlow() {
             onInvestSourceChange={setInvestSource}
             energy={energy}
             stage1Matched={confirmedResult?.matched ?? []}
+            assessments={assessments}
+            monitorCheckedAt={monitorCheckedAt}
+            selfCheckAnswers={selfCheckAnswers}
+            onSelfCheckAnswer={answerSelfCheck}
           />
           <button
             type="button"
@@ -278,6 +311,7 @@ export function DiagnosisFlow() {
           result={result}
           customerBudgetYen={state.customerBudgetYen}
           desiredTiming={desiredTiming}
+          subsidyCheck={subsidyCheck}
           onBack={() => go("estimate")}
         />
       </div>}

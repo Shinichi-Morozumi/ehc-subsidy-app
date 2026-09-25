@@ -22,7 +22,7 @@
    　　　負値 … 削減ではなく増加
    ─────────────────────────────────────────────────────────── */
 
-import type { ContractStatus, DesiredTiming } from "./types";
+import type { ContractStatus, DesiredTiming, SelfAnswer } from "./types";
 import type { PlannedUnit } from "./targetProduct";
 
 /* ───────── 設備の種類 ─────────
@@ -132,7 +132,17 @@ export interface DiagnosisState {
   desiredTiming: DesiredTiming | null;
 
   contractStatus: ContractStatus;
+  /* 2026-09-25 適合チェックの回答（lib/types.ts の MatchInput.sizeDocs / siiPortal へ投影）。
+     null は未回答。 */
+  sizeDocs: SelfAnswer | null;
+  siiPortal: SelfAnswer | null;
+  /** 契約・発注の問いへの回答そのもの。「分からない」は contractStatus では null（未回答と同じ扱い）に
+      なるので、画面と問い合わせに「分からない」と答えたことを残すためにここで持つ。 */
+  contractAnswer: ContractAnswer | null;
 }
+
+/** 適合チェックの「契約・発注はまだですか」への回答 */
+export type ContractAnswer = "not_yet" | "quoting" | "contracted" | "unknown";
 
 /* ───────── 初期値 ─────────
    ここで作る群は「空欄が1行ある」状態であって、「1台ある」ではない。
@@ -173,5 +183,8 @@ export function newDiagnosisState(): DiagnosisState {
     customerBudgetYen: null,
     desiredTiming: null,
     contractStatus: null,
+    sizeDocs: null,
+    siiPortal: null,
+    contractAnswer: null,
   };
 }

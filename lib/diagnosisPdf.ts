@@ -26,6 +26,17 @@
 
 import { documentFileName } from "@/lib/docNumber";
 
+/* 2026-09-25: お客様ごとの個別のPDFなので、ファイル名にお客様名を入れる（担当者が転送するときに取り違えない）。
+   ファイル名に使えない文字は「_」に置き換え、長すぎる名前は切り詰める。 */
+export function clientFileName(receiptNo: string, clientLabel?: string | null): string {
+  const safe = (clientLabel ?? "")
+    .replace(/[\\/:*?"<>|\u0000-\u001f\u007f]/g, "_")
+    .replace(/\s+/g, "")
+    .slice(0, 30);
+  if (!safe) return documentFileName(receiptNo);
+  return documentFileName(receiptNo).replace(/_(?=[^_]*\.pdf$)/, `_${safe}様_`);
+}
+
 export interface DiagnosisPdfResult {
   /** data URI 形式（data:application/pdf;...;base64,XXXX）。APIはカンマ以降を取る実装。 */
   base64: string;
@@ -53,7 +64,9 @@ export const MAX_PDF_BASE64_CHARS = 14_000_000;
  */
 export async function buildDiagnosisPdf(
   el: HTMLElement,
-  receiptNo: string
+  receiptNo: string,
+  /** 2026-09-25: ファイル名に入れるお客様名（会社名またはお名前）。省略時は従来どおり */
+  clientLabel?: string | null
 ): Promise<DiagnosisPdfResult> {
   if (!el) throw new Error("PDFにする内容が見つかりませんでした。");
   if (!el.scrollWidth || !el.scrollHeight) {
@@ -104,7 +117,7 @@ export async function buildDiagnosisPdf(
   const base64 = pdf.output("datauristring");
   return {
     base64,
-    filename: documentFileName(receiptNo),
+    filename: clientFileName(receiptNo, clientLabel),
     pages,
     base64Length: base64.length,
   };

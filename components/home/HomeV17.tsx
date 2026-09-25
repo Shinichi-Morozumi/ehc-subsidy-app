@@ -234,6 +234,9 @@ export function HomeV17() {
         <a href="#support" onClick={(e) => jump(e, "support")}>
           空調更新のサポート
         </a>
+        <a href="#dropin" onClick={(e) => jump(e, "dropin")}>
+          ドロップインと実測の例
+        </a>
         <a href="#site-footer" onClick={(e) => jump(e, "site-footer")}>
           運営会社・お問い合わせ
         </a>
@@ -833,6 +836,62 @@ export function HomeV17() {
                 PN社の施工実績です。出典：PN社資料「ZERO START」2025年9月版。各案件の補助金利用・削減効果を示すものではありません。
               </small>
             </div>
+          </section>
+
+          {/* 6.5 ドロップイン（冷媒の入れ替え）と実測の例（2026-09-25 UXレビュー No.23・24）
+              大塚倉庫様は社名の掲載可、もう1件は施設名・所在地を伏せる（ご指示どおり）。
+              数値は必ず「何を・どの条件で測ったか」と対にして出す（景品表示法の優良誤認を避ける）。
+                大塚倉庫様：ENIMAS 省エネ効果レポート（2026-06-25）。−33% は速報値で、
+                            比べ方で +6.2%〜−41.2% まで動く（検証済み・Obsidian の確定版ノート）。
+                某所      ：施工完了報告書（2025-11-06）。7台合計の運転電流 29.04A → 14.55A（−49.9%）。
+                            施工当日のスポット測定で、消費電力量・電気代の削減率ではない。 */}
+          <section className="dropin-section section-pad" id="dropin" aria-labelledby="dropin-title">
+            <div className="dropin-copy">
+              <span className="section-label">買い替えの前に、もう一つの選択肢</span>
+              <h2 id="dropin-title">
+                空調機はそのままに、
+                <br />
+                冷媒を入れ替える。
+              </h2>
+              <p>
+                ドロップインは、いまの業務用空調機を活かしたまま、冷媒だけを炭化水素系の冷媒へ入れ替える方法です。機器本体は交換しません。
+                向いているかどうかは、設備の状態を見て判断します。
+              </p>
+            </div>
+            <div className="dropin-cases">
+              <article className="dropin-case">
+                <span className="dropin-case-tag">物流倉庫</span>
+                <h3>大塚倉庫株式会社 CROSS DOCK HARUMI（東京都中央区）</h3>
+                <p className="dropin-case-what">業務用空調の冷媒を入れ替え</p>
+                <p className="dropin-case-num">
+                  <strong>−33%</strong>
+                  <span>空調の消費電力量（速報値）</span>
+                </p>
+                <p className="dropin-case-note">
+                  2026年5月14日〜6月15日（約30日）の実測。入れ替え前の実測から外気温1℃ごとの使用量をそろえて比べた推計です。
+                  比べ方によって +6.2%〜−41.2% の幅があり、確定値ではありません。
+                </p>
+              </article>
+              <article className="dropin-case">
+                <span className="dropin-case-tag">施設</span>
+                <h3>某所の施設（業務用パッケージエアコン 7台）</h3>
+                <p className="dropin-case-what">冷媒を入れ替え（2025年11月）</p>
+                <p className="dropin-case-num">
+                  <strong>−49.9%</strong>
+                  <span>運転電流（7台合計 29.04A → 14.55A）</span>
+                </p>
+                <p className="dropin-case-note">
+                  施工当日に、同じ条件（外気温19℃）で施工の前と後に測った運転電流の比較です。
+                  消費電力量や電気代の削減率ではなく、年間の効果を示すものでもありません。
+                </p>
+              </article>
+            </div>
+            <p className="dropin-foot">
+              効果は、設備の状態・使い方・気温によって変わります。上の数値は、それぞれの条件のもとでの実測です。
+            </p>
+            <button type="button" className="text-link" onClick={startDiagnosis}>
+              まずは7問の診断から →
+            </button>
           </section>
 
           {/* 7. クロージング */}

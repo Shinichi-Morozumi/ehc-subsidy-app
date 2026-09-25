@@ -20,6 +20,9 @@ export type VerificationState = "verified" | "needs_review" | "stale" | "unavail
    null は「未回答」。未回答を not_yet（まだ発注していない）で埋めないこと。
    埋めた瞬間に、こちらが立てた仮定が「発注前であることを確認済み」として
    適合度・補助額の根拠になる。 */
+/** 適合チェックの回答（はい／いいえ／分からない） */
+export type SelfAnswer = "yes" | "no" | "unknown";
+
 export type ContractStatus =
   | "not_yet" // まだ発注・契約していない
   | "quoting" // 見積を取っている最中（契約はしていない）
@@ -229,6 +232,15 @@ export interface MatchInput {
   /** 交付決定前の着手かどうか。診断入力（DiagnosisState.contractStatus）から投影して渡す。
       undefined / null は未回答であり、「まだ発注していない」ではない。 */
   contractStatus?: ContractStatus;
+
+  /* ───────── 2026-09-25 適合チェック（お客様ご自身での確認）の回答 ─────────
+     第3段階の「この制度に合うか、今確認する」で伺う。どちらもお客様の自己申告で、
+     EHC が書類を見て確認したという意味ではない。
+     undefined は未回答。"unknown" は「分からない」と答えた、で未回答とは別。 */
+  /** 資本金・従業員数を決算書・登記事項証明書などで示せるか（企業規模の区分の裏付け） */
+  sizeDocs?: SelfAnswer;
+  /** SII の補助事業ポータルに事業者登録（ID発行）済みか。SII の2制度だけが見る */
+  siiPortal?: SelfAnswer;
 
   /** 導入予定機器の型番が、当該年度の対象製品リストに登録されていることを照合した、という記録。
       照合の主体はEHC担当者で、本アプリが自動で判定しているわけではない。

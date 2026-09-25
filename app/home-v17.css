@@ -1491,3 +1491,24 @@ body.ehc17-home{background:#fffdf7}
 /* 押しやすさ: 電話・メール・公式案内のリンクは高さ44px を確保（文章中の見た目は変えない） */
 .ehc17 .site-footer .ehc-site-footer-address a,
 .ehc17[data-screen="home"] #home .decision-source a{display:inline-flex;align-items:center;min-height:44px}
+
+/* ===== v7 / 2026-09-25 / ドロップインと実測の例（UXレビュー No.23・24） ===== */
+.ehc17 .dropin-section{background:#f3f6ec;border-top:1px solid #d5dece}
+.ehc17 .dropin-copy{max-width:760px}
+.ehc17 .dropin-copy h2{font-size:clamp(26px,3vw,38px);font-weight:600;line-height:1.6;letter-spacing:-.02em;margin:0 0 18px;color:#193e33}
+.ehc17 .dropin-copy>p{font-size:16px;line-height:1.9;color:#193e33;margin:0}
+.ehc17 .dropin-cases{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:32px}
+.ehc17 .dropin-case{background:#fff;border:1px solid #dfe6d6;border-radius:18px;padding:22px 22px 20px}
+.ehc17 .dropin-case-tag{display:inline-block;font-size:13px;font-weight:700;color:#254d39;background:#e8f0d9;border-radius:999px;padding:3px 12px}
+.ehc17 .dropin-case h3{font-size:18px;font-weight:700;line-height:1.6;margin:12px 0 2px;color:#193e33}
+.ehc17 .dropin-case-what{font-size:14px;color:#57685e;margin:0}
+.ehc17 .dropin-case-num{display:flex;align-items:baseline;flex-wrap:wrap;gap:10px;margin:14px 0 6px}
+.ehc17 .dropin-case-num strong{font-size:40px;line-height:1.1;font-weight:800;color:#286644;letter-spacing:-.02em}
+.ehc17 .dropin-case-num span{font-size:14px;font-weight:700;color:#193e33}
+.ehc17 .dropin-case-note{font-size:13px;line-height:1.8;color:#3d5249;margin:0}
+.ehc17 .dropin-foot{font-size:13px;line-height:1.8;color:#57685e;margin:18px 0 8px}
+@media (max-width:767px){
+  .ehc17 .dropin-cases{grid-template-columns:1fr;gap:14px;margin-top:24px}
+  .ehc17 .dropin-case{padding:18px}
+  .ehc17 .dropin-case-num strong{font-size:34px}
+}

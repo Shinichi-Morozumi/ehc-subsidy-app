@@ -174,3 +174,22 @@ test("rate limit does not apply in dry run", async () => {
     assert.equal(sent.length, 0);
   } finally { done(); }
 });
+
+test("staff mode: 補助金の候補と適合チェック・PDF転送の案内が担当者宛に入る", async () => {
+  const done = setup("staff");
+  try {
+    const b = body("SCK1");
+    b.subsidyCheck = {
+      answers: [{ question: "この工事の契約・発注は、まだですか？", answer: "まだ契約・発注していない" }],
+      programs: [{ name: "SII 省エネ・非化石転換補助金（設備単位型）", group: "今回の公募で進められる", fit: "条件次第", timing: "受付中", amount: null, selfCheck: "ご自身で確かめられる条件は、満たしています", ehcItems: ["型番の照合"] }],
+    };
+    const res = await post(b);
+    const r = await res.json();
+    assert.equal(res.status, 200, "指紋には入れていないので、要約を足しても照合で止まらない");
+    assert.equal(r.staff, "sent");
+    const text = sent[0].text;
+    assert.match(text, /【お客様へのPDF送付について】/);
+    assert.match(text, /■ 補助金の候補と適合チェック/);
+    assert.match(text, /適合チェック: ご自身で確かめられる条件は、満たしています/);
+  } finally { done(); }
+});

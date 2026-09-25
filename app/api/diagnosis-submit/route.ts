@@ -4,6 +4,7 @@ import { clientKeyFromHeaders, overSubmitRateLimit } from "@/lib/submitRateLimit
 import {
   buildDiagnosisSnapshot,
   customerMailText,
+  normalizeSubsidyCheck,
   staffMailText,
   type DiagnosisContact,
   type SnapshotUnpricedItem,
@@ -396,6 +397,11 @@ export async function POST(req: Request) {
        よってメール本文には根拠を書かない。根拠が載るのは
        画面（C段）と、画面側で作る診断書PDFの2つだけである。 */
     reductionBasis: null,
+    /* 2026-09-25 補助金の候補と適合チェック。サーバは判定し直せないので、
+       画面に出た内容として受け取り、長さと件数だけ切り詰めて載せる（lib/diagnosisSnapshot.ts）。
+       指紋（contentFingerprint）には入れない。入れると、この節を送らない古い画面からの
+       送信がすべて食い違い扱いになる。 */
+    subsidyCheck: normalizeSubsidyCheck(body.subsidyCheck),
   });
 
   /* ───────── 内容の照合（修正4） ─────────
@@ -588,6 +594,17 @@ export async function POST(req: Request) {
   const liveCustomer = mailMode === "send";
   const live = liveCustomer || mailMode === "staff";
   const customerMail: "on" | "off" | "dry_run" = liveCustomer ? "on" : live ? "off" : "dry_run";
+  /* 2026-09-25: お客様宛を自動で送らない運用では、添付の診断書PDFを担当者が確認して
+     お客様へ転送する（お客様ごとの内容のPDF）。その手順を担当者宛の冒頭に書く。 */
+  const staffBody = liveCustomer
+    ? staffText
+    : [
+        "【お客様へのPDF送付について】",
+        "添付の診断書PDFは、このお客様の入力内容で作った個別のものです（お客様は送信直後に画面から同じPDFを保存しています）。",
+        "お客様宛の自動送付は行っていません。内容を確認のうえ、必要に応じてお客様へ転送してください。",
+        "",
+        staffText,
+      ].join("\n");
 
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
@@ -743,11 +760,11 @@ export async function POST(req: Request) {
           receiptNo,
           pdf: pdfStatus,
           customer: { to: contact.email, subject: subjectCustomer, chars: customerText.length },
-          staff: { to: staffTo, cc: staffCc, subject: subjectStaff, chars: staffText.length },
+          staff: { to: staffTo, cc: staffCc, subject: subjectStaff, chars: staffBody.length },
         })
       );
       console.info(`[diagnosis-submit] 顧客宛本文 ${receiptNo}\n${customerText}`);
-      console.info(`[diagnosis-submit] 担当者宛本文 ${receiptNo}\n${staffText}`);
+      console.info(`[diagnosis-submit] 担当者宛本文 ${receiptNo}\n${staffBody}`);
       if (sendCustomer) markChannel(entry, "customer", contact.email, "dry_run");
       if (sendStaff) markChannel(entry, "staff", staffTarget, "dry_run");
     } else if (!smtpUser || !smtpPass) {
@@ -795,7 +812,7 @@ export async function POST(req: Request) {
             cc: staffCc,
             replyTo: contact.email,
             subject: subjectStaff,
-            text: staffText,
+            text: staffBody,
             attachments: attachment ? [attachment] : undefined,
           });
           markChannel(entry, "staff", staffTarget, "sent");

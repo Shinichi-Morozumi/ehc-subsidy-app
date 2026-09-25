@@ -275,6 +275,9 @@ export function toMatchInput(
       /* null（未回答）はそのまま渡す。undefined に潰しても判定側は同じ扱いだが、
          「聞いたが答えなかった」と「そもそも聞いていない」を型の上で残しておく。 */
       contractStatus: state.contractStatus,
+      /* 2026-09-25 適合チェックの回答。null（未回答）は undefined として落とす。 */
+      sizeDocs: state.sizeDocs ?? undefined,
+      siiPortal: state.siiPortal ?? undefined,
     },
     projection,
   };

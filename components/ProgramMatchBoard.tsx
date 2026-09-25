@@ -294,6 +294,27 @@ export function useProgramAssessments(input: MatchInput, result: MatchResult, ex
   return { assessments, monitorCheckedAt: monitor?.checkedAt ?? null };
 }
 
+/* 2026-09-25: 5段の診断用。input / result がまだ無い（設備が未入力）間も
+   フックを条件付きで呼ばずに済むよう、無いときは空の配列を返す版。
+   監視結果の読み込みは1回だけで、中身の判定は useProgramAssessments と同じ assessPrograms()。
+   C段（結果と根拠）とE段（問い合わせ）が同じ判定結果を使うため、DiagnosisFlow で1回だけ呼ぶ。 */
+export function useProgramAssessmentsOrEmpty(
+  input: MatchInput | null,
+  result: MatchResult | null,
+  excludedKinds: FitGroupKind[] = []
+) {
+  const [monitor, setMonitor] = useState<MonitorPayload | null>(null);
+  useEffect(() => { let active = true; loadMonitor().then((data) => { if (active) setMonitor(data); }); return () => { active = false; }; }, []);
+  const excludedKey = excludedKinds.map((k) => k ?? "?").join(",");
+  const assessments = useMemo(() => {
+    if (!input || !result) return [] as ProgramAssessment[];
+    const monitorStates = Object.fromEntries((monitor?.sources ?? []).map((s) => [s.id, s]));
+    return assessPrograms(input, result, monitorStates, new Date(), excludedKinds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input, result, monitor, excludedKey]);
+  return { assessments, monitorCheckedAt: monitor?.checkedAt ?? null };
+}
+
 export function ProgramMatchBoard({ input, result, printable = false, onSimulationProgramsChange }: { input: MatchInput; result: MatchResult; printable?: boolean; onSimulationProgramsChange?: (programs: Subsidy[]) => void }) {
   const { assessments, monitorCheckedAt } = useProgramAssessments(input, result);
   const active = assessments.filter((a) => a.bucket === "A");

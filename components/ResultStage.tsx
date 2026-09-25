@@ -12,10 +12,10 @@ import { INVEST_SOURCE_LABEL, type InvestChoice, type InvestSource } from "@/lib
 import { ENERGY_SOURCE_NOTE, type EnergyBasis } from "@/lib/diagnosisEnergy";
 import { InvestBasisChooser } from "./InvestBasisChooser";
 import { GlossaryDetails } from "./Glossary";
-import {
-  useProgramAssessments,
-  type ProgramAssessment,
-} from "./ProgramMatchBoard";
+import type { ProgramAssessment } from "./ProgramMatchBoard";
+import { ProgramSelfCheck } from "./ProgramSelfCheck";
+import { FIT_LABEL } from "@/lib/fitLabels";
+import type { SelfCheckAnswers, SelfCheckKey } from "@/lib/selfCheck";
 import {
   UNRESOLVED_REASON_LABEL,
   UNRESOLVED_REASON_NOTE,
@@ -79,7 +79,7 @@ const FIT_VIEW: Record<
        適合は低い → 一部の設備だけ対象（実際の意味そのもの）
        今回は対象外（不可） → 今回は対象外 */
   high: {
-    label: "使える見込みが高い",
+    label: FIT_LABEL.high,
     /* 「入力した設備」と書かない。この見出しが指しているのは
        試算に含めた群（input.equipGroups）だけで、お客様が入力した全群ではない。
        ルームエアコンなど計算に回せなかった群は、この判定に入っていない。
@@ -93,19 +93,19 @@ const FIT_VIEW: Record<
     tone: "border-brand/35 bg-[#edf6e8] text-brand-deep",
   },
   possible: {
-    label: "条件次第",
+    label: FIT_LABEL.possible,
     note: "対象外と決まったわけではありません。確認できれば候補になります。何が分かれば判定できるかを各制度に並べています。",
     icon: HelpCircle,
     tone: "border-amber-500/45 bg-amber-50 text-amber-800",
   },
   on_hold: {
-    label: "制度の発表待ち",
+    label: FIT_LABEL.on_hold,
     note: "制度側の情報（公募要領など）がまだ公表されていないため、判定できません。お客様側で埋められる項目ではありません。",
     icon: Clock,
     tone: "border-ink-line bg-paper-tint text-ink",
   },
   low: {
-    label: "一部の設備だけ対象",
+    label: FIT_LABEL.low,
     /* 2026-09-16 EHC-0039 修正2:
        旧文は「…または、この制度から補助額を算定できません」と書いていた。
        本アプリが金額を出せないことと、制度への適合が低いことは別である。
@@ -118,7 +118,7 @@ const FIT_VIEW: Record<
     tone: "border-ink-line bg-paper-sub text-ink",
   },
   not_possible: {
-    label: "今回は対象外",
+    label: FIT_LABEL.not_possible,
     note: "受付が終了しているか、要件と明確に矛盾する点があります。理由を下に出しています。",
     icon: XCircle,
     tone: "border-ink-line bg-paper-sub text-ink-soft",
@@ -151,6 +151,13 @@ export interface ResultStageProps {
   onInvestSourceChange?: (source: InvestSource) => void;
   energy?: EnergyBasis | null;
   stage1Matched?: Subsidy[];
+  /* 2026-09-25: 制度ごとの判定結果は DiagnosisFlow が1回だけ作って渡す
+     （E段の問い合わせにも同じ結果を載せるため。ここで作り直すと出どころが2つになる）。 */
+  assessments: ProgramAssessment[];
+  monitorCheckedAt: string | null;
+  /* 2026-09-25 適合チェックの回答と、答えたときの受け口 */
+  selfCheckAnswers: SelfCheckAnswers;
+  onSelfCheckAnswer: (key: SelfCheckKey, value: string) => void;
 }
 
 export function ResultStage({
@@ -164,6 +171,10 @@ export function ResultStage({
   onInvestSourceChange,
   energy,
   stage1Matched,
+  assessments,
+  monitorCheckedAt,
+  selfCheckAnswers,
+  onSelfCheckAnswer,
 }: ResultStageProps) {
   /* 計算していないときは、数字の器そのものを出さない。
      「—」や「0万円」を並べた枠を見せると、枠があること自体が
@@ -185,6 +196,10 @@ export function ResultStage({
       onInvestSourceChange={onInvestSourceChange}
       energy={energy ?? null}
       stage1Matched={stage1Matched ?? []}
+      assessments={assessments}
+      monitorCheckedAt={monitorCheckedAt}
+      selfCheckAnswers={selfCheckAnswers}
+      onSelfCheckAnswer={onSelfCheckAnswer}
     />
   );
 }
@@ -290,6 +305,10 @@ function ComputedResult({
   onInvestSourceChange,
   energy,
   stage1Matched,
+  assessments,
+  monitorCheckedAt,
+  selfCheckAnswers,
+  onSelfCheckAnswer,
 }: {
   input: MatchInput;
   result: MatchResult;
@@ -301,15 +320,13 @@ function ComputedResult({
   onInvestSourceChange?: (source: InvestSource) => void;
   energy: EnergyBasis | null;
   stage1Matched: Subsidy[];
+  assessments: ProgramAssessment[];
+  monitorCheckedAt: string | null;
+  selfCheckAnswers: SelfCheckAnswers;
+  onSelfCheckAnswer: (key: SelfCheckKey, value: string) => void;
 }) {
-  /* 第3引数は「試算に含めなかった群の種類」（2026-09-16 EHC-0039 修正2 で件数から変更）。
-     ルームエアコン2台を入れた画面で、計算に入った1群だけを見て
-     「入力した設備はすべて対象」と読ませないこと（lib/eligibility.ts 冒頭の禁止事項）。 */
-  const { assessments, monitorCheckedAt } = useProgramAssessments(
-    input,
-    result,
-    projection.excludedKinds
-  );
+  /* 判定結果（assessments）は DiagnosisFlow が useProgramAssessmentsOrEmpty で作って渡す。
+     第3引数（試算に含めなかった群の種類）の扱いは従来どおり（あちらで projection.excludedKinds を渡している）。 */
 
   const now = new Date();
   /* 判定は assessFit() が済ませてある。ここは仕分けるだけ。 */
@@ -418,12 +435,15 @@ function ComputedResult({
         </h3>
         {current.length > 0 ? (
           <ul className="mt-4 space-y-4">
-            {current.map((a) => (
+            {current.map((a, i) => (
               <li key={a.subsidy.id}>
                 <ProgramCard
                   assessment={a}
                   level={a.fit.level}
                   prep={prepOf(a.subsidy, now)}
+                  topPick={i === 0}
+                  selfCheckAnswers={selfCheckAnswers}
+                  onSelfCheckAnswer={onSelfCheckAnswer}
                   targetProduct={targetProduct?.details[a.subsidy.id]}
                   targetProductFiscalYear={targetProduct?.details[a.subsidy.id]?.fiscalYear ?? targetProduct?.fiscalYear}
                   targetProductStore={targetProduct?.store}
@@ -452,13 +472,16 @@ function ComputedResult({
             条件は合う見込みですが、今回の締切までに申請の準備が間に合わない可能性が高い制度です。次回の公募に向けて、今から準備を進められます。
           </p>
           <ul className="mt-2 space-y-4">
-            {nextRound.map((a) => (
+            {nextRound.map((a, i) => (
               <li key={a.subsidy.id}>
                 <ProgramCard
                   assessment={a}
                   level={a.fit.level}
                   prep={prepOf(a.subsidy, now)}
                   nextRound
+                  topPick={current.length === 0 && i === 0}
+                  selfCheckAnswers={selfCheckAnswers}
+                  onSelfCheckAnswer={onSelfCheckAnswer}
                   targetProduct={targetProduct?.details[a.subsidy.id]}
                   targetProductFiscalYear={targetProduct?.details[a.subsidy.id]?.fiscalYear ?? targetProduct?.fiscalYear}
                   targetProductStore={targetProduct?.store}
@@ -634,9 +657,12 @@ function ResultSummary({
       </dl>
       <p className="mt-4 rounded-xl bg-paper-card px-4 py-3 text-[14px] leading-[1.8] text-ink">
         <span className="font-bold">次にやること：</span>
+        {current.length + nextRound.length > 0
+          ? "下の制度カードの「この制度に合うか、今確認する」で、ご自身で確かめられる条件をその場で確認できます（2〜3問）。"
+          : ""}
         {current.length > 0
-          ? "「概算費用と工事」で工事費の内訳を確かめ、診断書を受け取って担当者にご相談ください。締切のある制度は、準備を早めに始めるほど選べる手が増えます。"
-          : "診断書を受け取って担当者にご相談ください。次回の公募に向けた準備や、ほかの進め方をご提案します。"}
+          ? "そのうえで「概算費用と工事」で工事費の内訳を確かめ、診断書を受け取って担当者にご相談ください。締切のある制度は、準備を早めに始めるほど選べる手が増えます。"
+          : "そのうえで診断書を受け取って担当者にご相談ください。次回の公募に向けた準備や、買い替えずに冷媒を入れ替える方法（ドロップイン）もご提案します。"}
       </p>
       <p className="mt-3 text-[14px] leading-[1.7] text-ink-soft">
         金額はすべて概算です。工事費は現地確認後の正式見積で、補助額は公募要領と審査で変わります。
@@ -793,6 +819,9 @@ function ProgramCard({
   level,
   prep,
   nextRound = false,
+  topPick = false,
+  selfCheckAnswers,
+  onSelfCheckAnswer,
   targetProduct,
   targetProductFiscalYear,
   targetProductStore,
@@ -804,6 +833,11 @@ function ProgramCard({
   prep?: PrepJudgement | null;
   /** 今回の締切に準備が間に合わない見込みで、「次回の公募に備える」段に置いたカード */
   nextRound?: boolean;
+  /** いちばん可能性が高い制度（段の先頭）。適合チェックを最初から開いておく */
+  topPick?: boolean;
+  /** 適合チェック（2026-09-25）。渡されたカードにだけ「この制度に合うか、今確認する」を出す */
+  selfCheckAnswers?: SelfCheckAnswers;
+  onSelfCheckAnswer?: (key: SelfCheckKey, value: string) => void;
   /* この制度についての照合結果。サーバが作った物をそのまま出すだけで、
      ここで判定し直したり、無いものを既定値で埋めたりしない。 */
   targetProduct?: TargetProductDetail;
@@ -820,7 +854,12 @@ function ProgramCard({
      フィルタで消えた行が無いことは、両方を足せば元の件数になることで確かめられる。 */
   const extraMissing = a.missing.filter((m) => !a.fit.why.includes(m));
   return (
-    <article className="ehc-result-program rounded-2xl border border-ink-line bg-paper-card p-4 sm:p-5">
+    <article className={cn("ehc-result-program rounded-2xl border bg-paper-card p-4 sm:p-5", topPick ? "border-brand border-[1.5px]" : "border-ink-line")}>
+      {topPick && (
+        <p className="mb-2 inline-flex rounded-full bg-brand-deep px-3 py-1 text-[13px] font-bold leading-[1.5] text-white">
+          いちばん可能性が高い制度
+        </p>
+      )}
       <h4 className="text-[18px] font-bold leading-[1.6] text-ink">{a.subsidy.name}</h4>
 
       {/* 状態は色だけで示さない。アイコン＋語＋読み上げ用の語を必ず添える。 */}
@@ -876,6 +915,18 @@ function ProgramCard({
             </span>
           )}
         </p>
+      )}
+
+      {selfCheckAnswers && onSelfCheckAnswer && (
+        <ProgramSelfCheck
+          subsidy={a.subsidy}
+          fitLevel={level}
+          fitWhy={a.fit.why}
+          prepVerdict={prep?.verdict ?? null}
+          answers={selfCheckAnswers}
+          onAnswer={onSelfCheckAnswer}
+          defaultOpen={topPick}
+        />
       )}
 
       {a.missing.length > 0 && (

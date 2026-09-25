@@ -82,6 +82,86 @@ export interface SnapshotEstimate {
   kg: number;
 }
 
+/* ───────── 補助金の候補と適合チェック（2026-09-25）─────────
+   C段（結果と根拠）で表示した候補制度と、お客様ご自身の適合チェックの回答・結果を、
+   問い合わせ（診断書PDF・担当者宛メール）に載せるための形。
+
+   サーバはこの内容を作り直せない（所在地・規模を含む MatchInput を受け取っていないため、
+   制度の判定をやり直せない）。よって「お客様の画面に出た内容」としてそのまま載せ、
+   本文にもそう書く。内容の照合（指紋）には入れない。入れると、この節を送らない古い画面からの
+   送信がすべて 409 になる（app/api/diagnosis-submit/route.ts の plans と同じ理由）。
+   長さと件数は normalizeSubsidyCheck() で画面とサーバの両方が同じように切り詰める。 */
+export interface SnapshotSubsidyProgram {
+  name: string;
+  /** 「今回の公募で進められる」「次回の公募に備える」 */
+  group: string;
+  /** 適合度の呼び名（lib/fitLabels.ts） */
+  fit: string;
+  timing: string;
+  /** 補助額の目安。出していないときは null */
+  amount: string | null;
+  /** 適合チェックの結果（1行）。この制度に確認が無いときは null */
+  selfCheck: string | null;
+  /** EHC が確認すること */
+  ehcItems: string[];
+}
+
+export interface SnapshotSubsidyCheck {
+  /** 適合チェックの回答（問い → 答え）。未回答は「未回答」 */
+  answers: { question: string; answer: string }[];
+  programs: SnapshotSubsidyProgram[];
+}
+
+const clip = (v: unknown, max: number): string =>
+  typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, max) : "";
+
+/** 画面・サーバ共通の切り詰め。形が合わないものは捨てる（null） */
+export function normalizeSubsidyCheck(v: unknown): SnapshotSubsidyCheck | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const o = v as Record<string, unknown>;
+  const answers = Array.isArray(o.answers)
+    ? o.answers
+        .slice(0, 6)
+        .map((a) => (a && typeof a === "object" ? (a as Record<string, unknown>) : {}))
+        .map((a) => ({ question: clip(a.question, 80), answer: clip(a.answer, 40) }))
+        .filter((a) => a.question && a.answer)
+    : [];
+  const programs = Array.isArray(o.programs)
+    ? o.programs
+        .slice(0, 6)
+        .map((p) => (p && typeof p === "object" ? (p as Record<string, unknown>) : {}))
+        .map((p) => ({
+          name: clip(p.name, 80),
+          group: clip(p.group, 40),
+          fit: clip(p.fit, 40),
+          timing: clip(p.timing, 200),
+          amount: p.amount == null ? null : clip(p.amount, 40) || null,
+          selfCheck: p.selfCheck == null ? null : clip(p.selfCheck, 120) || null,
+          ehcItems: Array.isArray(p.ehcItems) ? p.ehcItems.slice(0, 5).map((t) => clip(t, 80)).filter(Boolean) : [],
+        }))
+        .filter((p) => p.name)
+    : [];
+  if (!answers.length && !programs.length) return null;
+  return { answers, programs };
+}
+
+/** 本文（メール）用の行。PDF は components/ContactStage.tsx が同じ内容を組む */
+export function subsidyCheckLines(c: SnapshotSubsidyCheck): string[] {
+  const out: string[] = [];
+  c.programs.forEach((p) => {
+    out.push(`　・${p.name}（${p.group}／${p.fit}）`);
+    if (p.timing) out.push(`　　申請時期: ${p.timing}`);
+    if (p.amount) out.push(`　　補助額の目安: ${p.amount}`);
+    if (p.selfCheck) out.push(`　　適合チェック: ${p.selfCheck}`);
+    if (p.ehcItems.length) out.push(`　　EHCが確認すること: ${p.ehcItems.join("／")}`);
+  });
+  if (c.answers.length) {
+    out.push("　適合チェックの回答（お客様の自己申告）:");
+    c.answers.forEach((a) => out.push(`　　${a.question} → ${a.answer}`));
+  }
+  return out;
+}
+
 export interface DiagnosisSnapshotSource {
   receiptNo: string;
   issuedAtJst: string;
@@ -109,6 +189,8 @@ export interface DiagnosisSnapshotSource {
      したがってメール本文（customerMailText / staffMailText）はこの値を使わない。
      使えば、画面が作った根拠とサーバが作れない根拠で書類が割れる。 */
   reductionBasis: ReductionBasisView[] | null;
+  /** 2026-09-25 補助金の候補と適合チェック。送っていない（古い画面など）ときは null／省略 */
+  subsidyCheck?: SnapshotSubsidyCheck | null;
 }
 
 export interface DiagnosisSnapshot extends DiagnosisSnapshotSource {
@@ -251,6 +333,9 @@ export function customerMailText(s: DiagnosisSnapshot): string {
   if (s.desiredTiming != null) {
     lines.push("", `■ ご希望の時期　${TIMING_LABEL_JA[s.desiredTiming]}（確定した工期ではありません）`);
   }
+  if (s.subsidyCheck && (s.subsidyCheck.programs.length || s.subsidyCheck.answers.length)) {
+    lines.push("", "■ 補助金の候補と適合チェック（画面に表示した内容）", ...subsidyCheckLines(s.subsidyCheck));
+  }
   lines.push("", "■ ご確認ください", ...COMMON_CAVEATS.map((c) => `　・${c}`));
   lines.push(
     "",
@@ -295,6 +380,15 @@ export function staffMailText(s: DiagnosisSnapshot, targetProductLines?: string[
     `　ご予算: ${s.customerBudgetYen != null ? yenJP(s.customerBudgetYen) : "未回答"}`,
     `　希望時期: ${s.desiredTiming != null ? TIMING_LABEL_JA[s.desiredTiming] : "未回答"}`
   );
+  if (s.subsidyCheck && (s.subsidyCheck.programs.length || s.subsidyCheck.answers.length)) {
+    lines.push(
+      "",
+      "■ 補助金の候補と適合チェック（お客様の画面に表示した内容。サーバでは判定し直していません）",
+      ...subsidyCheckLines(s.subsidyCheck)
+    );
+  } else {
+    lines.push("", "■ 補助金の候補と適合チェック", "　（この送信には含まれていません）");
+  }
   if (targetProductLines && targetProductLines.length) {
     lines.push("", ...targetProductLines);
   }
