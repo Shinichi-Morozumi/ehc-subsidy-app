@@ -28,6 +28,7 @@ import {
   EQUIP_LABEL_JA,
   TIMING_LABEL_JA,
   buildDiagnosisSnapshot,
+  normalizeEnergyBill,
   normalizeSubsidyCheck,
   nowJstText,
   pricedGroupsOf,
@@ -36,6 +37,7 @@ import {
   type SnapshotSubsidyCheck,
   type SnapshotUnpricedItem,
 } from "@/lib/diagnosisSnapshot";
+import type { EnergyBill } from "@/lib/diagnosisEnergy";
 import {
   UNRESOLVED_REASON_LABEL,
   UNRESOLVED_REASON_NOTE,
@@ -149,6 +151,8 @@ export interface ContactStageProps {
   /* 2026-09-25 補助金の候補と適合チェックの結果（DiagnosisFlow が C段と同じ判定結果から作る）。
      診断書PDFと担当者宛メールに載せる。 */
   subsidyCheck?: SnapshotSubsidyCheck | null;
+  /** 2026-09-25 電気料金の明細（任意）。担当者宛メールに載せる */
+  energyBill?: EnergyBill | null;
   /** 「概算費用と工事」へ戻す */
   onBack?: () => void;
 }
@@ -160,6 +164,7 @@ export function ContactStage({
   customerBudgetYen,
   desiredTiming,
   subsidyCheck,
+  energyBill,
   onBack,
 }: ContactStageProps) {
   /* 2026-09-15 EHC-0039 修正1:
@@ -306,6 +311,7 @@ export function ContactStage({
       /* 2026-09-25: 補助金の候補と適合チェック。サーバと同じ切り詰め（normalizeSubsidyCheck）を
          ここでも通し、PDFに載る内容とサーバが担当者宛メールに載せる内容を同じにする。 */
       subsidyCheck: normalizeSubsidyCheck(subsidyCheck ?? null),
+      energyBill: normalizeEnergyBill(energyBill ?? null),
     });
     fingerprintRef.current = record.fingerprint;
     setFrozen(snapshot);
@@ -325,6 +331,7 @@ export function ContactStage({
     customerBudgetYen,
     desiredTiming,
     subsidyCheck,
+    energyBill,
   ]);
 
   /* 2026-09-14 EHC-0039: 送信が終わっても「送信しています…」から戻らなかった不具合の修正
@@ -455,6 +462,7 @@ export function ContactStage({
             estimateDigest: estimateDigest(frozen.estimate),
             /* 2026-09-25 補助金の候補と適合チェック（指紋には入れない。サーバ側のコメント参照） */
             subsidyCheck: frozen.subsidyCheck ?? null,
+            energyBill: frozen.energyBill ?? null,
             pdfBase64,
             filename,
           }),

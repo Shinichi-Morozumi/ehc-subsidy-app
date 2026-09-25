@@ -285,6 +285,14 @@ export function matchSubsidies(input: MatchInput): MatchResult {
     ? input.equipGroups
     : [{ id: "g1", refri: "r410a" as RefriType, equip: "ac" as EquipType, installYear: CURRENT_YEAR - 15, units: 1 }];
 
+  /* 削減額（円）に掛ける電気の単価。明細から出した単価（範囲内のときだけ入っている）が優先 */
+  const electricPrice =
+    typeof input.electricPriceYenPerKwh === "number" &&
+    Number.isFinite(input.electricPriceYenPerKwh) &&
+    input.electricPriceYenPerKwh > 0
+      ? input.electricPriceYenPerKwh
+      : ELECTRIC_PRICE_YEN_PER_KWH;
+
   // kWh の決定（auto=台数×馬力で按分 / measured=グループ別実測値）
   const weights = groups.map((g) => Math.max(1, g.units) * (g.hp && g.hp > 0 ? g.hp : 1));
   const weightSum = weights.reduce((a, b) => a + b, 0) || 1;
@@ -315,9 +323,11 @@ export function matchSubsidies(input: MatchInput): MatchResult {
     /* 2026-09-10 EHC-0038 P0-5:
        ELECTRIC_PRICE_YEN_PER_KWH は契約区分の平均販売単価（基本料金込み）＋再エネ賦課金の【推計】。
        削減kWhに掛けた円は、その案件で実際に回避できる金額そのものではない。
-       ここでは単価を持つ側の入力経路が無いため既定値のままとし、
-       円を表示する画面には ELECTRIC_PRICE_ESTIMATE_NOTE を必ず添えること。 */
-    const saveYenPerYearExact = saveKwhPerYearExact * ELECTRIC_PRICE_YEN_PER_KWH;
+       単価の入力が無いときは既定値のままとし、
+       円を表示する画面には ELECTRIC_PRICE_ESTIMATE_NOTE を必ず添えること。
+       2026-09-25: 5段の診断では、電気料金の明細（任意）から単価が出ているときだけ、その単価を使う
+       （input.electricPriceYenPerKwh。範囲の確かめは lib/diagnosisEnergy.ts の readEnergyBill()）。 */
+    const saveYenPerYearExact = saveKwhPerYearExact * electricPrice;
     return {
       id: g.id,
       refri: g.refri,

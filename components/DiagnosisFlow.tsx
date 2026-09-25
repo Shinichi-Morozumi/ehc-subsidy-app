@@ -99,9 +99,10 @@ export function DiagnosisFlow() {
      5段の診断は kWh を聞いていないのに、旧シミュレーターの初期値（80,000kWh）が
      計算入力に残っていた。入力した設備（台数×馬力）と建物用途からの推計に置き換える。
      推計できないとき（馬力が未入力の設備がある）は不明として扱う。判定と式は lib/diagnosisEnergy.ts。 */
+  /* 2026-09-25: 電気料金の明細（任意）が入っていれば、単価と上限に使う（lib/diagnosisEnergy.ts）。 */
   const energyApplied = useMemo(
-    () => (projectedInput ? applyEquipmentEnergy(projectedInput) : null),
-    [projectedInput]
+    () => (projectedInput ? applyEquipmentEnergy(projectedInput, state.energyBill) : null),
+    [projectedInput, state.energyBill]
   );
   const energy = energyApplied?.energy ?? null;
 
@@ -270,6 +271,8 @@ export function DiagnosisFlow() {
             monitorCheckedAt={monitorCheckedAt}
             selfCheckAnswers={selfCheckAnswers}
             onSelfCheckAnswer={answerSelfCheck}
+            energyBill={state.energyBill}
+            onEnergyBillChange={(bill) => setState((prev) => ({ ...prev, energyBill: bill }))}
           />
           <button
             type="button"
@@ -312,6 +315,7 @@ export function DiagnosisFlow() {
           customerBudgetYen={state.customerBudgetYen}
           desiredTiming={desiredTiming}
           subsidyCheck={subsidyCheck}
+          energyBill={state.energyBill}
           onBack={() => go("estimate")}
         />
       </div>}

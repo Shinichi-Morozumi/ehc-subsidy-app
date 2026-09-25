@@ -24,6 +24,13 @@ const nextConfig = {
     NEXT_PUBLIC_DIAGNOSIS_CUSTOMER_MAIL:
       (process.env.DIAGNOSIS_MAIL_MODE || "").toLowerCase() === "send" ? "on" : "off",
   },
+  /* 2026-09-25: サーバで作る診断書PDF（lib/serverPdf.ts）の日本語フォントを、
+     診断の送信 API の関数に同梱する。fs で読むだけなので、指定しないと Vercel の関数に入らない。 */
+  experimental: {
+    outputFileTracingIncludes: {
+      "/api/diagnosis-submit": ["./lib/fonts/**/*"],
+    },
+  },
   ...(process.env.EHC_DIST_DIR ? { distDir: process.env.EHC_DIST_DIR } : {}),
 };
 

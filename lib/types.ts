@@ -185,6 +185,10 @@ export interface MatchInput {
   equipGroups: EquipGroup[];
   kwhMode: KwhMode;
   kwh: number;          // 自動按分モード時の年間総電力使用量(kWh)
+  /** 2026-09-25: 電気料金の明細から出した単価（円/kWh・請求額÷使用量）。
+      入っているときだけ、年間の削減額をこの単価で計算する（lib/match.ts）。
+      無いときは ELECTRIC_PRICE_YEN_PER_KWH（推計）。値の確かめは lib/diagnosisEnergy.ts の readEnergyBill() */
+  electricPriceYenPerKwh?: number;
   invest: number;
   /* 2026-09-11 EHC-0038 第2便 4-B:
      invest に入っている金額が「正式見積で確認済み」か「概算」かを持つ。

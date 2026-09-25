@@ -22,6 +22,7 @@
    　　　負値 … 削減ではなく増加
    ─────────────────────────────────────────────────────────── */
 
+import type { EnergyBill } from "./diagnosisEnergy";
 import type { ContractStatus, DesiredTiming, SelfAnswer } from "./types";
 import type { PlannedUnit } from "./targetProduct";
 
@@ -139,6 +140,8 @@ export interface DiagnosisState {
   /** 契約・発注の問いへの回答そのもの。「分からない」は contractStatus では null（未回答と同じ扱い）に
       なるので、画面と問い合わせに「分からない」と答えたことを残すためにここで持つ。 */
   contractAnswer: ContractAnswer | null;
+  /** 2026-09-25 電気料金の明細（任意）。単価と上限にだけ使う（lib/diagnosisEnergy.ts） */
+  energyBill: EnergyBill;
 }
 
 /** 適合チェックの「契約・発注はまだですか」への回答 */
@@ -186,5 +189,6 @@ export function newDiagnosisState(): DiagnosisState {
     sizeDocs: null,
     siiPortal: null,
     contractAnswer: null,
+    energyBill: { period: "month", kwh: null, yen: null },
   };
 }

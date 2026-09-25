@@ -3,7 +3,11 @@ import nodemailer from "nodemailer";
 import { clientKeyFromHeaders, overSubmitRateLimit } from "@/lib/submitRateLimit";
 import {
   buildDiagnosisSnapshot,
+  customerMailSubject,
   customerMailText,
+  forwardMailText,
+  FORWARD_STAFF_PLACEHOLDER,
+  normalizeEnergyBill,
   normalizeSubsidyCheck,
   staffMailText,
   type DiagnosisContact,
@@ -47,9 +51,19 @@ import {
 } from "@/lib/targetProduct";
 import { ensureTargetProductStore } from "@/lib/targetProductStore";
 import type { EquipKind } from "@/lib/diagnosisState";
+import { buildDiagnosisLead } from "@/lib/diagnosisLead";
+import { appendLeadToNotionOnce } from "@/lib/notionLead";
+import { COMPANY } from "@/lib/company";
+import { buildServerDiagnosisPdf, type ServerPdfCompany } from "@/lib/serverPdf";
+import { clientFileName } from "@/lib/diagnosisPdf";
+import { customerSafeContact } from "@/lib/customerSafe";
+import type { DiagnosisSnapshot } from "@/lib/diagnosisSnapshot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/* 2026-09-25: メール送信のあとに Notion への1行追加を待つようにした（最大 約13秒）。
+   既定の実行時間の上限に掛からないよう、ほかの API（subsidies/monitor）と同じ60秒にする。 */
+export const maxDuration = 60;
 
 /* ───────────────────────────────────────────────────────────
    診断フロー E段の送信（EHC-0039 第6片 / 2026-09-14 v1）
@@ -102,6 +116,30 @@ export const dynamic = "force-dynamic";
    ─────────────────────────────────────────────────────────── */
 
 const MAX_PDF_BASE64_CHARS = 14_000_000;
+
+const PDF_COMPANY: ServerPdfCompany = {
+  name: COMPANY.name,
+  address: COMPANY.address,
+  tel: COMPANY.tel,
+  hours: COMPANY.hours,
+  site: "https://ehcjpn.com",
+};
+
+/** サーバで診断書PDFを作る（lib/serverPdf.ts）。作れなければ null（理由はログ） */
+function makeServerPdf(s: DiagnosisSnapshot, note?: string): Buffer | null {
+  try {
+    return buildServerDiagnosisPdf(s, { company: PDF_COMPANY, note });
+  } catch (e) {
+    console.error("[diagnosis-submit] サーバでの診断書PDFの作成に失敗:", e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
+
+const PDF_STATUS_JA: Record<"missing" | "too_large" | "invalid", string> = {
+  missing: "画面から診断書PDFが届きませんでした",
+  too_large: "画面の診断書PDFが大きすぎました",
+  invalid: "画面の診断書PDFが壊れていました",
+};
 
 /* 2026-09-15 EHC-0039 修正3:
    ここには「受付番号 → 前回の結果」の Map があり、成功・失敗を問わず
@@ -402,6 +440,8 @@ export async function POST(req: Request) {
        指紋（contentFingerprint）には入れない。入れると、この節を送らない古い画面からの
        送信がすべて食い違い扱いになる。 */
     subsidyCheck: normalizeSubsidyCheck(body.subsidyCheck),
+    /* 2026-09-25 電気料金の明細（任意）。単価はサーバで出し直す。指紋には入れない（上と同じ理由） */
+    energyBill: normalizeEnergyBill(body.energyBill),
   });
 
   /* ───────── 内容の照合（修正4） ─────────
@@ -505,17 +545,11 @@ export async function POST(req: Request) {
       } else pdfStatus = "invalid";
     } else pdfStatus = "invalid";
   }
-  if (!pdfBytes) {
-    return NextResponse.json({
-      ok: false,
-      error: pdfStatus === "too_large"
-        ? "PDFの容量が上限を超えています。送信していません。"
-        : "診断書PDFを確認できなかったため送信を中止しました。内容を確認して、もう一度お試しください。",
-      mode: "not_sent", receiptNo, issuedAtJst, pdf: pdfStatus,
-      customer: "skipped", staff: "skipped", allDelivered: false,
-    }, { status: pdfStatus === "too_large" ? 413 : 422 });
-  }
-  const attachment = { filename, content: pdfBytes, contentType: "application/pdf" };
+  /* 2026-09-25: 画面のPDFが無い・壊れている・大きすぎるときも、ここでは止めない。
+     下（連続送信の確認のあと）でサーバが診断書を作り、担当者宛に付けて受け付ける。
+     以前はここで受付ごと止めていたため、画面でPDFを作れない端末からは何度押しても相談が届かなかった
+     （画面側は「PDFだけ失敗しても受付は続ける」つもりで送ってくる）。
+     画面から来た中身の分からないバイト列は、どの宛先にも付けない（これは変えていない）。 */
 
   /* ───────── 対象製品の照合（台帳 #65） ─────────
      画面の口（/api/target-product）で引き直した結果はブラウザの中にしか無い。
@@ -573,37 +607,134 @@ export async function POST(req: Request) {
       }
     : null;
 
-  const customerText = customerMailText(snapshot);
-  /* 確認主体・出典・確認日は社内の照合記録なので、担当者宛にだけ載せる。
-     customerMailText には渡さない。 */
-  const staffText = staffMailText(
-    snapshot,
-    targetProduct ? targetProductStaffLines(targetProduct) : undefined
-  );
-  const subjectCustomer = `【受付番号 ${receiptNo}】空調更新の診断結果と概算見積（株式会社EHCソリューションズ）`;
-  const subjectStaff = `【Web診断 ${receiptNo}】${contact.company || contact.name} 様からのご相談`;
-
-  // ───────── 送信 ─────────
+  // ───────── 送信の設定 ─────────
   /* 2026-09-25 EHC-0043: "staff" を追加した。担当者宛だけ実際に送り、お客様宛は送らない。
-     お客様宛は「画面から来た宛先へ、画面から来たPDFを、EHC の Gmail から送る」ため、
-     サーバ側でPDFを作る仕組みと送信回数の制限が揃うまでは、踏み台にされる余地が残る。
-     担当者宛は宛先が社内に固定なので、その余地が無い。
+     お客様宛は「画面から来た宛先へ、EHC の Gmail から送る」ため、送信回数の制限と、
+     サーバで作った書類だけを付ける仕組み（2026-09-25 に用意。下の「添付する診断書PDF」）が揃うまでは
+     運用で止めている。担当者宛は宛先が社内に固定なので、踏み台にされる余地が無い。
        live         … 何かしら実送信する（staff / send）
        liveCustomer … お客様宛も実送信する（send のときだけ） */
   const mailMode = (process.env.DIAGNOSIS_MAIL_MODE || "").toLowerCase();
   const liveCustomer = mailMode === "send";
   const live = liveCustomer || mailMode === "staff";
   const customerMail: "on" | "off" | "dry_run" = liveCustomer ? "on" : live ? "off" : "dry_run";
+
+  /* 2026-09-25 EHC-0043: 実送信する設定のときだけ、接続元ごとの連続送信を止める。
+     上限に触れたら1通も送らず、台帳にも触れない。
+     （2026-09-25: サーバで診断書PDFを作る前に確かめる。連打でサーバに書類を作らせ続けないため。） */
+  if (live && overSubmitRateLimit(clientKeyFromHeaders(req.headers))) {
+    console.warn("[diagnosis-submit] 連続送信の上限に触れたため受け付けません:", receiptNo);
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "短い時間に送信が続いたため、いったん受付を止めています。1時間ほどおいてから、もう一度お試しください。お急ぎの場合はお電話（03-5937-4340）でご連絡ください。",
+        mode: "not_sent",
+        receiptNo,
+        issuedAtJst,
+        pdf: "not_sent",
+        customer: "skipped",
+        staff: "skipped",
+        customerMail,
+        rateLimited: true,
+      },
+      { status: 429 }
+    );
+  }
+
+  /* ───────── 添付する診断書PDF（2026-09-25）─────────
+     担当者宛: 画面のPDFを確かめられたらそれを付ける（お客様が画面から保存したものと同じ）。
+               無い・壊れている・大きすぎるときは、サーバで作った診断書（lib/serverPdf.ts）を付ける。
+     お客様宛（send のときだけ）: 画面から来たPDFは付けない。サーバで作った診断書だけを付ける。
+               名前・会社名からリンクになり得る部分を除いてから作る（lib/customerSafe.ts）。
+     担当者宛に付けるPDFをどちらでも用意できなかったときだけ、これまでどおり受付を止める。 */
+  const serverPdfForStaff = !pdfBytes;
+  const staffPdfBytes: Buffer | null =
+    pdfBytes ??
+    makeServerPdf(
+      snapshot,
+      "この診断書は、お客様の画面で作成できなかったため、ご入力の内容から株式会社EHCソリューションズで作成したものです。"
+    );
+  if (!staffPdfBytes) {
+    return NextResponse.json({
+      ok: false,
+      error: pdfStatus === "too_large"
+        ? "PDFの容量が上限を超えています。送信していません。"
+        : "診断書PDFを確認できなかったため送信を中止しました。内容を確認して、もう一度お試しください。",
+      mode: "not_sent", receiptNo, issuedAtJst, pdf: pdfStatus,
+      customer: "skipped", staff: "skipped", allDelivered: false,
+    }, { status: pdfStatus === "too_large" ? 413 : 422 });
+  }
+  const staffPdfFilename = serverPdfForStaff ? clientFileName(receiptNo, contact.company || contact.name) : filename;
+  const customerSnapshot: DiagnosisSnapshot = liveCustomer
+    ? { ...snapshot, contact: customerSafeContact(contact) }
+    : snapshot;
+  const customerPdfBytes = liveCustomer ? makeServerPdf(customerSnapshot) : null;
+  const customerAttachment = customerPdfBytes
+    ? {
+        filename: clientFileName(receiptNo, customerSnapshot.contact.company || customerSnapshot.contact.name),
+        content: customerPdfBytes,
+        contentType: "application/pdf",
+      }
+    : null;
+
+  const customerText = customerMailText(customerSnapshot);
+  /* 確認主体・出典・確認日は社内の照合記録なので、担当者宛にだけ載せる。
+     customerMailText には渡さない。 */
+  const staffText = staffMailText(
+    snapshot,
+    targetProduct ? targetProductStaffLines(targetProduct) : undefined
+  );
+  const subjectCustomer = customerMailSubject(snapshot);
+  const subjectStaff = `【Web診断 ${receiptNo}】${contact.company || contact.name} 様からのご相談`;
+  const serverPdfReason = serverPdfForStaff && pdfStatus !== "ok" ? PDF_STATUS_JA[pdfStatus] : "";
+
   /* 2026-09-25: お客様宛を自動で送らない運用では、添付の診断書PDFを担当者が確認して
-     お客様へ転送する（お客様ごとの内容のPDF）。その手順を担当者宛の冒頭に書く。 */
-  const staffBody = liveCustomer
-    ? staffText
+     お客様へ転送する（お客様ごとの内容のPDF）。その手順を担当者宛の冒頭に書く。
+     転送するときの件名と本文は、このメールの末尾に付ける（コピーして貼るだけにする）。
+     本文はお客様宛の自動送付と同じ節（lib/diagnosisSnapshot.ts の forwardMailText）で、社内向けの記述は入れない。
+     「転送」を押すと社内向けの本文が引用されて付いてしまうので、本文は全部消してから貼る、と書く。 */
+  const pdfNote = serverPdfForStaff
+    ? [
+        "【お客様へのPDF送付について】",
+        `お客様の画面では診断書PDFを用意できませんでした（${serverPdfReason}）。添付は、ご入力の内容からサーバで作った診断書です（項目と金額は画面と同じ）。`,
+        "お客様は診断書を保存できていません。お客様宛の自動送付も行っていないので、内容を確認のうえ、このPDFをお客様へお送りください。",
+      ]
     : [
         "【お客様へのPDF送付について】",
         "添付の診断書PDFは、このお客様の入力内容で作った個別のものです（お客様は送信直後に画面から同じPDFを保存しています）。",
-        "お客様宛の自動送付は行っていません。内容を確認のうえ、必要に応じてお客様へ転送してください。",
+        "お客様宛の自動送付は行っていません。内容を確認のうえ、お客様へ転送してください。",
+      ];
+  const staffBody = liveCustomer
+    ? [
+        ...(serverPdfForStaff
+          ? [`【添付の診断書PDFについて】お客様の画面では診断書PDFを用意できませんでした（${serverPdfReason}）。添付はサーバで作った診断書です。`, ""]
+          : []),
+        ...(!customerAttachment
+          ? ["【注意】お客様宛のメールは送っていません（サーバで診断書PDFを作れなかったため）。このメールの添付をお客様へお送りください。", ""]
+          : []),
+        staffText,
+      ].join("\n")
+    : [
+        ...pdfNote,
+        "",
+        "転送のしかた（Gmail）:",
+        "　1. このメールで「転送」を押す（添付の診断書PDFはそのまま付いています）",
+        "　2. 本文をすべて消す（社内向けの内容がお客様に届かないように）",
+        `　3. このメールの末尾「転送用の文面」の本文を貼り、${FORWARD_STAFF_PLACEHOLDER}（2か所）をご自身の名前に書き換える`,
+        "　4. 件名を「転送用の文面」の件名に差し替える",
+        `　5. 宛先に ${contact.email} を入れて送信`,
         "",
         staffText,
+        "",
+        "━━━━━━━━━━ 転送用の文面 ━━━━━━━━━━",
+        "▼件名",
+        subjectCustomer,
+        "",
+        "▼本文（ここから）",
+        forwardMailText(snapshot, PDF_COMPANY),
+        "▲本文（ここまで）",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━",
       ].join("\n");
 
   const smtpUser = process.env.SMTP_USER;
@@ -632,27 +763,14 @@ export async function POST(req: Request) {
   /* ───────── ここから台帳（修正3） ─────────
      同じ診断IDへの要求を直列にする。直列にしないと、連打した2つの要求が
      どちらも「未送信」を読んでから両方送り、同じ宛先へ2通出る。 */
-  /* 2026-09-25 EHC-0043: 実送信する設定のときだけ、接続元ごとの連続送信を止める。
-     上限に触れたら1通も送らず、台帳にも触れない。 */
-  if (live && overSubmitRateLimit(clientKeyFromHeaders(req.headers))) {
-    console.warn("[diagnosis-submit] 連続送信の上限に触れたため受け付けません:", receiptNo);
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "短い時間に送信が続いたため、いったん受付を止めています。1時間ほどおいてから、もう一度お試しください。お急ぎの場合はお電話（03-5937-4340）でご連絡ください。",
-        mode: "not_sent",
-        receiptNo,
-        issuedAtJst,
-        pdf: "not_sent",
-        customer: "skipped",
-        staff: "skipped",
-        customerMail,
-        rateLimited: true,
-      },
-      { status: 429 }
-    );
-  }
+  /* この要求で担当者宛メールを送った結果（Notion へ1行足すかの判断に使う）。
+     sent＝届いた／unknown＝届いたか分からない（自動では送り直さない）。
+     送り直しの要求で「もう届いている」ときは null のまま＝足さない。 */
+  /* 入れ物にしているのは、下のコールバックの中で書き換えるため（let のままだと
+     TypeScript が「null のまま」と読み、後ろの if の中を never と見なす）。 */
+  const staffMailNow: { state: "sent" | "unknown" | null } = { state: null };
+
+  const staffAttachment = { filename: staffPdfFilename, content: staffPdfBytes, contentType: "application/pdf" };
 
   const outcome = await withSubmitLock(receiptNo, async () => {
     const existing = await loadEntry(receiptNo);
@@ -730,6 +848,7 @@ export async function POST(req: Request) {
         receiptNo,
         issuedAtJst,
         pdf: pdfStatus,
+        serverPdf: serverPdfForStaff,
         customer: channelResult(entry, "customer", contact.email, false),
         staff: channelResult(entry, "staff", staffTarget, false),
         duplicate: true,
@@ -759,6 +878,7 @@ export async function POST(req: Request) {
         JSON.stringify({
           receiptNo,
           pdf: pdfStatus,
+          serverPdf: serverPdfForStaff,
           customer: { to: contact.email, subject: subjectCustomer, chars: customerText.length },
           staff: { to: staffTo, cc: staffCc, subject: subjectStaff, chars: staffBody.length },
         })
@@ -786,14 +906,20 @@ export async function POST(req: Request) {
          （担当割り当て・現地確認の未確定項目）がそのままお客様に届く。
          片方が落ちても、もう片方は送る。まとめて失敗にしない。
          すでに届いている宛先は、ここに入らない（shouldSend で外れている）。 */
-      if (sendCustomer) {
+      if (sendCustomer && !customerAttachment) {
+        /* 2026-09-25: お客様宛にはサーバで作った診断書だけを付ける。作れなかったら送らない
+           （本文は「PDFを添付しています」と書いているので、付けずに送ると本文と食い違う）。
+           failed なので、次に押されたときに送り直す。 */
+        markChannel(entry, "customer", contact.email, "failed", "サーバで診断書PDFを作れなかったため送っていません");
+        console.error("[diagnosis-submit] お客様宛はサーバの診断書PDFが無いため送っていません:", receiptNo);
+      } else if (sendCustomer && customerAttachment) {
         try {
           await transporter.sendMail({
             from,
             to: contact.email,
             subject: subjectCustomer,
             text: customerText,
-            attachments: attachment ? [attachment] : undefined,
+            attachments: [customerAttachment],
           });
           markChannel(entry, "customer", contact.email, "sent");
         } catch (e) {
@@ -813,13 +939,15 @@ export async function POST(req: Request) {
             replyTo: contact.email,
             subject: subjectStaff,
             text: staffBody,
-            attachments: attachment ? [attachment] : undefined,
+            attachments: [staffAttachment],
           });
           markChannel(entry, "staff", staffTarget, "sent");
+          staffMailNow.state = "sent";
         } catch (e) {
           const state = classifySendFailure(e);
           const msg = e instanceof Error ? e.message : String(e);
           markChannel(entry, "staff", staffTarget, state, msg);
+          if (state === "unknown") staffMailNow.state = "unknown";
           console.error(`[diagnosis-submit] 担当者宛の送信に失敗(${state}):`, msg);
         }
       }
@@ -840,6 +968,8 @@ export async function POST(req: Request) {
       receiptNo,
       issuedAtJst,
       pdf: pdfStatus,
+      /* 2026-09-25: true＝担当者宛にはサーバで作った診断書を付けた（画面のPDFが無い・壊れていた） */
+      serverPdf: serverPdfForStaff,
       customer: channelResult(entry, "customer", contact.email, sendCustomer),
       staff: channelResult(entry, "staff", staffTarget, sendStaff),
       duplicate: false,
@@ -859,6 +989,37 @@ export async function POST(req: Request) {
     await saveEntry(entry);
     return { status: 200, payload };
   });
+
+  /* 2026-09-25: 新しい相談を Notion「EHC見込み顧客アタックリスト」に「未着手」で1行足す
+     （担当者がフォローを漏らさないため。次アクションに連絡の目安日を書く）。
+     ・この要求で担当者宛メールを送ったときだけ（実送信の設定のときだけ。dry_run では足さない）。
+     ・同じ受付番号の行が Notion にあれば足さない（lib/notionLead.ts の appendLeadToNotionOnce）。
+     ・Notion が失敗しても受付の結果は変えない（担当者にはメールが届いている）。
+       失敗は行の中身ごとログに残す（そこから手で足せる）。
+     ・応答を返す前に待つ。応答のあとに回すと、Vercel では処理が止められて行が入らないことがある。
+     お客様への応答には Notion の結果を載せない（社内の都合なので）。 */
+  if (staffMailNow.state) {
+    const lead = buildDiagnosisLead(snapshot, { staffMail: staffMailNow.state });
+    try {
+      const notion = await appendLeadToNotionOnce(lead);
+      if (notion.skipped) {
+        console.warn("[diagnosis-submit] Notion への追加を省略:", notion.error);
+      } else if (!notion.ok) {
+        console.error("[diagnosis-submit] Notion への追加に失敗:", notion.error, JSON.stringify(lead));
+      } else {
+        console.info(
+          `[diagnosis-submit] Notion ${notion.duplicate ? "は同じ受付番号の行があるため追加せず" : "に1行追加"}:`,
+          receiptNo
+        );
+      }
+    } catch (e) {
+      console.error(
+        "[diagnosis-submit] Notion への追加で例外:",
+        e instanceof Error ? e.message : String(e),
+        JSON.stringify(lead)
+      );
+    }
+  }
 
   return NextResponse.json(outcome.payload, { status: outcome.status });
 }

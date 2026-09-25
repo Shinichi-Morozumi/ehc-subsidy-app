@@ -9,7 +9,8 @@ import { judgePrep, type PrepJudgement } from "@/lib/prep";
 import { buildRoiSnapshot } from "@/lib/roiState";
 import { ELECTRIC_PRICE_YEN_PER_KWH } from "@/lib/pricing";
 import { INVEST_SOURCE_LABEL, type InvestChoice, type InvestSource } from "@/lib/amountBasis";
-import { ENERGY_SOURCE_NOTE, type EnergyBasis } from "@/lib/diagnosisEnergy";
+import { ENERGY_SOURCE_NOTE, type EnergyBasis, type EnergyBill } from "@/lib/diagnosisEnergy";
+import { EnergyBillInput } from "./EnergyBillInput";
 import { InvestBasisChooser } from "./InvestBasisChooser";
 import { GlossaryDetails } from "./Glossary";
 import type { ProgramAssessment } from "./ProgramMatchBoard";
@@ -158,6 +159,9 @@ export interface ResultStageProps {
   /* 2026-09-25 適合チェックの回答と、答えたときの受け口 */
   selfCheckAnswers: SelfCheckAnswers;
   onSelfCheckAnswer: (key: SelfCheckKey, value: string) => void;
+  /* 2026-09-25 電気料金の明細（任意）。渡されたときだけ入力欄を出す */
+  energyBill?: EnergyBill;
+  onEnergyBillChange?: (bill: EnergyBill) => void;
 }
 
 export function ResultStage({
@@ -175,6 +179,8 @@ export function ResultStage({
   monitorCheckedAt,
   selfCheckAnswers,
   onSelfCheckAnswer,
+  energyBill,
+  onEnergyBillChange,
 }: ResultStageProps) {
   /* 計算していないときは、数字の器そのものを出さない。
      「—」や「0万円」を並べた枠を見せると、枠があること自体が
@@ -200,6 +206,8 @@ export function ResultStage({
       monitorCheckedAt={monitorCheckedAt}
       selfCheckAnswers={selfCheckAnswers}
       onSelfCheckAnswer={onSelfCheckAnswer}
+      energyBill={energyBill}
+      onEnergyBillChange={onEnergyBillChange}
     />
   );
 }
@@ -309,6 +317,8 @@ function ComputedResult({
   monitorCheckedAt,
   selfCheckAnswers,
   onSelfCheckAnswer,
+  energyBill,
+  onEnergyBillChange,
 }: {
   input: MatchInput;
   result: MatchResult;
@@ -324,6 +334,8 @@ function ComputedResult({
   monitorCheckedAt: string | null;
   selfCheckAnswers: SelfCheckAnswers;
   onSelfCheckAnswer: (key: SelfCheckKey, value: string) => void;
+  energyBill?: EnergyBill;
+  onEnergyBillChange?: (bill: EnergyBill) => void;
 }) {
   /* 判定結果（assessments）は DiagnosisFlow が useProgramAssessmentsOrEmpty で作って渡す。
      第3引数（試算に含めなかった群の種類）の扱いは従来どおり（あちらで projection.excludedKinds を渡している）。 */
@@ -399,6 +411,11 @@ function ComputedResult({
         energy={energy}
         investChoice={investChoice}
       />
+
+      {/* 2026-09-25 電気料金の明細（任意）。削減額を推計できているときだけ出す（推計できないときは変わる数字が無い） */}
+      {energy?.source === "equipment_estimate" && energyBill && onEnergyBillChange && (
+        <EnergyBillInput bill={energyBill} energy={energy} onChange={onEnergyBillChange} />
+      )}
 
       {investChoice && onInvestSourceChange && (
         <InvestBasisChooser choice={investChoice} onChange={onInvestSourceChange} idPrefix="result" />
@@ -634,7 +651,9 @@ function ResultSummary({
           value={energyKnown && result.saveYenPerYear > 0 ? `約${manYenText(result.saveYenPerYear / 10000)}万円` : "未算定"}
           note={
             energyKnown
-              ? `電気代は ${ELECTRIC_PRICE_YEN_PER_KWH.toFixed(1)}円/kWh（推計）で計算`
+              ? energy?.priceSource === "bill"
+                ? `電気代は明細の単価 ${energy.priceYenPerKwh.toFixed(1)}円/kWh で計算`
+                : `電気代は ${ELECTRIC_PRICE_YEN_PER_KWH.toFixed(1)}円/kWh（推計）で計算`
               : "馬力が未入力の設備があるため、出していません"
           }
         />
@@ -751,12 +770,20 @@ function EffectSummary({ result, energy }: { result: MatchResult; energy: Energy
         <Stat
           term="電気の使用量"
           value={`${result.totalKwh.toLocaleString("ja-JP")} kWh`}
-          note="いまの年間使用量（設備からの推計）"
+          note={
+            energy?.cappedByBill
+              ? "いまの年間使用量（設備からの推計。明細の年間使用量を上限にしました）"
+              : "いまの年間使用量（設備からの推計）"
+          }
         />
         <Stat
           term="減らせる見込み"
           value={`約 ${Math.round(result.effectiveReductionRate * 100)} %`}
-          note={`年間 約${result.saveYenPerYear.toLocaleString("ja-JP")}円`}
+          note={`年間 約${result.saveYenPerYear.toLocaleString("ja-JP")}円（${
+            energy?.priceSource === "bill"
+              ? `明細の単価 ${energy.priceYenPerKwh.toFixed(1)}円/kWh`
+              : `推計の単価 ${ELECTRIC_PRICE_YEN_PER_KWH.toFixed(1)}円/kWh`
+          }）`}
         />
         <Stat
           term="CO2の削減量"

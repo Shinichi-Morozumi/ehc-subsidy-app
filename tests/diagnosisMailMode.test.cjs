@@ -69,6 +69,7 @@ function setup(mode) {
   if (mode) process.env.DIAGNOSIS_MAIL_MODE = mode; else delete process.env.DIAGNOSIS_MAIL_MODE;
   process.env.SMTP_USER = "sender@example.invalid";
   process.env.SMTP_PASS = "test-only-not-a-secret";
+  delete process.env.NOTION_TOKEN; // 2026-09-25: never reach the real Notion from a test
   resetSubmitLedger(); resetSubmitRateLimit(); sent.length = 0;
   const oldInfo = console.info, oldWarn = console.warn; console.info = () => {}; console.warn = () => {};
   return () => {

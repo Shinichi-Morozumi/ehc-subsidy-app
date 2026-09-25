@@ -42,6 +42,7 @@ const { POST } = loadTs("app/api/diagnosis-submit/route.ts");
 const { buildDiagnosisSnapshot } = loadTs("lib/diagnosisSnapshot.ts");
 const { diagnosisContentForId, diagnosisFingerprint, estimateDigest } = loadTs("lib/diagnosisId.ts");
 const { resetSubmitLedger } = loadTs("lib/submitLedger.ts");
+const { resetSubmitRateLimit } = loadTs("lib/submitRateLimit.ts");
 function body() {
   const input = { contact: { name: "Test", email: "test@example.invalid", company: null, phone: null },
     equipGroups: [], unpriced: [], customerBudgetYen: null, desiredTiming: null };
@@ -60,10 +61,14 @@ test("non-object JSON returns 400 rather than throwing", async () => {
     assert.equal((await response.json()).ok, false);
   }
 });
-test("missing, oversized and invalid PDF never reach mail transport", async () => {
+// 2026-09-25: a missing/invalid client PDF is now replaced by a server-made PDF (tests/diagnosisLead.test.cjs).
+// When the server cannot make one either (fonts unavailable here), nothing is sent, as before.
+test("missing, oversized and invalid PDF never reach mail transport (server PDF unavailable)", async () => {
   process.env.DIAGNOSIS_MAIL_MODE = "send";
   process.env.SMTP_USER = "test@example.invalid";
   process.env.SMTP_PASS = "test-only-not-a-secret";
+  process.env.EHC_PDF_FONT_DIR = path.join(root, "tests", "no-such-font-dir");
+  const oldError = console.error; console.error = () => {};
   try {
     for (const [pdfBase64, expectedStatus, expectedPdf] of [
       [undefined, 422, "missing"], ["", 422, "missing"],
@@ -73,7 +78,7 @@ test("missing, oversized and invalid PDF never reach mail transport", async () =
       ["data:text/html;base64,SGVsbG8=", 422, "invalid"],
       [Buffer.from("%PDF-1.3\ntruncated").toString("base64"), 422, "invalid"],
     ]) {
-      resetSubmitLedger();
+      resetSubmitLedger(); resetSubmitRateLimit(); // 2026-09-25: the rate limit is now checked before the PDF
       const response = await post({ ...body(), pdfBase64 });
       const result = await response.json();
       assert.equal(response.status, expectedStatus, expectedPdf);
@@ -84,7 +89,9 @@ test("missing, oversized and invalid PDF never reach mail transport", async () =
       assert.equal(transportCalls, 0);
     }
   } finally {
+    console.error = oldError;
     delete process.env.DIAGNOSIS_MAIL_MODE; delete process.env.SMTP_USER; delete process.env.SMTP_PASS;
+    delete process.env.EHC_PDF_FONT_DIR;
   }
 });
 

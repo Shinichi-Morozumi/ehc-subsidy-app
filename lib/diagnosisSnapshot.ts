@@ -32,6 +32,7 @@
 import type { DesiredTiming, EquipGroup, EquipType, MatchInput } from "./types";
 import { estimateUpdateBreakdownGroups, yenJP } from "./pricing";
 import { buildConstructionTimeline } from "./timeline";
+import { readEnergyBill } from "./diagnosisEnergy";
 /* 型だけを借りる。実体（buildReductionBasisViews）はここでは呼ばない。
    呼ぶと、このファイルが「根拠を組み立てる場所」になってしまい、
    lib/reductionBasisView.ts を1本の組み立て口にした意味が消える。
@@ -162,6 +163,37 @@ export function subsidyCheckLines(c: SnapshotSubsidyCheck): string[] {
   return out;
 }
 
+/* ───────── 電気料金の明細（2026-09-25・お客様の任意入力）─────────
+   担当者宛メールと Notion のメモに載せる（実際の単価が分かると、現地確認の前に削減額を引き直せる）。
+   単価はサーバでも同じ式・同じ範囲（lib/diagnosisEnergy.ts の readEnergyBill）で出し直す。画面の値は信じない。
+   内容の照合（指紋）には入れない（subsidyCheck と同じ理由）。 */
+export interface SnapshotEnergyBill {
+  period: "month" | "year";
+  kwh: number | null;
+  yen: number | null;
+  /** 単価（円/kWh）。使用量と請求額がそろい、範囲内のときだけ */
+  priceYenPerKwh: number | null;
+}
+
+export function normalizeEnergyBill(v: unknown): SnapshotEnergyBill | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const o = v as Record<string, unknown>;
+  const period = o.period === "year" ? "year" : o.period === "month" ? "month" : null;
+  const num = (x: unknown, max: number): number | null =>
+    typeof x === "number" && Number.isFinite(x) && x > 0 && x <= max ? x : null;
+  const kwh = num(o.kwh, 1_000_000_000);
+  const yen = num(o.yen, 100_000_000_000);
+  if (!period || (kwh == null && yen == null)) return null;
+  return { period, kwh, yen, priceYenPerKwh: readEnergyBill({ period, kwh, yen }).priceYenPerKwh };
+}
+
+export function energyBillLine(b: SnapshotEnergyBill): string {
+  const kwh = b.kwh != null ? `${Math.round(b.kwh).toLocaleString("ja-JP")}kWh` : "未入力";
+  const yen = b.yen != null ? yenJP(b.yen) : "未入力";
+  const price = b.priceYenPerKwh != null ? `（単価 約${b.priceYenPerKwh.toFixed(1)}円/kWh・画面の削減額はこの単価で計算）` : "（単価は出していません）";
+  return `${b.period === "month" ? "1か月分" : "1年分の合計"}　使用量 ${kwh}／請求額 ${yen}${price}`;
+}
+
 export interface DiagnosisSnapshotSource {
   receiptNo: string;
   issuedAtJst: string;
@@ -191,6 +223,8 @@ export interface DiagnosisSnapshotSource {
   reductionBasis: ReductionBasisView[] | null;
   /** 2026-09-25 補助金の候補と適合チェック。送っていない（古い画面など）ときは null／省略 */
   subsidyCheck?: SnapshotSubsidyCheck | null;
+  /** 2026-09-25 電気料金の明細（任意）。入れていない・送っていないときは null／省略 */
+  energyBill?: SnapshotEnergyBill | null;
 }
 
 export interface DiagnosisSnapshot extends DiagnosisSnapshotSource {
@@ -304,13 +338,16 @@ const COMMON_CAVEATS = [
   "補助制度によっては、交付決定より前の発注・契約・着工が対象外になります。該当するかは制度ごとに異なるため、着工前に確認します。",
 ];
 
-export function customerMailText(s: DiagnosisSnapshot): string {
+/** お客様宛の件名（自動送付と、担当者が転送するときの件名を同じにする） */
+export function customerMailSubject(s: Pick<DiagnosisSnapshot, "receiptNo">): string {
+  return `【受付番号 ${s.receiptNo}】空調更新の診断結果と概算見積（株式会社EHCソリューションズ）`;
+}
+
+/* お客様に見せてよい節（受付番号〜ご確認ください）。自動送付の本文と、
+   担当者が転送するときの文面の両方で使う。社内向けの記述（照合記録・現地確認の
+   未確定項目・担当割り当て）はここに入れないこと。 */
+function customerCoreLines(s: DiagnosisSnapshot): string[] {
   const lines: string[] = [
-    `${s.contact.name} 様`,
-    "",
-    "空調更新の診断をお申し込みいただきありがとうございます。",
-    "ご入力いただいた内容で診断書と概算見積をお作りしました。PDFを添付しています。",
-    "",
     `受付番号: ${s.receiptNo}`,
     `受付日時: ${s.issuedAtJst}`,
     "",
@@ -337,13 +374,57 @@ export function customerMailText(s: DiagnosisSnapshot): string {
     lines.push("", "■ 補助金の候補と適合チェック（画面に表示した内容）", ...subsidyCheckLines(s.subsidyCheck));
   }
   lines.push("", "■ ご確認ください", ...COMMON_CAVEATS.map((c) => `　・${c}`));
-  lines.push(
+  return lines;
+}
+
+export function customerMailText(s: DiagnosisSnapshot): string {
+  return [
+    `${s.contact.name} 様`,
+    "",
+    "空調更新の診断をお申し込みいただきありがとうございます。",
+    "ご入力いただいた内容で診断書と概算見積をお作りしました。PDFを添付しています。",
+    "",
+    ...customerCoreLines(s),
     "",
     "担当者より改めてご連絡いたします。お急ぎの場合は、この受付番号をお伝えください。",
     "",
-    "株式会社EHCソリューションズ"
-  );
-  return lines.join("\n");
+    "株式会社EHCソリューションズ",
+  ].join("\n");
+}
+
+/** 担当者が名前を書き込む場所（転送用の文面で2か所） */
+export const FORWARD_STAFF_PLACEHOLDER = "〔担当者名〕";
+
+/** 担当者がお客様へ転送するときの文面（2026-09-25）。
+ *  お客様宛の自動送付を止めている運用で、担当者宛メールの末尾に載せる。
+ *  中身は自動送付の文面と同じ節（customerCoreLines）なので、書いてある数字は
+ *  画面・診断書PDFと同じ。社内向けの記述は入れない。 */
+export function forwardMailText(
+  s: DiagnosisSnapshot,
+  company: { name: string; address: string; tel: string; hours: string; site?: string }
+): string {
+  return [
+    ...(s.contact.company ? [s.contact.company] : []),
+    `${s.contact.name} 様`,
+    "",
+    `${company.name}の${FORWARD_STAFF_PLACEHOLDER}です。`,
+    "このたびは空調更新のWeb診断をご利用いただき、ありがとうございます。",
+    "ご入力いただいた内容で作成した診断書（PDF）を添付してお送りします。",
+    "",
+    ...customerCoreLines(s),
+    "",
+    "■ この後の進め方",
+    "　1. 現地確認の日程をご相談させてください。系統数・冷媒の種類・搬入経路などを拝見し、仮置きの前提を置き換えます。",
+    "　2. 現地確認のあと、正式なお見積りと、補助金を使う場合の進め方（申請の時期・必要な書類）をご案内します。",
+    "",
+    `ご不明な点は、このメールへのご返信か、お電話（${company.tel}／${company.hours}）でお知らせください。`,
+    "",
+    company.name,
+    FORWARD_STAFF_PLACEHOLDER,
+    company.address,
+    `TEL ${company.tel}（${company.hours}）`,
+    ...(company.site ? [company.site] : []),
+  ].join("\n");
 }
 
 /* 対象製品の確認（台帳 #65）は、サーバが保存先から引き直した結果を
@@ -380,6 +461,9 @@ export function staffMailText(s: DiagnosisSnapshot, targetProductLines?: string[
     `　ご予算: ${s.customerBudgetYen != null ? yenJP(s.customerBudgetYen) : "未回答"}`,
     `　希望時期: ${s.desiredTiming != null ? TIMING_LABEL_JA[s.desiredTiming] : "未回答"}`
   );
+  if (s.energyBill) {
+    lines.push("", "■ 電気料金の明細（お客様の任意入力）", `　${energyBillLine(s.energyBill)}`);
+  }
   if (s.subsidyCheck && (s.subsidyCheck.programs.length || s.subsidyCheck.answers.length)) {
     lines.push(
       "",
