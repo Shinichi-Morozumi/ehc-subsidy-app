@@ -7,6 +7,7 @@ import { ClipboardCheck, ExternalLink } from "lucide-react";
 import {
   SubsidyState, SUBSIDY_STATE_NOTE, INVEST_UNKNOWN_LABEL, resolveInvestState,
 } from "@/lib/roiState";
+import { SUBSIDY_CAP_UNKNOWN_NOTE } from "@/lib/pricing";
 
 export function DiagnosisSummary({
   input,
@@ -28,9 +29,17 @@ export function DiagnosisSummary({
   printable?: boolean;
 }) {
   const details = buildDiagnosisDetails(input, result);
-  const base = printable ? "border-slate-200 bg-white text-slate-800" : "border-white/10 bg-white/[0.03] text-slate-200";
-  const muted = printable ? "text-slate-600" : "text-slate-400";
-  const title = printable ? "text-ehc-800" : "text-white";
+  /* ───────── 2026-09-11 EHC-0038 第2便 4-G ─────────
+     画面側（printable=false）が黒地前提のままだった。
+     white/10 の枠と white/[0.03] の面は、白い紙の上では
+     「枠が見えないカード」＋「何も塗っていない面」になり、
+     9項目がただの箇条書きに崩れる。
+     PDF側（printable=true）は slate で完成しているので触らない。
+     この2系統を1つにまとめたくなるが、まとめてはいけない。
+     PDFは印刷前提でインク量の制約があり、画面とは要件が違う。 */
+  const base = printable ? "border-slate-200 bg-white text-slate-800" : "border-ink-line bg-paper-sub text-ink";
+  const muted = printable ? "text-slate-600" : "text-ink-soft";
+  const title = printable ? "text-ehc-800" : "text-ink";
   const state: SubsidyState = subsidyState ?? (appliedSubsidyManYen > 0 ? "positive" : "unconfirmed");
   /* F01: 設備投資額が未算定（空欄→0）のとき、従来は
      「実質負担概算 0万円」と書いていた。費用不明と0円は違う。 */
@@ -39,13 +48,13 @@ export function DiagnosisSummary({
   const appliedOutOfPocket = investState === "known" ? Math.max(0, input.invest - appliedSubsidyManYen) : null;
 
   return (
-    <section className={printable ? "mb-5" : "rounded-2xl border border-ehc-500/30 bg-night-900 p-5 md:p-6"}>
+    <section className={printable ? "mb-5" : "rounded-2xl border border-ink-line bg-paper-card p-5 md:p-6 shadow-card"}>
       <h2 className={`font-bold flex items-center gap-2 ${printable ? "text-sm border-l-4 border-ehc-600 pl-3 mb-3" : "text-base mb-1"} ${title}`}>
         <ClipboardCheck className="w-4 h-4" />
         診断結果：判断に必要な9項目
       </h2>
       {!printable && (
-        <p className="text-xs text-slate-400 mb-4">
+        <p className="text-xs text-ink-soft mb-4">
           金額・準備期間・間に合うかは概算です。採択・受給・補助額を保証するものではありません。
         </p>
       )}
@@ -68,7 +77,7 @@ export function DiagnosisSummary({
 
           {/* 判定不能を「該当なし」に混ぜない。不足情報を出して次の一手にする。 */}
           {details.pending.length > 0 && (
-            <div className={`mt-2.5 pt-2.5 border-t ${printable ? "border-slate-200" : "border-white/10"}`}>
+            <div className={`mt-2.5 pt-2.5 border-t ${printable ? "border-slate-200" : "border-ink-line"}`}>
               <p className="font-bold mb-1.5">確認すれば候補になりうる制度（{details.pending.length}件）</p>
               {details.pending.map((p) => (
                 <div key={p.subsidy.id} className="mb-1.5 last:mb-0">
@@ -96,7 +105,13 @@ export function DiagnosisSummary({
           {details.candidates.length ? details.candidates.map((c) => (
             <p key={c.subsidy.id} className="mb-1.5 last:mb-0">
               <strong>{c.subsidy.name}：</strong>{c.subsidy.rate}／上限 {c.subsidy.max}{" "}
-              <a href={c.subsidy.url} target="_blank" rel="noreferrer" className="min-h-[44px] inline-flex items-center gap-0.5 text-cobalt-400 underline">
+              {/* 2026-09-11 EHC-0038 第2便 4-J:
+                  ここは 48px の対象外にする。文章の途中に埋まったリンクなので、
+                  min-h を 48px にすると行の高さが2行分になり、
+                  上下の行と重なって本文の方が読めなくなる。
+                  WCAG 2.5.8 も文中リンクは最小サイズの対象外としている。
+                  代わりに左右の余白を広げて、押し間違いを減らす。 */}
+              <a href={c.subsidy.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 px-1 py-0.5 text-brand-deep font-semibold underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep">
                 公式情報 <ExternalLink className="w-3 h-3" />
               </a>
             </p>
@@ -129,6 +144,9 @@ export function DiagnosisSummary({
             <p key={c.subsidy.id} className={`mt-1 ${muted}`}>
               {c.subsidy.infoOnly ? (
                 <>{c.subsidy.name}：情報提供のみの制度のため、補助額・実質負担は算定していません。</>
+              ) : c.potentialManYen == null || c.outOfPocketManYen == null ? (
+                /* 2026-09-10 EHC-0038 P0-7: 補助上限・投資額が未確認なら金額を出さない（0円ではない） */
+                <>{c.subsidy.name}：{SUBSIDY_CAP_UNKNOWN_NOTE}</>
               ) : (
                 <>{c.subsidy.name}の要件を満たす場合：補助額 最大概算 {c.potentialManYen.toLocaleString("ja-JP")}万円（千円未満切捨て）／実質負担 {c.outOfPocketManYen.toLocaleString("ja-JP")}万円</>
               )}

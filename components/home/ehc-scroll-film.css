@@ -1,0 +1,247 @@
+.ehc-film {
+  --ehc-film-run: 0px;
+  --ehc-film-top: 0px;
+  --ehc-paper: #f6f6ed;
+  /* 2026-09-17 EHC-0040 §3: 映像面を四辺から地色へ溶かす幅。
+     ポスターを 1440×960 に換算して縁までの空きを測ると、
+     屋根の上端 ≒49px / 建物の左端 ≒62px / 右の店先 ≒20px / 下の植栽まで ≒95px。
+     右辺は対象物が縁に接しているので 8px に留める。上辺と左右は 16px、
+     いちばん空いている下辺だけ 32px。指示の初期値（PC32px）より浅い辺があるのは
+     「対象物がある辺は 8px まで」という但し書きに合わせたため。 */
+  --ehc-fade-top: 16px;
+  --ehc-fade-right: 8px;
+  --ehc-fade-bottom: 32px;
+  --ehc-fade-left: 16px;
+  color: #193e33;
+  background: var(--ehc-paper);
+  position: relative;
+  /* 2026-09-17 EHC-0040 §4: 次の節の背景が始まるまでの間隔。
+     sticky が解放されるのは .ehc-film のコンテンツ box の下端なので、
+     ここに置けば scroll モードの終端でも同じだけ空く（runway 込みの見かけではない）。 */
+  padding-bottom: 24px;
+}
+.ehc-film, .ehc-film * { box-sizing: border-box; }
+/* 2026-09-15: 走行距離は padding ではなく実体のある空要素で作る。
+   以前は .ehc-film へ padding-bottom: var(--ehc-film-run) を当てていた。
+   padding は sticky の拘束矩形（親のコンテンツ box）を広げないので、
+   stage は「動ける範囲0」と判定され、固定されずに画面外へ流れていた。
+   ＝ヒーローが見切れていた原因。実機で再現・確認済み。 */
+.ehc-film__runway { height: 0; }
+.ehc-film[data-mode="scroll"] .ehc-film__runway { height: var(--ehc-film-run); }
+.ehc-film__sentinel { display: none; height: 0; pointer-events: none; }
+.ehc-film__stage {
+  width: min(100%, 1480px);
+  margin-inline: auto;
+  padding: clamp(28px, 4vw, 64px) clamp(20px, 4vw, 64px);
+  display: grid;
+  grid-template-columns: minmax(0, .86fr) minmax(0, 1.3fr);
+  align-items: center;
+  gap: clamp(24px, 3vw, 56px);
+  background: var(--ehc-paper);
+}
+.ehc-film[data-mode="scroll"] .ehc-film__stage {
+  position: sticky;
+  top: var(--ehc-film-top);
+}
+.ehc-film__copy, .ehc-film__visual { min-width: 0; }
+.ehc-film__figure { margin: 0; }
+.ehc-film__viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  /* The media has real display alpha; no separate rectangular colour plane. */
+  background: transparent;
+  overflow: hidden;
+}
+.ehc-film__poster, .ehc-film__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  /* EHC-0042: paper alpha is calculated by the SVG filter, not multiply.
+     Keep a narrow antialiased edge for linework in the close-up sequence. */
+  -webkit-mask-image:
+    linear-gradient(90deg, transparent 0, #000 var(--ehc-fade-left), #000 calc(100% - var(--ehc-fade-right)), transparent 100%),
+    linear-gradient(180deg, transparent 0, #000 var(--ehc-fade-top), #000 calc(100% - var(--ehc-fade-bottom)), transparent 100%);
+  mask-image:
+    linear-gradient(90deg, transparent 0, #000 var(--ehc-fade-left), #000 calc(100% - var(--ehc-fade-right)), transparent 100%),
+    linear-gradient(180deg, transparent 0, #000 var(--ehc-fade-top), #000 calc(100% - var(--ehc-fade-bottom)), transparent 100%);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.ehc-film__poster { position: relative; }
+.ehc-film__filter-defs { position: absolute; pointer-events: none; }
+.ehc-film__video { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+/* Hide the underlying poster to avoid doubled linework. Geometry stays fixed. */
+.ehc-film[data-video-ready="true"] .ehc-film__poster { visibility: hidden; }
+.ehc-film[data-video-ready="true"] .ehc-film__video { opacity: 1; }
+/* Keep the complete HTML image visible after the film. The SVG layer only
+   contains fans and air; a failed SVG image repaint cannot erase the building. */
+.ehc-film[data-ambient-ready="true"][data-ambient-image-ready="true"] .ehc-film__poster {
+  visibility: visible;
+}
+.ehc-film[data-ambient-ready="true"][data-ambient-image-ready="true"] .ehc-film__video {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 700ms ease, visibility 0s 700ms;
+}
+.ehc-film__caption {
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #57685e;
+  text-align: right;
+}
+.ehc-film__controls {
+  /* All states use the same slots. Copy, pause labels and replay never change travel. */
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(48px, auto);
+  align-items: center;
+  column-gap: 12px;
+  margin-top: 12px;
+}
+.ehc-film__hint {
+  grid-column: 1;
+  grid-row: 1;
+  display: none;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #57685e;
+}
+.ehc-film[data-mode="scroll"] .ehc-film__hint { display: block; }
+.ehc-film[data-completed="true"] .ehc-film__hint { display: none; }
+.ehc-film[data-replaying="true"] .ehc-film__hint { visibility: hidden; }
+.ehc-film__next {
+  grid-column: 3;
+  grid-row: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #286347;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* 2026-09-17 EHC-0040 §5: 再演出は「別の小さいリンク」。
+   停止／再開ボタンの文言を奪わないので、風を止める手段が消えない。 */
+.ehc-film__replay {
+  grid-column: 1;
+  grid-row: 1;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #286347;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.ehc-film__replay[hidden] { display: none; }
+.ehc-film__toggle {
+  grid-column: 2;
+  grid-row: 1;
+  appearance: none;
+  background: transparent;
+  color: #193e33;
+  border: 1px solid #57685e;
+  border-radius: 24px;
+  padding: 12px 20px;
+  min-height: 48px;
+  /* Reserve the longer pause label so changing it never changes the control slot. */
+  min-width: 140px;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  /* 案内文・再演出リンクが左、停止／再開は常に右。出し入れで横位置が動かない。 */
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.ehc-film__toggle[hidden] { display: none; }
+.ehc-film :focus-visible { outline: 2px solid #193e33; outline-offset: 4px; }
+@media (max-width: 767px) {
+  .ehc-film__caption { margin-top: 8px; }
+  .ehc-film__controls {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: 48px 48px;
+    column-gap: 12px;
+    row-gap: 4px;
+    margin-top: 8px;
+  }
+  .ehc-film__hint, .ehc-film__replay { grid-column: 1 / -1; grid-row: 1; }
+  .ehc-film__toggle { grid-column: 1; grid-row: 2; min-width: 0; padding: 10px 12px; }
+  .ehc-film__next { grid-column: 2; grid-row: 2; }
+  /* 狭い画面では溶かし幅を半分に。対象物が接している右辺は据え置き。 */
+  .ehc-film {
+    --ehc-fade-top: 8px;
+    --ehc-fade-right: 8px;
+    --ehc-fade-bottom: 16px;
+    --ehc-fade-left: 8px;
+  }
+}
+/* Mobile: copy and CTA scroll normally; only the picture and controls pin.
+   display:contents gives the visual the root's full travel range, including runway.
+   The zero-height sentinel stays in normal flow immediately before the visual. */
+@media (max-width: 1023px), (max-height: 650px) {
+  .ehc-film__stage, .ehc-film[data-mode="scroll"] .ehc-film__stage { display: contents; }
+  .ehc-film__copy { padding: 24px 20px 16px; }
+  .ehc-film__sentinel { display: block; }
+  .ehc-film__visual {
+    padding: 12px 20px 20px;
+    width: 100%;
+    background: var(--ehc-paper);
+  }
+  .ehc-film[data-mode="scroll"] .ehc-film__visual { position: sticky; top: var(--ehc-film-top); }
+  .ehc-film__viewport {
+    /* Shrink the image, never text or tap targets, when height is limited. */
+    max-height: max(96px, calc(100svh - var(--ehc-film-top) - 192px));
+    width: auto;
+    max-width: 100%;
+    margin-inline: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* 走行距離を残すと、動かない静止画のために無意味な空白を下にぶら下げることになる。 */
+  .ehc-film .ehc-film__runway { height: 0; }
+  .ehc-film[data-mode="scroll"] .ehc-film__stage { position: relative; top: auto; }
+  .ehc-film[data-mode="scroll"] .ehc-film__visual { position: relative; top: auto; }
+  .ehc-film[data-video-ready="true"] .ehc-film__video { opacity: 0; }
+  .ehc-film[data-video-ready="true"] .ehc-film__poster { visibility: visible; }
+  .ehc-film .ehc-film__hint { display: none; }
+  /* 動かさない方針なので風も出さない。止める物が無いのに「止める」を出さない。 */
+}
+
+/* Existing EHC header, copy and diagnosis CTA integration. */
+.ehc17 #home .ehc-film__intro h1 { font-size: clamp(28px, 3vw, 44px); font-weight: 700; line-height: 1.5; letter-spacing: -.025em; margin: 0 0 24px; }
+.ehc17 #home .ehc-film__intro h1 > span { display: block; }
+.ehc17 #home .ehc-film__intro .eyebrow { font-size: 14px; line-height: 1.7; margin: 0 0 24px; color: #286347; }
+.ehc17 #home .ehc-film__intro .hero-description { font-size: 17px; line-height: 1.9; color: #57685e; margin: 0 0 28px; }
+/* 2026-09-17 EHC-0040 §4: 主診断CTA は高さ60px以上・文字16px以上・横 padding 24px。 */
+.ehc17 #home .ehc-film__cta .primary { background: #286347; color: white; min-height: 60px; font-size: 17px; gap: 24px; padding-left: 24px; padding-right: 24px; }
+.ehc17 #home .ehc-film__cta .primary:hover { background: #204f39; }
+.ehc17 #home .ehc-film__cta .button-arrow { background: transparent; }
+.ehc17 #home .ehc-film__cta > p { font-size: 14px; line-height: 1.7; color: #57685e; margin: 12px 0; }
+.ehc17 #home .ehc-film__cta .hero-report-link { display: inline-flex; align-items: center; min-height: 48px; font-size: 14px; line-height: 1.8; }
+.ehc17 #home .ehc-film :focus-visible { outline: 2px solid #193e33; outline-offset: 4px; }
+@media (max-width: 767px) {
+  .ehc17 #home .ehc-film__intro h1 { font-size: clamp(26px, 7.5vw, 34px); margin-bottom: 16px; }
+  .ehc17 #home .ehc-film__intro .eyebrow { margin-bottom: 16px; font-size: 14px; }
+  /* 本文16px・補助文14px。以前の 15px / 13px / 11px は本文の下限を割っていた。 */
+  .ehc17 #home .ehc-film__intro .hero-description { font-size: 16px; margin-bottom: 20px; }
+  .ehc17 #home .ehc-film__cta .primary { width: 100%; justify-content: space-between; font-size: 16px; padding-left: 24px; padding-right: 24px; }
+  .ehc17 #home .ehc-film__cta .hero-report-link { font-size: 14px; min-height: 48px; }
+}

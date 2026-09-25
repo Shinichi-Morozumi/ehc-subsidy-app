@@ -14,148 +14,59 @@
    ・診断レポートの見本に出てくる制度名・金額は全て架空例であり、実計算には使わない。 */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import EhcScrollHero from "./EhcScrollHero";
+import EntryWelcome from "./EntryWelcome";
 import { OPEN_HEARING_EVENT } from "../HowItWorks";
 import {
   useCardStack,
-  useHeroMedia,
   useRevealOnScroll,
   useSectionMotion,
 } from "./homeMotion";
 
-const INTRO_LEAVE_MS = 1750;
-const INTRO_CLOSE_MS = 2850;
-
-/* 原案の boot スクリプト相当。ハッシュ無し・reduced-motion でない場合のみ冒頭演出を出す。 */
-function wantsOpening(): boolean {
-  if (typeof window === "undefined") return false;
-  const h = window.location.hash;
-  if (h && h !== "#home") return false;
-  return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
 export function HomeV17() {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const introRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLElement | null>(null);
-  const heroRef = useRef<HTMLElement | null>(null);
+  const heroRef = useRef<HTMLDivElement | null>(null);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const startRef = useRef<HTMLButtonElement | null>(null);
-  const skipRef = useRef<HTMLButtonElement | null>(null);
-  const timers = useRef<number[]>([]);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [motionPaused, setMotionPaused] = useState(false);
   const [introPlaying, setIntroPlaying] = useState(false);
-  const [introLeaving, setIntroLeaving] = useState(false);
-  const [openingStage, setOpeningStage] = useState(false);
-  const [openingReveal, setOpeningReveal] = useState(false);
   const [headerSolid, setHeaderSolid] = useState(false);
   const [dockShow, setDockShow] = useState(false);
   const [activeChapter, setActiveChapter] = useState("benefit-program");
-  const [replayKey, setReplayKey] = useState(0);
 
-  const clearTimers = useCallback(() => {
-    timers.current.forEach((t) => window.clearTimeout(t));
-    timers.current = [];
-  }, []);
-
-  const closeOpening = useCallback(() => {
-    clearTimers();
-    setIntroPlaying(false);
-    setIntroLeaving(false);
-    setOpeningStage(false);
-    setOpeningReveal(false);
-    const art = rootRef.current?.querySelector(".scene-art");
-    art?.classList.add("ready");
-  }, [clearTimers]);
-
-  const playOpening = useCallback(() => {
-    clearTimers();
-    setOpeningStage(true);
-    setIntroPlaying(true);
-    setIntroLeaving(false);
-    timers.current.push(
-      window.setTimeout(() => {
-        setIntroLeaving(true);
-        setOpeningReveal(true);
-      }, INTRO_LEAVE_MS),
-    );
-    timers.current.push(
-      window.setTimeout(() => {
-        const insideIntro = !!(
-          document.activeElement &&
-          introRef.current?.contains(document.activeElement)
-        );
-        closeOpening();
-        if (insideIntro) startRef.current?.focus();
-      }, INTRO_CLOSE_MS),
-    );
-  }, [clearTimers, closeOpening]);
-
-  /* 初回のみ冒頭演出。5秒の保険で必ず閉じる（原案の fallback と同じ）。 */
+  const [headerHeight, setHeaderHeight] = useState(88);
   useEffect(() => {
-    if (!wantsOpening()) {
-      rootRef.current?.querySelector(".scene-art")?.classList.add("ready");
-      return;
-    }
-    playOpening();
-    const fb = window.setTimeout(closeOpening, 5000);
-    return () => {
-      window.clearTimeout(fb);
-      clearTimers();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const header = headerRef.current;
+    if (!header) return;
+    const measure = () => setHeaderHeight(header.getBoundingClientRect().height);
+    measure();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    observer?.observe(header);
+    window.addEventListener("resize", measure, { passive: true });
+    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
   }, []);
-
-  /* 演出中は背後を操作させない（原案の inert 相当）。 */
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const targets = Array.from(
-      root.querySelectorAll<HTMLElement>(
-        ":scope > .header, :scope > main, :scope > .site-menu, :scope > .mobile-dock",
-      ),
-    );
-    targets.forEach((el) => {
-      if (introPlaying) el.setAttribute("inert", "");
-      else el.removeAttribute("inert");
-    });
-    if (introPlaying) skipRef.current?.focus();
-    return () => targets.forEach((el) => el.removeAttribute("inert"));
-  }, [introPlaying]);
 
   /* 診断へ。既存アプリの入口イベントを発火するだけで、判定処理には触れない。 */
   const startDiagnosis = useCallback(() => {
-    closeOpening();
     setMenuOpen(false);
     window.dispatchEvent(new CustomEvent(OPEN_HEARING_EVENT));
-  }, [closeOpening]);
+  }, []);
 
   const toggleMotion = useCallback(() => {
     setMotionPaused((v) => !v);
-    closeOpening();
-  }, [closeOpening]);
+  }, []);
 
-  const replayOpening = useCallback(() => {
-    setMenuOpen(false);
-    setReplayKey((n) => n + 1);
-    playOpening();
-  }, [playOpening]);
-
-  /* Escape で演出／メニューを閉じる。 */
+  /* Escape は引き続きメニューを閉じる。映像は入力を遮らない。 */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      if (introPlaying) {
-        closeOpening();
-        startRef.current?.focus();
-        return;
-      }
-      if (menuOpen) setMenuOpen(false);
+      if (e.key === "Escape") setMenuOpen(false);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [introPlaying, menuOpen, closeOpening]);
+  }, []);
 
   /* ページ内リンクのスクロール。動きを止めている時は瞬間移動にする。 */
   const jump = useCallback(
@@ -181,7 +92,7 @@ export function HomeV17() {
       if (!root) return;
       setHeaderSolid(window.scrollY > 30);
       const heroRect = heroRef.current?.getBoundingClientRect();
-      setDockShow(!!heroRect && heroRect.bottom < 50 && !introPlaying);
+      setDockShow(!!heroRect && heroRect.bottom < 50);
       const cards = Array.from(
         root.querySelectorAll<HTMLElement>(".discovery-card"),
       );
@@ -203,7 +114,7 @@ export function HomeV17() {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, [introPlaying]);
+  }, []);
 
   /* ホームの間だけ紙色の地にする。ツール側のダークテーマには触れない。 */
   useEffect(() => {
@@ -214,64 +125,24 @@ export function HomeV17() {
   useSectionMotion(rootRef, {
     paused: motionPaused,
     opening: introPlaying,
-    replayKey,
+    replayKey: 0,
   });
   useCardStack(rootRef, { paused: motionPaused });
   useRevealOnScroll(rootRef, { paused: motionPaused });
-  useHeroMedia(rootRef, { paused: motionPaused, introPlaying });
 
   const rootClass = [
     "ehc17",
     motionPaused ? "motion-paused" : "",
-    openingStage ? "ehc-opening-stage" : "",
-    openingReveal ? "ehc-opening-reveal" : "",
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
     <div ref={rootRef} className={rootClass} data-screen="home">
+      <EntryWelcome paused={motionPaused} onPlayingChange={setIntroPlaying} />
       <a href="#main-content" className="skip-main">
         本文へ
       </a>
-
-      {/* 冒頭演出。装飾のみ。 */}
-      <div
-        ref={introRef}
-        className={`intro${introPlaying ? " playing" : ""}${introLeaving ? " leaving" : ""}`}
-        aria-hidden={!introPlaying}
-        role="dialog"
-        aria-label="空調更新、その前に。導入演出"
-      >
-        <span className="intro-label" aria-hidden="true">
-          EHC
-        </span>
-        <div className="intro-air" aria-hidden="true">
-          <video
-            id="entry-film"
-            muted
-            playsInline
-            preload="none"
-            tabIndex={-1}
-            aria-hidden="true"
-            disablePictureInPicture
-            data-src="/v17/entry-film.mp4"
-          />
-        </div>
-        <p className="intro-phrase">
-          <span>空調更新、</span>
-          <span>その前に。</span>
-        </p>
-        <button
-          ref={skipRef}
-          type="button"
-          className="intro-skip"
-          id="skip-opening"
-          onClick={startDiagnosis}
-        >
-          演出をスキップして診断へ ↗
-        </button>
-      </div>
 
       <header
         ref={headerRef}
@@ -343,9 +214,9 @@ export function HomeV17() {
         <a href="#support" onClick={(e) => jump(e, "support")}>
           空調更新のサポート ↗
         </a>
-        <button type="button" onClick={replayOpening}>
-          冒頭の演出をもう一度 ↻
-        </button>
+        <a href="#home" onClick={(e) => jump(e, "home")}>
+          空調更新の映像へ ↑
+        </a>
         <button
           type="button"
           onClick={toggleMotion}
@@ -357,44 +228,17 @@ export function HomeV17() {
 
       <main className="wrap" id="main-content">
         <section className="screen active" id="home">
-          {/* 1. ヒーロー */}
-          <section
-            ref={heroRef}
-            className="scene-hero"
-            aria-labelledby="hero-title"
-          >
-            <div className="scene-art" aria-hidden="true">
-              <img
-                src="/v17/hero-scene.webp"
-                srcSet="/v17/hero-scene-960.webp 960w, /v17/hero-scene.webp 1536w"
-                sizes="100vw"
-                width={1536}
-                height={1024}
-                fetchPriority="high"
-                alt=""
-              />
-              <img
-                className="scene-motion-poster"
-                src="/v17/hero-poster.jpg"
-                width={960}
-                height={640}
-                fetchPriority="high"
-                alt=""
-              />
-              <video
-                id="hero-film"
-                className="scene-video"
-                loop
-                muted
-                playsInline
-                preload="none"
-                tabIndex={-1}
-                aria-hidden="true"
-                disablePictureInPicture
-                data-src="/v17/hero-film.mp4"
-              />
-            </div>
-            <div className="hero-title-block">
+          {/* 採用済み15秒映像。CTAは映像のロード・進行から独立。 */}
+          <div ref={heroRef} style={{ paddingTop: headerHeight }}>
+            <EhcScrollHero
+              labelledBy="hero-title"
+              stickyTop={headerHeight}
+              paused={motionPaused}
+              nextHref="#how-it-works"
+              nextLabel="このまま次へ ↓"
+              onNext={(e) => jump(e, "how-it-works")}
+              copy={<>
+            <div className="ehc-film__intro">
               <p className="eyebrow">
                 <span className="status-dot" /> 空調更新 × 補助金・助成金
               </p>
@@ -410,7 +254,7 @@ export function HomeV17() {
                 まずは7問、あなたの条件で確認。
               </p>
             </div>
-            <div className="hero-conversion">
+            <div className="ehc-film__cta">
               <button
                 ref={startRef}
                 type="button"
@@ -433,20 +277,9 @@ export function HomeV17() {
                 <span aria-hidden="true">↓</span>
               </a>
             </div>
-            <p className="scene-caption">
-              <span className="status-dot" /> OFFICE / SHOP / FACILITY{" "}
-              <small>空調更新を、もっと身近に。</small>
-            </p>
-            <a
-              href="#how-it-works"
-              className="scroll-cue"
-              aria-label="診断の流れを見る"
-              onClick={(e) => jump(e, "how-it-works")}
-            >
-              <span>SCROLL</span>
-              <i aria-hidden="true">↓</i>
-            </a>
-          </section>
+              </>}
+            />
+          </div>
 
           {/* 2. 3ステップ */}
           <section

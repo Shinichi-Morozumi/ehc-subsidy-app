@@ -47,7 +47,9 @@
 import { ReactNode } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { MatchInput, Subsidy, INTEREST_LABELS } from "@/lib/types";
-import { MatchResult } from "@/lib/match";
+import { MatchResult, co2TonLabel } from "@/lib/match";
+import type { GroupResult } from "@/lib/match";
+import { buildReductionBasisViews } from "@/lib/reductionBasisView";
 import { buildDiagnosisDetails } from "@/lib/diagnosis";
 import { ProgramAssessment } from "./ProgramMatchBoard";
 import { RoiChart, RoiChartLegend } from "./RoiChart";
@@ -58,6 +60,7 @@ import { STEPS } from "./NextSteps";
 import { BUILDING_LABELS, REFRI_LABELS } from "@/lib/labels";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
 import { PROVISIONAL_COEFFICIENT_NOTE } from "@/lib/coefficients";
+import { ELECTRIC_PRICE_ESTIMATE_NOTE } from "@/lib/pricing";
 import { SUBSIDY_DATA_ASOF } from "@/lib/subsidies";
 import { PREP_DISCLAIMER, effortLabel, prepLeadLabel } from "@/lib/prep";
 import {
@@ -111,6 +114,81 @@ function verificationLabel(s: Subsidy) {
   return "取得状態は要確認";
 }
 
+/* ───────── 削減率の根拠（紙面）─────────
+   2026-09-16 EHC-0039 v2 §4 作業3（台帳 #31）。
+
+   文言は lib/reductionBasisView.ts が組み立てたものだけを出す。
+   画面（components/ReductionBasisPanel.tsx）と同じ値・同じ言い方にするため、
+   ここで率を計算したり、比較できるかを判定したりしない。
+
+   紙面では折りたたみを使えないので、群ごとの表＋注記を必ず開いた状態で出す。
+   「暫定値」の断り（PROVISIONAL_COEFFICIENT_NOTE）は従来どおり別枠で出るので、
+   ここは「どの群を公表値で比べたか」に絞る。 */
+function ReductionBasisPrintSection({ groups }: { groups: GroupResult[] }) {
+  if (groups.length === 0) return null;
+  const views = buildReductionBasisViews(groups);
+  const measured = views.filter((v) => v.measured != null);
+  const sources: { key: string; text: string }[] = [];
+  const seen = new Set<string>();
+  measured.forEach((v) => {
+    v.measured?.sources.forEach((s) => {
+      const key = `${s.catalog}#${s.page}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      sources.push({ key, text: `${s.title}（資料番号 ${s.catalog} / p.${s.page} / 確認日 ${s.checkedAt}）` });
+    });
+  });
+
+  return (
+    <div className="pr-sec" style={{ marginTop: "4mm" }}>
+      <h2 className="pr-h2">削減率の根拠（設備グループごと）</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>設備グループ</th>
+            <th>根拠</th>
+            <th className="pr-num">削減率</th>
+            <th>照合した型番・効率</th>
+          </tr>
+        </thead>
+        <tbody>
+          {views.map((v) => (
+            <tr key={v.groupId}>
+              <td>{v.groupLabel}</td>
+              <td>{v.basisLabel}</td>
+              <td className="pr-num">{Math.round(v.reductionRate * 100)}%</td>
+              <td>
+                {v.measured
+                  ? `既設 ${v.measured.fromModelNo}（${v.measured.fromEfficiency}） → 更新候補 ${v.measured.toModelNo}（${v.measured.toEfficiency}）／${v.measured.indexLabel}`
+                  : v.notComparable
+                    ? v.notComparable.label
+                    : "既設機の型番が未入力のため照合していません"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {views.map((v) => (
+        <p className="pr-note" key={`note-${v.groupId}`} style={{ marginTop: "1.6mm" }}>
+          {v.groupLabel}：{v.note}
+          {v.notComparable ? `／これから揃えるもの: ${v.notComparable.needed}` : ""}
+        </p>
+      ))}
+      {measured.length > 0 && measured[0].measured && (
+        <p className="pr-note" style={{ marginTop: "1.6mm" }}>
+          ※測定条件: {measured[0].measured.conditionNote}
+        </p>
+      )}
+      {sources.length > 0 && (
+        <p className="pr-note" style={{ marginTop: "1.6mm" }}>
+          ※出典:{" "}
+          {sources.map((s) => s.text).join(" ／ ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export interface ReportPrintSheetProps {
   input: MatchInput;
   result: MatchResult;
@@ -119,6 +197,14 @@ export interface ReportPrintSheetProps {
   /** 更新監視の最終確認時刻（画面と同じもの） */
   monitorCheckedAt: string | null;
   proposalNo: string;
+  /* 2026-09-16 EHC-0039 v2 §3 修正1b:
+     同じ案件についてWeb診断（ContactStage）が発行した受付番号。
+     未発行・案件を特定できないときは null。紙側では発行も引き当てもしない
+     （紙で番号を作ると、画面と紙で違う番号が出る）。
+     決め方の全文は lib/diagnosisId.ts の「案件の受付番号（ID・版の受け渡し）」。 */
+  receiptNo?: string | null;
+  /** 上の受付番号が、その案件の何番目の確定内容か（1始まり）。未発行なら null。 */
+  receiptVersion?: number | null;
   /** 発行日（画面ヘッダと同じ文字列） */
   today: string;
   issuedYear: number;
@@ -140,6 +226,8 @@ export function ReportPrintSheet({
   assessments,
   monitorCheckedAt,
   proposalNo,
+  receiptNo = null,
+  receiptVersion = null,
   today,
   issuedYear,
   displaySubsidyManYen,
@@ -147,6 +235,11 @@ export function ReportPrintSheet({
   appliedSubsidy,
   inquiryMailtoShort,
 }: ReportPrintSheetProps) {
+  /* お客様に「この番号をお伝えください」と書くのは紙の中で1つだけ。
+     受付番号が発行済みならそちら（サーバの送信台帳で引ける番号）。
+     提案書の番号は消さず、どの紙かを特定する管理番号として残す。 */
+  const contactNoLabel = receiptNo ? "受付番号" : "診断書番号";
+  const contactNo = receiptNo ?? proposalNo;
   const details = buildDiagnosisDetails(input, result);
   const industryLabel = (INDUSTRY_PROFILES[input.building] ?? INDUSTRY_PROFILES.other).label;
   const interestLabel = input.interest ? INTEREST_LABELS[input.interest] : null;
@@ -264,6 +357,17 @@ export function ReportPrintSheet({
             発行日 {today} ／ 診断書番号 {proposalNo}
             {input.customerContact ? ` ／ ご担当 ${input.customerContact} 様` : ""}
           </p>
+          {/* 2026-09-16 EHC-0039 v2 §3 修正1b:
+              同じ案件でWeb診断が確定済みなら、その受付番号と版を紙にも併記する。
+              画面だけに出して紙に出さないと、紙を手にした人が上の診断書番号を言う。
+              番号を1本に統合はしない（中身の違う書類なので、番号で照会したとき
+              どちらの内容か決まらなくなる）。照会の正は受付番号1本。 */}
+          {receiptNo && (
+            <p className="pr-note" style={{ margin: 0 }}>
+              受付番号 <strong>{receiptNo}</strong>
+              {receiptVersion ? `（Web診断 第${receiptVersion}版）` : ""} ／ お問い合わせはこの受付番号でお調べします
+            </p>
+          )}
           {(input.customerAddress || input.customerPhone || input.customerEmail) && (
             <p className="pr-note" style={{ margin: 0 }}>
               {[input.customerAddress, input.customerPhone ? `TEL: ${input.customerPhone}` : "", input.customerEmail]
@@ -508,7 +612,10 @@ export function ReportPrintSheet({
           <div className="pr-kpi-cell">
             <span className="pr-kpi-label">年間電気代削減</span>
             <span className="pr-kpi-value">¥{result.saveYenPerYear.toLocaleString("ja-JP")}</span>
-            <span className="pr-kpi-sub">実効削減率 {(result.effectiveReductionRate * 100).toFixed(0)}% による概算</span>
+            {/* 2026-09-10 EHC-0038 P0-5:
+                削減率だけでなく、円へ換算した電力単価も推計であることを同じセルに置く。
+                単価の性質は下の pr-note で本文として説明する。 */}
+            <span className="pr-kpi-sub">実効削減率 {(result.effectiveReductionRate * 100).toFixed(0)}%・電力単価は推計による概算</span>
           </div>
           <div className="pr-kpi-cell">
             <span className="pr-kpi-label">15年累計削減</span>
@@ -517,7 +624,7 @@ export function ReportPrintSheet({
           </div>
           <div className="pr-kpi-cell">
             <span className="pr-kpi-label">CO₂削減／年</span>
-            <span className="pr-kpi-value">{result.co2ReductionTon} t</span>
+            <span className="pr-kpi-value">{co2TonLabel(result.co2ReductionTon)}</span>
             <span className="pr-kpi-sub">削減電力量に排出係数を乗じた概算</span>
           </div>
           <div className="pr-kpi-cell">
@@ -535,6 +642,12 @@ export function ReportPrintSheet({
         <p className="pr-note" style={{ marginTop: "2mm" }}>
           {industryLabel}は冷媒設備が電力の多くを占め、設置年・冷媒世代に応じた経年劣化も加味すると、
           高効率化＋経年回復で全体の実効削減率 {(result.effectiveReductionRate * 100).toFixed(0)}% で試算しています。
+        </p>
+        {/* 2026-09-10 EHC-0038 P0-5:
+            上のKPIの円はすべて既定の電力単価を掛けて出している。
+            その単価が何であって何でないかを、数字と同じページに書く。 */}
+        <p className="pr-note" style={{ marginTop: "1.5mm" }}>
+          ※金額換算の前提: {ELECTRIC_PRICE_ESTIMATE_NOTE}
         </p>
         {!result.coefficientAudit.allSourced && (
           <div className="pr-box-warn pr-keep" style={{ marginTop: "2mm" }}>
@@ -645,6 +758,12 @@ export function ReportPrintSheet({
             馬力が未入力のグループは一般値を含む概算です。正式見積は現地調査後にご提示します。
           </p>
         </div>
+
+        {/* 2026-09-16 EHC-0039 v2 §4 作業3（台帳 #31）:
+            削減率を「メーカー公表値で比べた群」と「係数概算の群」に分けて書く。
+            文言は lib/reductionBasisView.ts が組み立てたものを使い、
+            画面（components/ReductionBasisPanel.tsx）と同じ内容にする。 */}
+        <ReductionBasisPrintSection groups={result.groups} />
 
         <div className="pr-sec pr-keep">
           <h2 className="pr-h2">確認された課題</h2>
@@ -893,9 +1012,17 @@ export function ReportPrintSheet({
               <p style={{ margin: "0 0 1.2mm" }}>
                 <strong>メール：info@ehcjpn.com</strong>（cc: info@project-neo.co.jp）
               </p>
+              {/* 2026-09-16 EHC-0039 v2 §3 修正1b:
+                  お客様に「この番号をお伝えください」と書くのは紙の中で1つだけにする。
+                  受付番号が出ているならそちら、無ければ従来どおり診断書番号。 */}
               <p style={{ margin: "0 0 1.2mm" }}>
-                件名に診断書番号 <strong>{proposalNo}</strong> をご記載ください。
+                件名に{contactNoLabel} <strong>{contactNo}</strong> をご記載ください。
               </p>
+              {receiptNo && (
+                <p className="pr-note" style={{ margin: "0 0 1.2mm" }}>
+                  この診断書の管理番号は {proposalNo} です。お問い合わせは上の受付番号でお調べします。
+                </p>
+              )}
               <p style={{ margin: 0 }}>
                 このページのQRコードをスマートフォンのカメラで読み取ると、宛先・件名入りのお問い合わせメールがそのまま開きます。
               </p>
@@ -1015,11 +1142,13 @@ export function ReportPrintSheet({
                 </dd>
                 <dt>補助額の算定</dt>
                 <dd>
-                  {a.subsidy.infoOnly
-                    ? "情報提供のみの制度のため、補助額・実質負担は算定していません。"
-                    : a.amountShown
-                      ? `要件を満たす場合の最大概算 ${a.potentialManYen.toLocaleString("ja-JP")}万円（千円未満切捨て）／実質負担概算 ${a.outOfPocketManYen.toLocaleString("ja-JP")}万円`
-                      : "未算定（判定に必要な情報が揃っていないため。0円という意味ではありません）"}
+                  {/* 2026-09-10 EHC-0038 P0-2:
+                      未算定の理由を画面（ProgramMatchBoard）と同じ文で出す。
+                      以前はここだけ「判定に必要な情報が揃っていないため」に固定していたので、
+                      実際の原因が「投資額が未入力」であっても紙面には現れなかった。 */}
+                  {a.amountShown
+                    ? `要件を満たす場合の最大概算 ${a.potentialManYen.toLocaleString("ja-JP")}万円（千円未満切捨て）／実質負担概算 ${a.outOfPocketManYen.toLocaleString("ja-JP")}万円`
+                    : `未算定（0円という意味ではありません）。${a.amountUnavailableReason ?? ""}`}
                 </dd>
                 <dt>不足している情報</dt>
                 <dd>{a.missing.length ? a.missing.join("／") : "現時点で追加の指摘はありません。"}</dd>

@@ -80,7 +80,12 @@ export function TabsTrigger({
         onClick={() => ctx.setActive(value)}
         aria-label={hint ? `${typeof children === "string" ? children : ""}: ${hint}` : undefined}
         className={cn(
-          "min-h-[44px] px-4 py-2.5 text-sm cursor-pointer rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 w-full",
+          /* 2026-09-11 EHC-0038 第2便 4-J:
+             高さ 48px。タブは横スクロールする帯の中に並ぶので、
+             指で押すときに隣のタブに当たりやすい位置にある。
+             フォーカスは不透明 outline＋offset（半透明リングは帯の paper-sub 上で薄れる）。 */
+          "min-h-[48px] px-4 py-2.5 text-sm cursor-pointer rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 w-full",
+          "focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep",
           /* 2026-09-10 EHC-0032 LIGHT-01
              選択中は「濃い緑の面＋白文字」。ダーク時代のグラデーション＋発光は、
              黒地から浮かせるための作りで、白地では単に色が2つに見えるだけなので単色にする。

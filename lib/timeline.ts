@@ -1,6 +1,7 @@
 import { MatchInput, EquipGroup, RefriType } from "./types";
 import { matchSubsidies } from "./match";
 import { effectiveInterest } from "./features";
+import { todayJst, jstDate } from "./programClock";
 
 export interface TimelineStep {
   label: string;
@@ -28,9 +29,19 @@ export interface SubsidyTimeline {
 const SUBSIDY_CAUTION =
   "原則『交付決定後に着工』。決定前の発注・着工は補助対象外です。入金は工事完了→実績報告→確定後の後払いのため、つなぎ資金の確保を推奨します。";
 
+/* 2026-09-10 EHC-0038 P0-8:
+   このファイルの日付計算はすべて「実行環境のローカル時刻」で行われていた。
+   ブラウザ（日本の利用者）はJSTなので合うが、VercelのサーバはUTCなので、
+   同じ案件でもサーバ描画とクライアント描画で工程表の「現在地」が1日ずれる。
+   公募日程はJSTで書かれているので、日付の基準をJSTに固定する。
+
+   やり方は「入口でJSTの正午に寄せる」の1点だけ。
+   正午にしておけば、その後の getFullYear() / getMonth()（＝ローカル時刻での読み出し）が
+   JST(+9) でも UTC(±0) でも同じ暦日を返すため、月送りや年月ラベルの計算を
+   書き換えずに済む。日付境界の±1日はここで断つ。 */
 function tlParseDate(s?: string): Date | null {
   if (!s) return null;
-  const d = new Date(s + "T00:00:00");
+  const d = jstDate(s); // JSTの正午
   return isNaN(d.getTime()) ? null : d;
 }
 function tlAddMonths(d: Date, m: number): Date {
@@ -38,10 +49,19 @@ function tlAddMonths(d: Date, m: number): Date {
   x.setMonth(x.getMonth() + m);
   return x;
 }
+/* 2026-09-10 EHC-0038 P0-8:
+   ここは setHours(0,0,0,0) で「その日の0時」を作っていたが、0時は実行環境の
+   ローカル時刻での0時なので、UTCのサーバでは日本時間の朝9時を指す。
+   しかもこの関数を通るのは tlParseDate 済みの制度日程だけでなく、
+   buildSubsidyTimeline / tlWithStatus に素の new Date()（＝いまの瞬間）として
+   渡ってくる「今日」もである。入口の tlParseDate だけJSTに寄せても、
+   比較相手の「今日」がUTCのままなら工程表の現在地は1日ずれたままになる。
+
+   なので「今日」もJSTの暦日に丸め、tlParseDate と同じJST正午に揃える。
+   両辺が同じ基準（JST正午）になるので、以降の >= 比較と日数差は
+   タイムゾーンに依らず同じ結果を返す。 */
 function tlStartOfDay(d: Date): Date {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
+  return jstDate(todayJst(d));
 }
 function tlYm(d: Date): string {
   return `${d.getFullYear()}年${d.getMonth() + 1}月`;
@@ -254,7 +274,9 @@ export interface RoadmapYear {
   subsidyName: string;
   saveYenPerYear: number;
   saveKwhPerYear: number;
-  co2ReductionTon: number;
+  /* 2026-09-11 EHC-0038 P0-10:
+     null は「算定できていない」。表示は lib/match.ts の co2TonLabel() を通すこと。 */
+  co2ReductionTon: number | null;
   investManYen: number;
   categories: RoadmapCategory[];
 }
@@ -270,7 +292,12 @@ export function buildMultiYearRoadmap(
   maxYears = 3,
   preferredSubsidyId?: string | null
 ): RoadmapYear[] {
-  const startYear = new Date().getFullYear();
+  /* 2026-09-10 EHC-0038 P0-8:
+     new Date().getFullYear() は実行環境のローカル年。UTCのサーバでは
+     日本時間の元日 00:00〜08:59 がまだ前年なので、年始の9時間だけ
+     段階更新ロードマップの開始年が1年古く出る。年のラベルは
+     「初年度に何を替えるか」を指す数字なので、ここもJSTで固定する。 */
+  const startYear = Number(todayJst().slice(0, 4));
   const sorted = [...input.equipGroups].sort((a, b) => {
     if (REFRI_PRIORITY[a.refri] !== REFRI_PRIORITY[b.refri]) return REFRI_PRIORITY[a.refri] - REFRI_PRIORITY[b.refri];
     return a.installYear - b.installYear;
@@ -293,7 +320,10 @@ export function buildMultiYearRoadmap(
       invest: Math.round(input.invest * ratio),
     };
     const r = matchSubsidies(subInput);
-    const saveKwh = r.groups.reduce((a, g) => a + g.saveKwhPerYear, 0);
+    /* 2026-09-11 EHC-0038 P0-10:
+       グループ別の丸め済み値を足すと、年次の分け方で合計が動く。
+       丸める前の値で合算し、表示のために最後だけ丸める。 */
+    const saveKwh = Math.round(r.groups.reduce((a, g) => a + g.saveKwhPerYearExact, 0));
     const preferred = preferredSubsidyId
       ? r.matched.find((s) => s.id === preferredSubsidyId && !s.infoOnly)
       : undefined;
@@ -303,7 +333,8 @@ export function buildMultiYearRoadmap(
     const gwSum = gw.reduce((a, b) => a + b, 0) || 1;
     const categories: RoadmapCategory[] = r.groups.map((gr, gi) => {
       const investManYen = Math.round(subInput.invest * (gw[gi] / gwSum));
-      const saveYen = gr.saveYenPerYear;
+      // 2026-09-11 EHC-0038 P0-10: 回収年数・利回りの計算は丸める前の削減額から。
+      const saveYen = gr.saveYenPerYearExact;
       const paybackYears = saveYen > 0 ? Number(((investManYen * 10000) / saveYen).toFixed(1)) : null;
       const roiPct = investManYen > 0 ? Math.round((saveYen / (investManYen * 10000)) * 100) : 0;
       return {
@@ -311,7 +342,7 @@ export function buildMultiYearRoadmap(
         refri: gr.refri,
         units: gr.units,
         investManYen,
-        saveYenPerYear: saveYen,
+        saveYenPerYear: gr.saveYenPerYear,
         saveKwhPerYear: gr.saveKwhPerYear,
         paybackYears,
         roiPct,

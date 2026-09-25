@@ -11,11 +11,13 @@
    判定ロジック・補助金データ・API には一切手を入れていない。 */
 
 import { useEffect, useState } from "react";
-import { HowItWorks, OPEN_HEARING_EVENT } from "@/components/HowItWorks";
+import { OPEN_HEARING_EVENT } from "@/components/HowItWorks";
 import { SubsidyMatcher } from "@/components/SubsidyMatcher";
+import { DiagnosisFlow } from "@/components/DiagnosisFlow";
 import { ProjectProvider } from "@/components/ProjectContext";
 import { HomeV17 } from "@/components/home/HomeV17";
-import { ShieldCheck } from "lucide-react";
+import { ArrowLeft, ClipboardList, ShieldCheck } from "lucide-react";
+import "./diagnosis-ui.css";
 
 export default function Page() {
   const [started, setStarted] = useState(false);
@@ -35,7 +37,7 @@ export default function Page() {
       {!started && <HomeV17 />}
 
       <div
-        className="max-w-5xl mx-auto p-4 md:p-8 print-container"
+        className="ehc-workspace max-w-5xl mx-auto print-container"
         style={{ display: started ? undefined : "none" }}
       >
         {/* 2026-09-10 EHC-0032 LIGHT-01
@@ -44,33 +46,36 @@ export default function Page() {
             白地の上で同じことをすると光ではなく「にじみ・汚れ」に見えるので消す。
             奥行きは HomeV17 と同じ「淡いセージの面＋1pxの罫線」だけで出す。
             見出しの色は真っ黒ではなく ink(#143b2d)。HomeV17 の本文色と同じ。 */}
-        <header className="relative overflow-hidden rounded-3xl mb-5 no-print bg-paper-tint border border-ink-line">
-          <div className="relative px-6 py-10 md:px-12 md:py-14">
-            <div className="flex items-center gap-2 mb-5">
-              <span className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-bright to-brand" />
-              <span className="text-xs tracking-[0.18em] text-ink-soft font-medium">EHC SOLUTIONS</span>
-            </div>
-            <h1 className="font-display text-ink text-3xl md:text-5xl font-black leading-tight tracking-tight max-w-3xl">
-              空調更新で使える可能性のある<br className="hidden md:block" />補助金・助成金と期限を確認
-            </h1>
-            <p className="mt-4 text-sm md:text-base text-ink-soft max-w-2xl leading-relaxed">
-              更新時期・所在地・事業規模から、候補制度と「今から何をすべきか」を匿名で整理します。
-            </p>
-            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-ink-line bg-paper-card px-3 py-1.5 text-xs text-ink-soft">
-              <ShieldCheck className="w-3.5 h-3.5 text-brand" />
-              公式一次情報の確認範囲を表示・採択や受給は保証しません
-            </div>
-          </div>
+        <header className="ehc-workspace-header no-print">
+          <button type="button" onClick={() => { setStarted(false); window.scrollTo({ top: 0, behavior: "auto" }); }} className="ehc-home-link" aria-label="入力を残してホームへ戻る">
+            <ArrowLeft size={18} aria-hidden="true" /><span className="ehc-wordmark">EHC</span><span>ホーム</span>
+          </button>
+          <span className="ehc-workspace-tag">空調更新の診断</span>
         </header>
+        <div className="ehc-workspace-intro no-print">
+          <div>
+            <h1>空調更新の診断</h1>
+          </div>
+          <button type="button" className="ehc-review-answers" onClick={() => window.dispatchEvent(new CustomEvent(OPEN_HEARING_EVENT))}>
+            <ClipboardList size={18} aria-hidden="true" /> 基本条件を確認・変更
+          </button>
+        </div>
 
-        <HowItWorks />
-
+        {/* 2026-09-14 EHC-0039:
+            5段の診断（候補を見る → 設備を入力 → 結果と根拠 → 概算費用と工事 →
+            診断書を受け取って相談）を、既存の診断と同じ ProjectProvider の中に置く。
+            SubsidyMatcher が ProjectContext へ流している回答（draft / input / result）を
+            DiagnosisFlow が読むので、入口は今までどおり
+            HomeV17 → OPEN_HEARING_EVENT → GuidedDiagnosis のままでよい。
+            SubsidyMatcher 自体には手を入れていない（既存の導線を壊さないため）。 */}
         <ProjectProvider>
-          <SubsidyMatcher />
+          <DiagnosisFlow />
+          <SubsidyMatcher workspaceMode />
         </ProjectProvider>
 
-        <footer className="text-center text-xs text-ink-soft mt-10 py-4 no-print border-t border-ink-line">
-          © 2026 株式会社EHCソリューションズ ｜ 業務用空調・補助金マッチング
+        <footer className="ehc-workspace-footer no-print">
+          <p><ShieldCheck size={18} aria-hidden="true" />公式情報の確認範囲を表示。採択・受給を保証するものではありません。</p>
+          <p>© 2026 株式会社EHCソリューションズ</p>
         </footer>
       </div>
     </>

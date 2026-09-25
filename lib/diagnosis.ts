@@ -5,8 +5,9 @@ import { effortLabel, judgePrep, prepLeadLabel, PREP_DISCLAIMER } from "./prep";
 
 export type CandidateDiagnosis = {
   subsidy: Subsidy;
-  potentialManYen: number;
-  outOfPocketManYen: number;
+  /* 2026-09-10 EHC-0038 P0-7: 算定できないときは null（0 と区別する） */
+  potentialManYen: number | null;
+  outOfPocketManYen: number | null;
   deadline: string;
   timing: "open" | "upcoming" | "closed" | "unknown";
   preparation: string;
@@ -80,8 +81,13 @@ const inTimeFor = (s: Subsidy, timing: CandidateDiagnosis["timing"], now: Date) 
      match.ts 側は丸めなしだったため、同じ入力でも
      「該当制度別シミュレーション」と「金額比較」で補助額が食い違っていた。
      交付申請の実務にあわせ、両者とも**千円未満切捨て**に統一する。 */
-export function potentialSubsidyManYen(s: Subsidy, investManYen: number) {
-  if (s.infoOnly) return 0;
+/* 2026-09-10 EHC-0038 P0-7:
+     算定できないとき（投資額が未算定／補助上限が未確認）は null を返す。
+     以前は共通関数が必ず数値を返していたため、上限が未確認の制度も
+     「0万円」あるいは上限0円で頭打ちした金額として出ていた。
+     情報提供のみの制度は「補助額を出さない」制度なので、これも null。 */
+export function potentialSubsidyManYen(s: Subsidy, investManYen: number): number | null {
+  if (s.infoOnly) return null;
   // 丸めの実装は lib/pricing.ts に一本化した（同じ式が4箇所に散っていた）
   return subsidyAmountManYen(investManYen, s.rateNum, s.capManYen);
 }
@@ -107,7 +113,10 @@ export function buildDiagnosisDetails(
     return {
       subsidy,
       potentialManYen,
-      outOfPocketManYen: Math.max(0, Math.round((input.invest - potentialManYen) * 10) / 10),
+      outOfPocketManYen:
+        potentialManYen == null
+          ? null // 補助額が未算定なら実質負担も出せない。投資額をそのまま実質負担として出さない
+          : Math.max(0, Math.round((input.invest - potentialManYen) * 10) / 10),
       deadline: t.deadline,
       timing: t.timing,
       preparation: preparationFor(subsidy),

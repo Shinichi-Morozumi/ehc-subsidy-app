@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useCallback, useMemo, useState, useRef, useSyncExternalStore } from "react";
 import { Card, CardTitle } from "./ui/Card";
 import { MatchInput, Subsidy, INTEREST_LABELS } from "@/lib/types";
-import { MatchResult } from "@/lib/match";
+import { MatchResult, co2TonLabel } from "@/lib/match";
 import { RoiChart, RoiChartLegend } from "./RoiChart";
 import {
   SubsidyState, SUBSIDY_STATE_NOTE, INVEST_UNKNOWN_LABEL, resolveInvestState, yearsOrUnknown,
@@ -13,12 +13,20 @@ import { AchievementsSection } from "./AchievementsSection";
 import { Printer, FileText, Handshake, Calendar, LineChart, Award, ClipboardList, Mail } from "lucide-react";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
 import { PROVISIONAL_COEFFICIENT_NOTE } from "@/lib/coefficients";
+import { ELECTRIC_PRICE_ESTIMATE_NOTE } from "@/lib/pricing";
 import { QRCodeSVG } from "qrcode.react";
 import { DiagnosisSummary } from "./DiagnosisSummary";
 import { ProgramMatchBoard, useProgramAssessments } from "./ProgramMatchBoard";
 import { ReportPrintSheet } from "./ReportPrintSheet";
 import { BUILDING_LABELS } from "@/lib/labels";
-import { issueDocumentNumber, documentFileName } from "@/lib/docNumber";
+import { documentFileName } from "@/lib/docNumber";
+import {
+  caseFingerprintOf,
+  caseReceiptSnapshot,
+  parseCaseReceipt,
+  resolveDiagnosisId,
+  subscribeDiagnosisId,
+} from "@/lib/diagnosisId";
 import { useModalA11y } from "./ui/useModalA11y";
 
 // ── 提案書の送付フロー（将来実装メモ）─────────────────────────
@@ -56,13 +64,6 @@ export function CustomerReport({
     month: "long",
     day: "numeric",
   });
-  /* 2026-08-24 監査での修正:
-       以前は `EHC-${年}${月}${日}` と日付だけで、同日発行の診断書は
-       顧客が違っても番号もPDFファイル名も同一だった。
-     useState の初期化関数で1回だけ発行し、再レンダーで番号が変わらないようにする
-     （毎レンダーで new Date() すると、印刷前後で番号が変わってしまう）。 */
-  const [proposalNo] = useState(() => issueDocumentNumber());
-
   /* 2026-09-08 EHC-0028 §6A:
      制度の A/B/C 判定は1回だけ行い、画面（ProgramMatchBoard）と
      印刷専用シート（ReportPrintSheet）へ同じ配列を配る。
@@ -79,6 +80,118 @@ export function CustomerReport({
   const industryLabel = (INDUSTRY_PROFILES[input.building] ?? INDUSTRY_PROFILES.other).label;
   // AIヒアリング冒頭で伺った「今日のご関心」。メール本文・Notionのメモに残して営業のフォローに使う
   const interestLabel = input.interest ? INTEREST_LABELS[input.interest] : null;
+
+  /* ───────── 診断書番号 ─────────
+     2026-08-24 監査での修正:
+       以前は `EHC-${年}${月}${日}` と日付だけで、同日発行の診断書は
+       顧客が違っても番号もPDFファイル名も同一だった。
+
+     2026-09-15 EHC-0039 修正1:
+       その後 useState の初期化関数で issueDocumentNumber() を呼ぶ形にしたが、
+       components/ContactStage.tsx も同じ関数を自分の useState で呼んでいたため、
+       同じ相談について番号が2系統出ていた。発行主体を lib/diagnosisId.ts へ移す。
+
+       鍵は「この提案書の内容」。kind:"proposal" を鍵に含めるので、
+       新・診断書（kind:"diagnosis"）と番号が混ざることはない。
+       中身の違う2種類の書類に同じ番号を貼らない、という決めごとである。
+
+       useState ではなく useMemo にした理由: useState は初回の内容で番号を固定するので、
+       あとから会社名や投資額を直しても番号が変わらない。内容の違う書類に
+       同じ番号が残ると、番号で照会したときにどちらの内容か決まらない。
+       内容が変われば別番号、同じ内容に戻れば元の番号（台帳が覚えている）。 */
+  const proposalNo = useMemo(
+    () =>
+      resolveDiagnosisId({
+        kind: "proposal",
+        caseKey: (input.customerEmail || input.customerCompany || "").trim(),
+        content: {
+          customer: {
+            kind: input.customerKind ?? null,
+            company: input.customerCompany ?? null,
+            contact: input.customerContact ?? null,
+            email: input.customerEmail ?? null,
+            phone: input.customerPhone ?? null,
+            address: input.customerAddress ?? null,
+          },
+          bizType: input.bizType,
+          size: input.size,
+          pref: input.pref ?? null,
+          building: input.building,
+          invest: input.invest ?? null,
+          interest: input.interest ?? null,
+          equipGroups: (input.equipGroups ?? []).map((g) => ({
+            equip: g.equip,
+            refri: g.refri,
+            installYear: g.installYear,
+            units: g.units,
+            hp: g.hp ?? null,
+          })),
+          /* 補助額とその状態も内容に含める。同じお客様・同じ設備でも、
+             ②で選んだ制度が違えば別の提案書である。 */
+          appliedSubsidyId: appliedSubsidy?.id ?? null,
+          appliedSubsidyManYen: displaySubsidyManYen,
+          subsidyState: reportSubsidyState,
+        },
+      }).id,
+    [
+      input.customerKind,
+      input.customerCompany,
+      input.customerContact,
+      input.customerEmail,
+      input.customerPhone,
+      input.customerAddress,
+      input.bizType,
+      input.size,
+      input.pref,
+      input.building,
+      input.invest,
+      input.interest,
+      input.equipGroups,
+      appliedSubsidy,
+      displaySubsidyManYen,
+      reportSubsidyState,
+    ]
+  );
+
+  /* ───────── 同じ案件の受付番号（ID・版の受け渡し） ─────────
+     2026-09-16 EHC-0039 v2 §3 修正1b
+
+     上の proposalNo はこの提案書の管理番号で、ブラウザの外へ出ない。
+     一方、新しい診断（ContactStage）が発行する受付番号はサーバまで届いていて、
+     送信台帳の鍵・メールの件名・お客様への案内に使われている。
+     どちらも紙の上で「この番号をお伝えください」と書いてしまうと、
+     お客様がどちらを言うかでこちらの引き当て先が変わる。
+
+     照会の正は受付番号1本に決めた。番号自体は統合しない
+     （中身の違う2種類の書類に同じ番号を貼ると、番号で照会したときに
+     どちらの内容か決まらないため）。ここでは受付番号を読んで併記するだけで、
+     発行はしない。理由と決め方の全文は lib/diagnosisId.ts の
+     「案件の受付番号（ID・版の受け渡し）」に書いてある。
+
+     購読している理由: 通常の順番は「マッチング → 提案書 → 診断」なので、
+     この提案書が描かれた時点ではまだ受付番号が無い。
+     あとで診断が確定したら、その時点で描き直して番号を出す。 */
+  const caseFp = useMemo(
+    () =>
+      caseFingerprintOf({
+        email: input.customerEmail,
+        equipGroups: input.equipGroups ?? [],
+      }),
+    [input.customerEmail, input.equipGroups]
+  );
+  const receiptSnapshot = useSyncExternalStore(
+    subscribeDiagnosisId,
+    useCallback(() => caseReceiptSnapshot(caseFp), [caseFp]),
+    /* サーバ描画では案件札を持たない（台帳はブラウザのメモリなので、
+       サーバ側の値を返すと描き直しで内容が入れ替わる）。 */
+    useCallback(() => null, [])
+  );
+  const linkedReceipt = useMemo(() => parseCaseReceipt(receiptSnapshot), [receiptSnapshot]);
+  /* お客様に「この番号をお伝えください」と書くのは、紙・画面・メールを通して1つだけ。
+     受付番号が発行済みならそれ（サーバの台帳で引ける）、まだ無ければ提案書の番号。
+     提案書の番号は消さない。どの紙かを特定する管理番号として残す。 */
+  const contactNoLabel = linkedReceipt ? "受付番号" : "診断書番号";
+  const contactNo = linkedReceipt ? linkedReceipt.id : proposalNo;
 
   // 会社名・メール・電話・住所を必須にする
   const requiredFields = [
@@ -187,7 +300,7 @@ export function CustomerReport({
         body: JSON.stringify({
           pdfBase64: base64,
           filename,
-          subject: `【診断書 ${proposalNo}】補助金・空調更新のご相談（${input.customerCompany || "お客様"}）`,
+          subject: `【${contactNoLabel} ${contactNo}】補助金・空調更新のご相談（${input.customerCompany || "お客様"}）`,
           text: inquiryBody,
           replyTo: input.customerEmail || undefined,
           // Notionアタックリスト自動追記用の構造化リード（送信APIが best-effort で追記）
@@ -276,7 +389,11 @@ export function CustomerReport({
   const reasonsText = result.reasons.map((r, i) => `${i + 1}. ${r}`).join("\n");
   const inquiryBody = `EHC 補助金・空調更新の診断結果（印刷物と同一内容）です。お電話でのご案内にそのままご利用ください。
 
-■ 診断書番号: ${proposalNo}
+■ 診断書番号: ${proposalNo}${
+    linkedReceipt
+      ? `\n■ 受付番号: ${linkedReceipt.id}（Web診断 第${linkedReceipt.contentVersion}版 ／ 受付 ${linkedReceipt.issuedAtJst}）\n　 ※お問い合わせはこの受付番号でお調べします。`
+      : ""
+  }
 ■ 発行日: ${today}
 
 【お客様情報】
@@ -298,7 +415,8 @@ ${groupsText}
 回収年数(補助金適用前・税抜): ${yearsOrUnknown(result.yearsToRecover)}
 年間電気代削減: ¥${result.saveYenPerYear.toLocaleString("ja-JP")}
 15年累計削減: ¥${result.total15YearsYen.toLocaleString("ja-JP")}
-CO₂削減/年: ${result.co2ReductionTon} t
+CO₂削減/年: ${co2TonLabel(result.co2ReductionTon)}
+※金額換算の前提: ${ELECTRIC_PRICE_ESTIMATE_NOTE}
 
 【3. ご希望の補助金】${chosenSubsidyName ?? "（未確定 / 最有力で試算中）"}
 
@@ -321,12 +439,12 @@ ${result.ehcPlan}
 
   // 保存(PDF)後もお問い合わせが届くよう、宛先(EHC)＋cc(PN)・件名・本文（会社情報/台数/試算）を仕込んだmailtoリンク
   const inquiryMailto = `mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent(
-    `【診断書 ${proposalNo}】補助金・空調更新のご相談（${input.customerCompany || "お客様"}）`
+    `【${contactNoLabel} ${contactNo}】補助金・空調更新のご相談（${input.customerCompany || "お客様"}）`
   )}&body=${encodeURIComponent(inquiryBody)}`;
 
   // QRコード用は本文を含めない短いmailto（本文入りだとQRの容量上限を超えてクラッシュするため）。
   const inquiryMailtoShort = `mailto:info@ehcjpn.com?cc=info@project-neo.co.jp&subject=${encodeURIComponent(
-    `【診断書 ${proposalNo}】補助金・空調更新のご相談（${input.customerCompany || "お客様"}）`
+    `【${contactNoLabel} ${contactNo}】補助金・空調更新のご相談（${input.customerCompany || "お客様"}）`
   )}`;
 
   return (
@@ -508,6 +626,12 @@ ${result.ehcPlan}
             </span>
             {input.customerContact && <span>ご担当: {input.customerContact} 様</span>}
             <span className="text-slate-400">診断書番号: {proposalNo}</span>
+            {linkedReceipt && (
+              <span className="text-slate-500">
+                受付番号: <span className="font-semibold">{linkedReceipt.id}</span>（Web診断 第
+                {linkedReceipt.contentVersion}版）
+              </span>
+            )}
           </div>
           {(input.customerAddress || input.customerPhone || input.customerEmail) && (
             <div className="flex items-center justify-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500 flex-wrap mt-1.5">
@@ -610,8 +734,16 @@ ${result.ehcPlan}
             <SummaryCell label="回収年数(補助金適用前・税抜)" value={yearsOrUnknown(result.yearsToRecover)} color="amber" />
             <SummaryCell label="年間電気代削減" value={`¥${result.saveYenPerYear.toLocaleString("ja-JP")}`} color="blue" />
             <SummaryCell label="15年累計削減" value={`¥${result.total15YearsYen.toLocaleString("ja-JP")}`} color="purple" />
-            <SummaryCell label="CO₂削減/年" value={`${result.co2ReductionTon} t`} color="green" />
+            <SummaryCell label="CO₂削減/年" value={co2TonLabel(result.co2ReductionTon)} color="green" />
           </div>
+          {/* 2026-09-10 EHC-0038 P0-5:
+              年間電気代削減・15年累計・回収年数は、いずれも既定の電力単価を掛けて出している。
+              その単価は契約区分の平均販売単価（基本料金込み）＋再エネ賦課金の推計であり、
+              削減kWhに対して実際に回避できる従量単価ではない。
+              紙で客先に渡る数字なので、根拠の限界を同じページに置く。 */}
+          <p className="text-[11px] text-slate-600 mt-2 leading-relaxed">
+            ※金額換算の前提: {ELECTRIC_PRICE_ESTIMATE_NOTE}
+          </p>
         </section>
 
         <section className="mb-5">
@@ -772,8 +904,13 @@ ${result.ehcPlan}
               <a href={inquiryMailto} className="font-semibold text-ehc-800 underline">
                 info@ehcjpn.com
               </a>
-              （件名に診断書番号 <strong>{proposalNo}</strong> をご記載ください）
+              （件名に{contactNoLabel} <strong>{contactNo}</strong> をご記載ください）
             </div>
+            {linkedReceipt && (
+              <div className="text-slate-500 text-[10px] mt-1">
+                この提案書の管理番号は {proposalNo} です。お問い合わせは上の受付番号でお調べします。
+              </div>
+            )}
             <div className="text-slate-500 text-[10px] mt-1">
               右のQRコードをスマホのカメラで読み取ると、宛先・件名入りのお問い合わせメールがそのまま開きます。
             </div>
@@ -819,6 +956,11 @@ ${result.ehcPlan}
           assessments={assessments}
           monitorCheckedAt={monitorCheckedAt}
           proposalNo={proposalNo}
+          /* 2026-09-16 EHC-0039 v2 §3 修正1b:
+             同じ案件の受付番号が発行済みならPDFにも併記する。
+             画面だけに出して紙に出さないと、紙を見た人が提案書の番号を言う。 */
+          receiptNo={linkedReceipt?.id ?? null}
+          receiptVersion={linkedReceipt?.contentVersion ?? null}
           today={today}
           issuedYear={now.getFullYear()}
           displaySubsidyManYen={displaySubsidyManYen}

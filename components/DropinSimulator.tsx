@@ -50,7 +50,15 @@ export function DropinSimulator() {
       acc += (RATE[g.refri]?.rate ?? 0.25) * w;
     });
     const base = wsum > 0 ? acc / wsum : 0.25;
-    return Math.round(clamp(base * INDUSTRY[ind].factor) * 100) / 100;
+    /* 2026-09-10 EHC-0038 P0-6:
+       clampDropinRate は「未確認」を null で返すようになった（旧: 下限0.1で必ず数値を返す）。
+       base は RATE 表と INDUSTRY 係数の積なので現状 null にはならないが、
+       null を既定値へ黙って読み替えると「未確認を数値にする」問題が別の場所で復活する。
+       ここは【スライダーの初期値を提案する】関数なので 0 を返す。
+       0 は「削減を織り込まない」であって、旧 0.1 のように在りもしない削減を主張しない。
+       ユーザーはスライダーで上げられる（DROPIN_REDUCTION.min も 0 に下げてある）。 */
+    const clamped = clamp(base * INDUSTRY[ind].factor);
+    return clamped == null ? 0 : Math.round(clamped * 100) / 100;
   };
 
   const applyGroups = (next: DropGroup[]) => { setGroups(next); setRate(suggestRate(next, industry)); setManualCost(null); };

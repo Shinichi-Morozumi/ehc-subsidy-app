@@ -90,6 +90,17 @@ select option:hover {
   opacity: 0;
   transition: opacity 0.15s ease-out;
 }
+/* 2026-09-14 EHC-0039 §7: 「本文16px／根拠・不足理由は14px以上／行高約1.7」は新規5段(A〜E)の基準。
+   .tooltip は既存4画面（DropinSimulator / SubsidyMatcher / UpdateEstimator / DropinRoiWizard）とも
+   共有している共通クラスなので、.tooltip 自体の font-size(11px) は動かさない。
+   確認していない画面を、確認しないまま動かさない。
+   新規5段だけが Field の labelSize="md" 経由でこの .tooltip-md を追加で付ける。
+   幅は指定しない。@media(max-width:640px) の .tooltip{width:auto} を壊さないため。 */
+.tooltip-md {
+  font-size: 14px;
+  line-height: 1.7;
+}
+
 .tooltip::after {
   content: "";
   position: absolute;

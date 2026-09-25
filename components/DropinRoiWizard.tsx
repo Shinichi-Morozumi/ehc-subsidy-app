@@ -14,13 +14,19 @@ import {
   estimateDropinCost, dropinRoiVerdict, KG_PRESETS, DEFAULT_KG_PRESET, yenJP,
   ELECTRIC_PRICE_YEN_PER_KWH, CO2_TON_PER_KWH, taxIncluded, clampDropinRate, DROPIN_REDUCTION_LABEL,
   SITE_ACCESS, aerialLiftCost, needsScaffold,
-  AGE_DEGRADATION_PER_YEAR, ROI_CHART_YEARS, DROPIN_REFRI_RATE, DROPIN_INDUSTRY_FACTOR,
+  AGE_DEGRADATION_DEFAULT_PER_YEAR, ROI_CHART_YEARS, DROPIN_REFRI_RATE, DROPIN_INDUSTRY_FACTOR,
 } from "@/lib/pricing";
 
 const DEFAULT_PRICE = ELECTRIC_PRICE_YEN_PER_KWH; // 円/kWh（共通定数・契約単価で上書き可）
 const CO2 = CO2_TON_PER_KWH;                      // t-CO2/kWh（共通定数）
 const YEARS = ROI_CHART_YEARS;                    // 比較年数（更新側のROIチャートと同じ15年）
-const DEGRADE = AGE_DEGRADATION_PER_YEAR;         // 旧機の年あたり電力増（経年劣化・共通定数）
+/* 2026-09-10 EHC-0038 P0-3:
+   ここも更新側のROIチャートと同じく、旧機の経年劣化を既定で未計上（0）にする。
+   片方だけ 0.02 を残すと、更新タブとドロップインタブで「何もしない」線の
+   前提が食い違い、同じ客に別々の将来像を見せることになる。
+   （このウィザードは現在 lib/features.ts で非表示だが、
+     再表示したときに前提だけ古いまま残らないよう、ここで揃えておく） */
+const DEGRADE = AGE_DEGRADATION_DEFAULT_PER_YEAR; // 旧機の年あたり電力増（既定は未計上＝0）
 
 // 冷媒別の削減率ベースと業種別係数は lib/pricing.ts で一元管理（簡易シミュレーターと共通の表）
 const RATE = DROPIN_REFRI_RATE;
@@ -78,7 +84,18 @@ export function DropinRoiWizard() {
   });
   const baseRate = weightSum > 0 ? weightedRate / weightSum : 0.25;
   const factor = industry ? INDUSTRY[industry].factor : 1;
-  const rate = Math.round(clamp(baseRate * factor) * 100) / 100;
+  /* 2026-09-10 EHC-0038 P0-6:
+     clampDropinRate は「未確認」を null で返すようになった（旧: 下限0.1で必ず数値を返す）。
+     ここへ渡す baseRate は RATE 表と INDUSTRY 係数の積なので、現状 null にはならない。
+     それでも null を 0.25 等へ黙って読み替えることはしない。
+     それは P0-6 で消した「未確認を数値にする」問題を別の場所で復活させるだけになる。
+     0 として扱うのは「削減を計算に織り込まない」ことであって、
+     旧 0.1 のように在りもしない削減を主張するのとは別物
+     （saveYen=0 → paybackYears=null → 回収年数は「—」と出る）。
+     「未確認」を画面に出す表示そのものは、ドロップイン復帰時
+     （lib/features.ts の復帰条件）に UI ごと整える。 */
+  const clampedRate = clamp(baseRate * factor);
+  const rate = clampedRate == null ? 0 : Math.round(clampedRate * 100) / 100;
 
   const saveYen = Math.round(annualBill * rate);
   const saveKwh = Math.round(kwh * rate);
@@ -111,7 +128,7 @@ export function DropinRoiWizard() {
   const chart = [];
   let breakEven: { year: number; value: number } | null = null;
   for (let y = 0; y <= YEARS; y++) {
-    const noAction = (annualBill * y * (1 + DEGRADE * y)) / 10000;          // 何もしない（劣化込み累積電気代）
+    const noAction = (annualBill * y * (1 + DEGRADE * y)) / 10000;          // 何もしない（累積電気代・劣化は既定で未計上）
     const dropin = (invest + annualBill * (1 - rate) * y) / 10000;          // 初期投資＋削減後の累積電気代
     chart.push({ year: `${y}年`, y, "何もしない": Math.round(noAction), "ドロップイン導入": Math.round(dropin) });
     if (!breakEven && y > 0 && dropin <= noAction) breakEven = { year: y, value: Math.round(dropin) };

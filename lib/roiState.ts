@@ -44,6 +44,52 @@ export const SUBSIDY_STATE_NOTE: Record<SubsidyState, string> = {
   positive: "確認済みの要件にもとづく算定額です。交付決定までは概算です。",
 };
 
+/* ───────── 2026-09-11 EHC-0038 第2便 4-B ─────────
+   金額欄には「性質の違う3つ」が同じ見た目で並んでいた。
+
+     ① 未算定（まだ出せない）
+     ② 概算（こちらが一般値から試算した数字）
+     ③ 見積確認済み（業者の正式見積で裏が取れている数字）
+
+   ①は INVEST_UNKNOWN_LABEL 等で文言としては分けていたが、②と③の区別が
+   どこにも無く、両方とも同じ太字の数字として出ていた。読む側からは
+   「1,200万円」が試算値なのか確定値なのかが分からない。
+   自分で入れた金額でも、数日経てば出所は忘れる。
+
+   そこで金額の出所を3値で持ち、画面はこの1か所から
+   ラベル・注記・見た目を受け取る。判定を各画面に書かない。
+
+   ③は「利用者が正式見積で確認したと明示的に申告したとき」だけ立つ。
+   金額が入っているだけでは②であって③ではない（入力があること＝
+   見積があることではない）。この申告が無いうちは、たとえ正式見積の
+   金額を打ち込んでいても②として扱う。控えめに出す方が安全な向きだからである。 */
+export type AmountBasis = "unset" | "estimate" | "quoted";
+
+/** 未算定の金額欄に出す記号。0 や空文字にしない（0円と読めてしまう／欄が消える） */
+export const AMOUNT_UNSET_MARK = "—";
+
+export const AMOUNT_BASIS_LABEL: Record<AmountBasis, string> = {
+  unset: "未算定",
+  estimate: "概算",
+  quoted: "見積確認済み",
+};
+
+export const AMOUNT_BASIS_NOTE: Record<AmountBasis, string> = {
+  unset: "金額を算定するための情報が揃っていません。空欄を0円として扱っていません。",
+  estimate: "一般値・入力値からの試算です。正式見積で金額は変わります。",
+  quoted: "正式見積で確認済みと申告された金額です。制度の交付決定額ではありません。",
+};
+
+/** 金額の出所。quoted は明示的な申告があるときだけ。 */
+export function resolveAmountBasis(args: {
+  value: number | null | undefined;
+  /** 利用者が「この金額は正式見積で確認済み」と申告しているか */
+  quoted?: boolean;
+}): AmountBasis {
+  if (args.value == null || !Number.isFinite(args.value)) return "unset";
+  return args.quoted ? "quoted" : "estimate";
+}
+
 /** 設備投資額（万円）が算定済みか。空欄→0 を「0円」と読まない */
 export function resolveInvestState(investManYen: number | null | undefined): InvestState {
   if (investManYen == null) return "unknown";
@@ -85,6 +131,10 @@ export interface RoiSnapshot {
   recoveryUnavailableReason: string | null;
   /** 補助金なしの場合の回収年数（比較表示用） */
   recoveryYearsNoSubsidy: number | null;
+  /** 2026-09-11 EHC-0038 4-B: 設備投資額の出所（未算定／概算／見積確認済み） */
+  investBasis: AmountBasis;
+  /** 同上。補助額は交付決定前なので quoted にはならない（概算か未算定のみ） */
+  subsidyBasis: AmountBasis;
 }
 
 export function buildRoiSnapshot(args: {
@@ -93,6 +143,10 @@ export function buildRoiSnapshot(args: {
   subsidyConfirmed: boolean;
   subsidyManYen: number | null | undefined;
   saveYenPerYear: number;
+  /** 2026-09-11 EHC-0038 4-B:
+      設備投資額が正式見積で確認済みだと利用者が申告しているか。
+      既定は false。渡さなければ「概算」として扱う（控えめな側）。 */
+  investQuoted?: boolean;
 }): RoiSnapshot {
   const investState = resolveInvestState(args.investManYen);
   const investManYen = investState === "known" ? Number(args.investManYen) : null;
@@ -139,6 +193,10 @@ export function buildRoiSnapshot(args: {
     recoveryYears,
     recoveryUnavailableReason,
     recoveryYearsNoSubsidy,
+    investBasis: resolveAmountBasis({ value: investManYen, quoted: args.investQuoted }),
+    /* 補助額に quoted は無い。交付決定までは必ず概算であり、
+       「見積確認済み」と書けるのは業者見積で確定する設備費側だけである。 */
+    subsidyBasis: resolveAmountBasis({ value: subsidyManYen, quoted: false }),
   };
 }
 
@@ -160,6 +218,19 @@ export interface RoiSeriesDef {
   dotRadius: number;
   /** 凡例で使う短い色名 */
   colorName: string;
+  /* ───────── 2026-09-11 EHC-0038 第2便 4-C ─────────
+     3本を色だけで区別していた。色は赤・橙・緑で、
+
+       ・赤と緑の取り違えは最も多い色覚型（P型・D型）でそのまま起きる
+       ・赤と橙は白黒印刷すると輝度がほぼ同じで、線が2本とも同じ灰色になる
+
+     この資料は「PDFを印刷して社内で回す」使い方を想定しているので、
+     白黒で潰れるのは実害である。線種（実線／破線）を併記して、
+     色が読めなくても本数と対応が判る状態にする。
+     線種は recharts の strokeDasharray にそのまま渡す文字列。
+     undefined = 実線。結論に当たる「補助金あり」だけを実線にして、
+     比較対象の2本に破線を与える（太さも 3 と 2.5 で差をつけている）。 */
+  dash?: string;
   best?: boolean;
 }
 
@@ -168,21 +239,23 @@ const SERIES_DO_NOTHING: RoiSeriesDef = {
   color: "#dc2626",
   strokeWidth: 2.5,
   dotRadius: 3,
-  colorName: "赤線",
+  colorName: "赤の破線",
+  dash: "2 3",
 };
 const SERIES_UPDATE_NO_SUBSIDY: RoiSeriesDef = {
   key: "更新（補助金なし）",
   color: "#f59e0b",
   strokeWidth: 2.5,
   dotRadius: 3,
-  colorName: "橙線",
+  colorName: "橙の長破線",
+  dash: "8 4",
 };
 const SERIES_UPDATE_WITH_SUBSIDY: RoiSeriesDef = {
   key: "更新（補助金あり）",
   color: "#059669",
   strokeWidth: 3,
   dotRadius: 4,
-  colorName: "緑線",
+  colorName: "緑の実線",
   best: true,
 };
 

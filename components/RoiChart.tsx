@@ -12,10 +12,11 @@ import {
   ReferenceLine,
 } from "recharts";
 import {
-  ELECTRIC_PRICE_YEN_PER_KWH, AGE_DEGRADATION_PER_YEAR,
+  ELECTRIC_PRICE_YEN_PER_KWH, AGE_DEGRADATION_DEFAULT_PER_YEAR,
   OLD_EQUIPMENT_REPAIR_MANYEN_PER_YEAR, ROI_CHART_YEARS,
   ELECTRIC_PRICE_ASOF, ELECTRIC_PRICE_SOURCE,
   ELECTRIC_CONTRACT_LABEL, ELECTRIC_PRICE_DEFAULT_CONTRACT,
+  ELECTRIC_PRICE_ESTIMATE_NOTE,
 } from "@/lib/pricing";
 import {
   SubsidyState, RoiSeriesDef, roiSeriesFor,
@@ -42,6 +43,13 @@ interface RoiChartProps {
       保守契約額・修理履歴で実額が判明した案件でのみ渡す。
       未指定なら 0（出典の無い金額で「何もしない」を不利に見せない）。 */
   repairCostManYenPerYear?: number;
+  /** 旧機を使い続けた場合の年あたり電力増分（経年劣化）。
+      2026-09-10 EHC-0038 P0-3:
+      以前はここが常に共通定数 0.02 で、15年後の「何もしない」線が
+      黙って 1.30倍に膨らんでいた。出典が特定できていない係数なので、
+      既定は 0（未計上）とし、実測の効率低下が判明した案件でのみ実値を渡す。
+      0 は「劣化しない」という主張ではない（画面には「未計上」と書く）。 */
+  degradationPerYear?: number;
   /* 2026-09-08 EHC-0028:
      印刷専用シートは画面上 display:none の中に置かれるため、
      ResponsiveContainer が幅0を測ってグラフが消える。
@@ -53,15 +61,20 @@ interface RoiChartProps {
   hideLegend?: boolean;
 }
 
-export function RoiChart({ invest, bestSubsidyManYen, subsidyState, saveYenPerYear, kwhPerYear, reductionRate = 0.3, electricPrice, repairCostManYenPerYear, printWidth, printHeight, hideLegend = false }: RoiChartProps) {
+export function RoiChart({ invest, bestSubsidyManYen, subsidyState, saveYenPerYear, kwhPerYear, reductionRate = 0.3, electricPrice, repairCostManYenPerYear, degradationPerYear, printWidth, printHeight, hideLegend = false }: RoiChartProps) {
   const ELECTRIC_PRICE = electricPrice && electricPrice > 0 ? electricPrice : ELECTRIC_PRICE_YEN_PER_KWH;
   const state: SubsidyState = subsidyState ?? (bestSubsidyManYen > 0 ? "positive" : "unconfirmed");
   const series = roiSeriesFor(state);
   const investState = resolveInvestState(invest);
   const priceIsDefault = !(electricPrice && electricPrice > 0);
-  // 経年劣化率・修理費は lib/pricing.ts の共通定数を参照
-  // （ドロップイン診断ウィザードと別々に0.02を持っていたため、片方だけ直すとタブ間で数字がズレていた）
-  const OLD_EQUIPMENT_DEGRADATION_PER_YEAR = AGE_DEGRADATION_PER_YEAR;
+  /* 2026-09-10 EHC-0038 P0-3:
+     経年劣化は既定で未計上（0）。渡されたときだけ加算する。
+     修理費（OLD_EQUIPMENT_REPAIR_MANYEN_PER_YEAR）を既定0にしたのと同じ扱いで、
+     出典の無い係数で「何もしない」を不利に見せない。 */
+  const OLD_EQUIPMENT_DEGRADATION_PER_YEAR =
+    degradationPerYear != null && Number.isFinite(degradationPerYear) && degradationPerYear > 0
+      ? degradationPerYear
+      : AGE_DEGRADATION_DEFAULT_PER_YEAR;
   const REPAIR_COST_PER_YEAR =
     repairCostManYenPerYear && repairCostManYenPerYear > 0
       ? repairCostManYenPerYear
@@ -105,17 +118,26 @@ export function RoiChart({ invest, bestSubsidyManYen, subsidyState, saveYenPerYe
      前提が見えないグラフは、後から「その単価はどこから来たのか」と問われた時に守れない。
      2026-09-08 EHC-0028: 紙面でもこの一文をグラフと同じページに置くため、
      画面用と印刷用で同じノードを共有する（文言を二重管理しない）。 */
+  /* 2026-09-10 EHC-0038 P0-5:
+     既定単価は「実勢」ではなく【推計】である。
+     22.78円/kWh は販売収入÷販売電力量の平均販売単価で、契約kWに対する基本料金を含む。
+     基本料金は使用量を減らしても減らないので、削減kWhに掛けると上振れする。
+     「実勢＋再エネ賦課金」という書き方は、その案件で実際に回避できる従量単価に読めてしまう。
+     入力値のときは実額なのでこの注記は出さない（priceIsDefault で分岐）。 */
   const assumptionText = (
     <>
       電力単価 {ELECTRIC_PRICE.toLocaleString("ja-JP")}円/kWh
-      {priceIsDefault ? `（既定・${ELECTRIC_CONTRACT_LABEL[ELECTRIC_PRICE_DEFAULT_CONTRACT]}の実勢＋再エネ賦課金／${ELECTRIC_PRICE_ASOF}）` : "（入力値）"}
-      ／経年劣化 年{Math.round(AGE_DEGRADATION_PER_YEAR * 1000) / 10}%
+      {priceIsDefault ? `（推計・${ELECTRIC_CONTRACT_LABEL[ELECTRIC_PRICE_DEFAULT_CONTRACT]}の平均販売単価＋再エネ賦課金／${ELECTRIC_PRICE_ASOF}）` : "（入力値）"}
+      ／経年劣化{" "}
+      {OLD_EQUIPMENT_DEGRADATION_PER_YEAR > 0
+        ? `年${Math.round(OLD_EQUIPMENT_DEGRADATION_PER_YEAR * 1000) / 10}%（入力値）`
+        : "未計上（旧機の効率低下は加算していません。実測値が判明するまで、劣化しない前提でも劣化する前提でもなく、この比較には織り込みません）"}
       ／修理・メンテ増分{" "}
       {REPAIR_COST_PER_YEAR > 0
         ? `${REPAIR_COST_PER_YEAR.toLocaleString("ja-JP")}万円/年（入力値）`
         : "未計上（保守契約額が判明するまで加算しません）"}
       。
-      {priceIsDefault && <>出典: {ELECTRIC_PRICE_SOURCE}。実際の電気料金明細の単価で上書きしてください。</>}
+      {priceIsDefault && <>{ELECTRIC_PRICE_ESTIMATE_NOTE}出典: {ELECTRIC_PRICE_SOURCE}。</>}
     </>
   );
 
@@ -127,14 +149,22 @@ export function RoiChart({ invest, bestSubsidyManYen, subsidyState, saveYenPerYe
       {...(forPrint ? { width: chartWidth, height: chartHeight } : {})}
       margin={{ top: 10, right: 20, left: 10, bottom: 5 }}
     >
-      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+      {/* 2026-09-11 EHC-0038 第2便 4-C
+          軸・格子・ツールチップの色が slate 系（#e2e8f0 / #64748b / #94a3b8）で、
+          HomeV17 の紙面（罫線 #d4ddd4・弱い文字 #57685e）と別の系統だった。
+          青みのある灰色を緑みのある紙の上に置くと、グラフだけ色温度が違って浮く。
+          グラフの補助線・目盛は本文と同じトークンに揃える。
+          目盛の #57685e は白地でコントラスト 5.920（4.5以上）で、
+          12px でも読める。#94a3b8 は 2.5 前後で足りていなかった。 */}
+      <CartesianGrid strokeDasharray="3 3" stroke="#d4ddd4" />
       {/* 2026-09-10 EHC-0031 F04: 軸目盛は12px以上。
           11pxのままだと、印刷時の縮尺で実寸9pt を下回り読めなくなる。
           文字を小さくして収める対応は §6B で禁止されているため、
           収まらない場合はグラフの高さ・余白側で調整する。 */}
-      <XAxis dataKey="year" tick={{ fontSize: 12, fill: "#64748b" }} />
+      <XAxis dataKey="year" tick={{ fontSize: 12, fill: "#57685e" }} stroke="#d4ddd4" />
       <YAxis
-        tick={{ fontSize: 12, fill: "#64748b" }}
+        tick={{ fontSize: 12, fill: "#57685e" }}
+        stroke="#d4ddd4"
         tickFormatter={(v) => `${v}万`}
         width={58}
       />
@@ -143,14 +173,15 @@ export function RoiChart({ invest, bestSubsidyManYen, subsidyState, saveYenPerYe
           formatter={(v: number) => formatYen(v)}
           contentStyle={{
             background: "#fff",
-            border: "1px solid #e2e8f0",
-            borderRadius: "8px",
+            border: "1px solid #d4ddd4",
+            borderRadius: "12px",
             fontSize: "12px",
+            color: "#193e33",
           }}
         />
       )}
-      {!hideLegend && <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }} />}
-      <ReferenceLine y={0} stroke="#94a3b8" />
+      {!hideLegend && <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "8px", color: "#193e33" }} />}
+      <ReferenceLine y={0} stroke="#57685e" />
       {/* 描く線は lib/roiState.ts の roiSeriesFor が返した系列だけ。
           凡例（画面・PDF・提案書）も同じ配列を読むので、線が無いのに
           凡例だけ「補助金あり」が残る状態が構造的に起きない。 */}
@@ -161,6 +192,10 @@ export function RoiChart({ invest, bestSubsidyManYen, subsidyState, saveYenPerYe
           dataKey={s.key}
           stroke={s.color}
           strokeWidth={s.strokeWidth}
+          /* 2026-09-11 EHC-0038 第2便 4-C:
+             線種も roiSeriesFor が持つ。白黒印刷・色覚型によって
+             色が読めない場合でも、線種と太さで3本を区別できる。 */
+          strokeDasharray={s.dash}
           dot={{ r: s.dotRadius }}
           isAnimationActive={!forPrint}
         />
@@ -222,13 +257,18 @@ export function RoiChart({ invest, bestSubsidyManYen, subsidyState, saveYenPerYe
           {chartBody}
         </ResponsiveContainer>
       ) : (
-        <div className="w-full h-full flex items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/5 px-4">
-          <p className="text-xs text-amber-200 leading-relaxed text-center">{investUnknownNotice}</p>
+        /* 2026-09-11 EHC-0038 第2便 4-D:
+           暗色時代は「黒地に5%の橙＋amber-200の文字」だった。
+           白地では塗りが消え、amber-200(#fde68a) の文字はコントラスト1.6で読めない。
+           塗り(amber-50)＋濃い文字(amber-900)へ反転させる。
+           グラフが出ない理由は、この画面で最も読ませたい一文である。 */
+        <div className="w-full h-full flex items-center justify-center rounded-xl border border-amber-500/40 bg-amber-50 px-4">
+          <p className="text-xs text-amber-900 leading-relaxed text-center">{investUnknownNotice}</p>
         </div>
       )}
     </div>
-      <p className="text-xs text-slate-600 mt-2 leading-relaxed">{assumptionText}</p>
-      <p className="text-xs text-slate-500 mt-1 leading-relaxed">補助金: {stateNote}</p>
+      <p className="text-xs text-ink-soft mt-2 leading-relaxed">{assumptionText}</p>
+      <p className="text-xs text-ink-soft mt-1 leading-relaxed">補助金: {stateNote}</p>
     </div>
   );
 }
@@ -245,6 +285,19 @@ export function RoiChartLegend({
   className?: string;
 }) {
   const series: RoiSeriesDef[] = roiSeriesFor(subsidyState);
+  /* 2026-09-11 EHC-0038 第2便 4-C:
+     線に線種を入れたので、凡例の見本も実線のままにはできない。
+     見本が実線なのに図の線が破線だと、どの線の説明なのか対応が取れない。
+     破線の見本は repeating-linear-gradient で作る（背景なので、
+     印刷時に背景を落とす設定でも globals.css の .pr-swatch 側で
+     幅・高さが残り、形は保たれる）。
+     dash 文字列の第1数値＝線分長、第2数値＝空き。同じ比率で見本にする。 */
+  const swatchBackground = (s: RoiSeriesDef) => {
+    if (!s.dash) return s.color;
+    const [on, off] = s.dash.split(/\s+/).map((n) => Number(n));
+    if (!Number.isFinite(on) || !Number.isFinite(off) || on <= 0 || off <= 0) return s.color;
+    return `repeating-linear-gradient(to right, ${s.color} 0 ${on}px, transparent ${on}px ${on + off}px)`;
+  };
   return (
     <div className={className}>
       {series.map((s) => (
@@ -252,7 +305,7 @@ export function RoiChartLegend({
           <span
             aria-hidden
             className="pr-swatch"
-            style={{ display: "inline-block", width: "14px", height: "3px", background: s.color, borderRadius: "2px", marginRight: "6px", verticalAlign: "middle" }}
+            style={{ display: "inline-block", width: "14px", height: "3px", background: swatchBackground(s), borderRadius: "2px", marginRight: "6px", verticalAlign: "middle" }}
           />
           <span>
             {s.colorName}：{s.key}

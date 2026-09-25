@@ -60,7 +60,10 @@ export function HowItWorks() {
           <ClipboardList className="w-4 h-4" />
           3分で診断を始める
         </button>
-        <button type="button" onClick={() => scrollTo("project-info-section")} className="min-h-[44px] inline-flex items-center text-xs text-ink-soft underline underline-offset-2 hover:text-ink">詳しい設備情報を直接入力する</button>
+        <button type="button" onClick={() => scrollTo("project-info-section")} /* 2026-09-11 EHC-0038 第2便 4-J:
+             上のライムボタンと並ぶ独立したボタンなので、文中リンクの免除（WCAG 2.5.8）は使えない。
+             48px まで上げ、押せる幅も px-3 で確保する（下線のある文字幅だけが当たり判定だと外しやすい）。 */
+          className="min-h-[48px] inline-flex items-center px-3 rounded-lg text-xs text-ink-soft underline underline-offset-2 hover:text-ink focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep">詳しい設備情報を直接入力する</button>
       </div>
 
       <ol className="grid grid-cols-1 md:grid-cols-3 gap-3">

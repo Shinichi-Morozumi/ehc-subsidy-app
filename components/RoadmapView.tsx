@@ -1,11 +1,12 @@
 "use client";
 import { Card, CardTitle } from "./ui/Card";
 import { MatchInput, Subsidy } from "@/lib/types";
-import { MatchResult } from "@/lib/match";
+import { MatchResult, co2TonLabel } from "@/lib/match";
 import { buildSubsidyTimeline, buildConstructionTimeline, buildMultiYearRoadmap, DatedStep } from "@/lib/timeline";
 import { CalendarClock, Wrench, Map, AlertTriangle, Banknote, Leaf, Scale } from "lucide-react";
 import { estimateUpdateCost, estimateMachineCost, PRICING_SOURCE } from "@/lib/pricing";
 import { effectiveInterest } from "@/lib/features";
+import { todayJst } from "@/lib/programClock";
 
 const yen = (n: number) => `¥${Math.round(n).toLocaleString("ja-JP")}`;
 
@@ -77,10 +78,21 @@ export function RoadmapView({
   appliedSubsidy?: Subsidy | null;
 }) {
   const today = new Date();
+  /* 2026-09-10 EHC-0038 P0-8:
+     ここは締切日を new Date(applyClose + "T00:00:00") で読んでいた。
+     この書き方には欠陥が2つある。
+       (1) オフセットが無いので実行環境のローカル時刻として解釈される。
+           Vercelのサーバは UTC なので、締切「9/30」が日本時間の 9/30 09:00 になる。
+       (2) 締切日の【0時】と【いまの瞬間】を比べている。つまり締切当日の朝以降は
+           ずっと「締切を過ぎた」扱いになり、当日申請できる制度が候補から落ちる。
+     どちらも「日付どうしを比べればよいものを、時刻に変換したせい」で起きている。
+     applyClose も todayJst() も同じ "YYYY-MM-DD" なので、文字列のまま比較する。
+     辞書順＝日付順になるため、並べ替えも文字列比較で足りる。 */
+  const todayYmd = todayJst(today);
   const candidates = result.matched.filter((s) => !s.infoOnly);
   const openOnes = candidates
-    .filter((s) => s.applyClose && new Date(s.applyClose + "T00:00:00") >= today)
-    .sort((a, b) => new Date(a.applyClose!).getTime() - new Date(b.applyClose!).getTime());
+    .filter((s) => s.applyClose && s.applyClose >= todayYmd)
+    .sort((a, b) => (a.applyClose! < b.applyClose! ? -1 : a.applyClose! > b.applyClose! ? 1 : 0));
   const bestSubsidy = appliedSubsidy || openOnes[0] || candidates[0];
   // ドロップイン非表示中（lib/features.ts）は専用工程表へ分岐させない
   const dropinOnly = effectiveInterest(input.interest) === "dropin";
@@ -125,7 +137,7 @@ export function RoadmapView({
             <div className="text-xs space-y-1 border-t border-white/10 pt-2">
               <div className="flex justify-between"><span className="text-slate-400">想定補助金</span><span className="text-slate-200">{r.subsidyName.length > 16 ? r.subsidyName.slice(0, 16) + "…" : r.subsidyName}</span></div>
               <div className="flex justify-between"><span className="text-slate-400">年間削減(計)</span><span className="text-ehc-300 font-semibold">{yen(r.saveYenPerYear)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-400">CO₂削減(計)</span><span className="text-slate-200">{r.co2ReductionTon} t/年</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">CO₂削減(計)</span><span className="text-slate-200">{co2TonLabel(r.co2ReductionTon, "t/年")}</span></div>
               <div className="flex justify-between"><span className="text-slate-400">投資(計)</span><span className="text-slate-200">¥{(r.investManYen * 10000).toLocaleString("ja-JP")}</span></div>
             </div>
             <div className="mt-2 border-t border-white/10 pt-2">

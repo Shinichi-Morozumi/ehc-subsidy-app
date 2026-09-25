@@ -1,0 +1,81 @@
+/* EHC-0041 / v1 / 2026-09-17 — screen-only workspace polish.
+   Business logic and fixed PDF sheets are intentionally outside this layer. */
+@media screen {
+  .ehc-workspace { padding: 0 24px 40px; color: #193e33; }
+  .ehc-workspace-header { display:flex; justify-content:space-between; align-items:center; gap:16px; min-height:88px; border-bottom:1px solid #d4ddd4; }
+  .ehc-home-link { display:inline-flex; align-items:center; gap:12px; min-height:48px; padding:0 8px; font-size:14px; color:#57685e; }
+  .ehc-wordmark { font-size:28px; font-weight:800; letter-spacing:-.07em; color:#193e33; }
+  .ehc-workspace-tag { font-size:14px; color:#57685e; }
+  .ehc-workspace-intro { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px 0; }
+  .ehc-eyebrow { font-size:14px; color:#286644; font-weight:700; margin:0 0 12px; }
+  .ehc-workspace-intro h1 { font-size:22px; line-height:1.5; font-weight:700; letter-spacing:-.035em; margin:0; }
+  .ehc-workspace-intro h1 + p { margin-top:12px; color:#57685e; font-size:16px; line-height:1.8; max-width:40em; }
+  .ehc-review-answers { flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:48px; padding:12px 18px; border:1px solid #57685e; border-radius:100px; font-size:14px; font-weight:600; background:#fff; }
+  .ehc-diagnosis-flow { margin-bottom:32px; scroll-margin-top:20px; }
+  .ehc-diagnosis-flow:focus:not(:focus-visible) { outline:none; }
+  .ehc-stage-panel { padding:32px; border-color:#d4ddd4; box-shadow:0 12px 36px -28px rgb(25 62 51 / .2); }
+  .ehc-stage-panel > section > header, .ehc-stage-panel > div > section > header { padding-bottom:24px; margin-bottom:24px; border-bottom:1px solid #e3e8de; }
+  .ehc-stage-panel > section > header > h2, .ehc-stage-panel > div > section > header > h2 { font-size:26px; line-height:1.5; letter-spacing:-.035em; }
+  .ehc-stage-panel > section > header > p, .ehc-stage-panel > div > section > header > p { max-width:48em; line-height:1.85; margin-top:12px; }
+  /* The exclusion is required even on-screen: html2canvas reads a hidden PDF sheet. */
+  .ehc-stage-panel :where(input:not([type=checkbox]):not([type=radio]), select, textarea):not([data-pdf-sheet] *, .print-page *) { background:#fbfcf8; font-size:16px; border-radius:12px; min-height:52px; }
+  .ehc-stage-panel :where(input,select,textarea):focus-visible { background:#fff; }
+  .ehc-stage-panel :where(button.bg-brand):not([data-pdf-sheet] *, .print-page *) { border-radius:100px; min-height:56px; padding:14px 20px; background:#254d39; font-size:16px; line-height:1.6; }
+  .ehc-stage-panel :where(button.bg-paper-card):not([data-pdf-sheet] *, .print-page *) { min-height:52px; padding:12px 16px; }
+  .ehc-stage-panel :where(details):not([data-pdf-sheet] *, .print-page *) { border-radius:16px; }
+  .ehc-stage-panel :where(summary):not([data-pdf-sheet] *, .print-page *) { gap:12px; line-height:1.7; }
+  .ehc-stage-panel summary:not(:has(svg)) { display:flex; align-items:center; justify-content:space-between; gap:12px; list-style:none; }
+  .ehc-stage-panel summary:not(:has(svg))::-webkit-details-marker { display:none; }
+  .ehc-stage-panel summary:not(:has(svg))::after { content:"＋"; flex-shrink:0; font-size:20px; color:#286644; }
+  .ehc-stage-panel details[open] > summary:not(:has(svg))::after { content:"−"; }
+  .ehc-stage-panel summary:focus-visible { outline:2px solid #254d39; outline-offset:3px; }
+  .ehc-stage-panel :where(header,p,li,dd,h2,h3):not([data-pdf-sheet] *, .print-page *) { overflow-wrap:anywhere; }
+  .ehc-next-overview { margin-top:24px; padding-top:4px; }
+  .ehc-next-overview > li { border:0; background:#f4f6ee; padding:14px 16px; }
+  .ehc-candidate-summary { background:#f4f7ec; border-color:transparent; padding:20px; }
+  .ehc-candidate-summary > ul { margin-top:16px; }
+  .ehc-candidate-summary > ul > li { padding:10px 0; border-bottom:1px solid #d4ddd4; }
+  .ehc-candidate-summary > ul > li:last-child { border-bottom:0; }
+  .ehc-next-details > summary { min-height:48px; color:#57685e; font-size:14px; cursor:pointer; }
+  #guided-question-title { text-wrap:balance; }
+  .ehc-legacy-toggle { width:100%; display:flex; align-items:center; justify-content:space-between; gap:16px; text-align:left; padding:20px 24px; border:1px solid #d4ddd4; border-radius:20px; background:transparent; color:#193e33; }
+  .ehc-legacy-toggle strong { font-size:16px; font-weight:600; }
+  .ehc-legacy-toggle > span > span { display:block; font-size:14px; color:#57685e; margin-top:6px; }
+  .ehc-legacy-toggle > span:last-child { font-size:24px; }
+  .ehc-legacy-body[data-open=false] { display:none; }
+  .ehc-legacy-body[data-open=true] { margin-top:20px; }
+  .ehc-workspace-footer { border-top:1px solid #d4ddd4; padding:26px 0 0; margin-top:36px; font-size:14px; color:#57685e; line-height:1.8; }
+  .ehc-workspace-footer > p:first-child { display:flex; align-items:flex-start; gap:10px; margin-bottom:14px; }
+  .ehc-workspace-footer svg { flex-shrink:0; margin-top:3px; }
+  .ehc-workspace button { touch-action:manipulation; }
+  .ehc-workspace button:disabled { cursor:not-allowed; }
+  .ehc-report-benefit { background:#edf2df; border-color:#c7d5b5; }
+  .ehc-report-benefit li { padding:12px; background:rgb(255 255 255 / .75); border-radius:12px; }
+  .ehc-contact-fields, .ehc-contact-privacy { padding:24px; }
+  .ehc-contact-privacy { background:#f7f8f2; }
+  .ehc-result-program { box-shadow:0 8px 24px -22px rgb(25 62 51 / .35); }
+  .ehc-result-fit-summary { gap:10px; }
+  @media (hover:hover) {
+    .ehc-review-answers:hover, .ehc-legacy-toggle:hover { background:#edf2e4; }
+    .ehc-stage-panel button.bg-brand:hover { background:#193e33; }
+  }
+  @media (max-width:767px) {
+    .ehc-workspace { padding:0 16px 28px; }
+    .ehc-workspace-header { min-height:72px; gap:8px; }
+    .ehc-home-link { padding:0; gap:8px; }
+    .ehc-workspace-intro { padding:18px 0; flex-wrap:wrap; gap:8px; }
+    .ehc-workspace-intro h1 + p { font-size:14px; }
+    .ehc-eyebrow { margin-bottom:8px; }
+    .ehc-review-answers { padding:8px 12px; }
+    .ehc-stage-panel { padding:22px 18px; }
+    .ehc-stage-panel > section > header, .ehc-stage-panel > div > section > header { padding-bottom:20px; margin-bottom:20px; }
+    .ehc-stage-panel > section > header > h2, .ehc-stage-panel > div > section > header > h2 { font-size:23px; }
+    .ehc-legacy-toggle { padding:18px; }
+    .ehc-workspace-tag { font-size:14px; }
+    .ehc-contact-fields, .ehc-contact-privacy { padding:18px; }
+  }
+  @media (max-width:359px) {
+    .ehc-workspace { padding-inline:12px; }
+    .ehc-stage-panel { padding-inline:14px; }
+  }
+}

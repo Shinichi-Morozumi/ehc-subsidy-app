@@ -411,11 +411,25 @@
 }
 .ehc17{--ink:#193e33;--green:#286644;--bright:#78a747;--yellow:#d6ee86;--paper:#f6f6ed;--line:#d4ddd4;--muted:#57685e;--ease:cubic-bezier(.22,1,.36,1)}
 .ehc17{scroll-behavior:smooth;scroll-padding-top:110px}
+/* 案内リンクの着地。scroll-padding-top は「スクロールする箱」にしか効かず、
+   ここで実際にスクロールしているのは html（ビューポート）であって .ehc17 ではない。
+   上の1行だけでは着地点が固定ヘッダーの下に潜る（実測: デスクトップで最大23px、
+   390/420で最大24px が隠れていた）。着地先そのものに逃げ幅を持たせて直す。 */
+.ehc17 #main-content,.ehc17 #home,.ehc17 #about-diagnosis,.ehc17 #what-you-get,
+.ehc17 #diagnosis-report-preview,.ehc17 #support,.ehc17 #how-it-works,
+.ehc17 #benefit-program,.ehc17 #benefit-deadline,.ehc17 #benefit-cost,
+.ehc17 #lets-start{scroll-margin-top:110px}
 .ehc17{background:var(--paper);-webkit-font-smoothing:antialiased}
 .ehc17 button,.ehc17 a{-webkit-tap-highlight-color:transparent}
 .ehc17 h1,.ehc17 h2,.ehc17 h3,.ehc17 p{overflow-wrap:break-word}
 .ehc17 button{color:inherit}
 .ehc17 button:focus-visible,.ehc17 a:focus-visible{outline:3px solid #e99722;outline-offset:5px}
+/* 2026-09-17 EHC-0040 §4: ホームの焦点枠は 2px・offset 4px・既存の文字色に揃える。
+   新しい色は足さない（#e99722 はこの表に無い色だった）。
+   ヒーロー側は ehc-scroll-film.css で同じ値を持っているので、見え方が一致する。 */
+.ehc17 .header button:focus-visible,.ehc17 .header a:focus-visible,
+.ehc17 .site-menu button:focus-visible,.ehc17 .site-menu a:focus-visible,
+.ehc17 #home button:focus-visible,.ehc17 #home a:focus-visible{outline:2px solid #193e33;outline-offset:4px}
 .ehc17 .skip-main{position:fixed;left:16px;top:-90px;z-index:200;background:white;padding:12px}
 .ehc17 .skip-main:focus{top:10px}
 .ehc17 .wrap{max-width:none;padding:0}
@@ -428,9 +442,12 @@
 .ehc17 .main-nav{display:flex;gap:30px;align-items:center}
 .ehc17 .main-nav a{font-size:12px;font-weight:700;text-decoration:none}
 .ehc17 .header-actions{display:flex;align-items:center;gap:12px}
-.ehc17 .header-start{border:0;border-radius:100px;background:var(--yellow);padding:12px 22px;font-size:13px;font-weight:700;min-height:45px}
-.ehc17 .menu-toggle{display:grid;place-content:center;gap:5px;width:46px;height:46px;border:1px solid #abbbaa;background:transparent;border-radius:50%}
-.ehc17 .menu-toggle i{width:17px;height:1px;background:var(--ink);transition:transform .25s}
+/* 2026-09-17 EHC-0040 §4: ヘッダー診断CTA 48px/14px以上、メニュー 48×48px以上。
+   実測で 390px 幅のとき CTA は 40px・11px、メニューは 40×40px しかなく、
+   主診断CTA（62px）との差が大きすぎた。 */
+.ehc17 .header-start{border:0;border-radius:100px;background:var(--yellow);padding:12px 22px;font-size:14px;font-weight:700;min-height:48px}
+.ehc17 .menu-toggle{display:grid;place-content:center;gap:5px;width:48px;height:48px;border:1px solid #abbbaa;background:transparent;border-radius:50%}
+.ehc17 .menu-toggle i{width:20px;height:1px;background:var(--ink);transition:transform .25s}
 .ehc17 .menu-toggle[aria-expanded=true] i:first-child{transform:translateY(3px) rotate(45deg)}
 .ehc17 .menu-toggle[aria-expanded=true] i:last-child{transform:translateY(-3px) rotate(-45deg)}
 .ehc17 .site-menu{position:fixed;inset:88px 0 auto;background:var(--paper);padding:32px max(6vw,24px);z-index:49;border-bottom:1px solid var(--line);box-shadow:0 20px 60px #153c3220}
@@ -630,13 +647,18 @@
 }
 @media(max-width:700px){
   .ehc17{scroll-padding-top:90px}
+  .ehc17 #main-content,.ehc17 #home,.ehc17 #about-diagnosis,.ehc17 #what-you-get,
+  .ehc17 #diagnosis-report-preview,.ehc17 #support,.ehc17 #how-it-works,
+  .ehc17 #benefit-program,.ehc17 #benefit-deadline,.ehc17 #benefit-cost,
+  .ehc17 #lets-start{scroll-margin-top:90px}
   .ehc17 .header{height:72px;padding:0 20px}
   .ehc17 .brand b{font-size:34px;letter-spacing:-2.5px}
   .ehc17 .brand span{font-size:8px;letter-spacing:.02em;padding-left:10px}
   .ehc17 .brand{gap:10px}
-  .ehc17 .header-start{font-size:11px;padding:9px 15px;min-height:40px}
-  .ehc17 .header-actions{gap:9px}
-  .ehc17 .menu-toggle{width:40px;height:40px}
+  /* 2026-09-17 EHC-0040 §4: スマホでも 48px / 14px を割らない。メニューとの間は 12px。 */
+  .ehc17 .header-start{font-size:14px;padding:12px 16px;min-height:48px}
+  .ehc17 .header-actions{gap:12px}
+  .ehc17 .menu-toggle{width:48px;height:48px}
   .ehc17 .site-menu{top:72px}
   .ehc17 .section-pad{padding:70px 24px}
   .ehc17 .section-label{font-size:11px;margin-bottom:23px}
@@ -760,7 +782,8 @@
 @media(max-width:360px){
   .ehc17 .header{padding:0 16px}
   .ehc17 .brand span{font-size:7px}
-  .ehc17 .header-start{padding:9px 11px}
+  /* 320〜360px では横 padding だけ詰める。高さ 48px と文字 14px は維持する。 */
+  .ehc17 .header-start{padding:12px 12px}
   .ehc17 .hero-title-block{left:21px}
   .ehc17 .scene-hero h1{font-size:29px}
   .ehc17 .discovery-card{padding:23px 20px;min-height:455px}
@@ -907,7 +930,12 @@
 .ehc17 .ehc-icon{width:28px;height:28px;display:inline-block;flex:none;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}
 .ehc17 .chapter-eyebrow{display:flex;align-items:center;gap:10px;color:#397b58;font-size:12px;font-weight:650;letter-spacing:.06em;margin:0 0 20px}
 .ehc17 .chapter-eyebrow .ehc-icon{width:22px;height:22px}
-.ehc17 #home .flow-section{background:#eaf0dd;border-radius:44px 44px 0 0;border-top:1px solid #d6dfc5;padding-top:52px;padding-bottom:58px}
+/* 2026-09-17 EHC-0040 §4: #how-it-works の負の上マージンを外す。
+   .flow-section の margin-top は PC -38px / スマホ -27px で、ヒーロー末尾の
+   24px の余白を食い切り、390×844 と 320×568 で停止ボタンに 3px 重なっていた。
+   ここは #home の中の .flow-section だけを指すので、他の節の重なり演出
+   （.report-section の -30px など）はそのまま残る。 */
+.ehc17 #home .flow-section{background:#eaf0dd;border-radius:44px 44px 0 0;border-top:1px solid #d6dfc5;margin-top:0;padding-top:52px;padding-bottom:58px}
 .ehc17 #home .flow-heading h2{font-size:28px;line-height:1.5;margin:12px 0 0}
 .ehc17 #home .flow-heading .section-label{color:#477552}
 .ehc17 #home .flow-number{font-size:23px;line-height:1;min-width:47px;width:47px;height:47px;border:1px solid #a5b98a;border-radius:50%;display:grid;place-items:center;color:#2b6446;background:#f7f9ed}
@@ -1208,3 +1236,149 @@ body.ehc17-home{background:#fffdf7}
 .ehc17 .header{background:transparent}
 .ehc17 img,.ehc17 video,.ehc17 svg{max-width:100%}
 @media print{.ehc17{display:none!important}}
+
+/* ===== v3 / 2026-09-17 / EHC-0039 作業3（統合指示 v2 §4・161行目）=====
+   「本文16pxを基本、根拠・不足理由14px以上、新規5段の操作領域48px以上、フォーカス2px。
+     既存合意の色・角丸24/30を維持し、余白と強弱を揃える。」
+
+   なぜクラス側ではなくここで底上げするか:
+     診断画面の 12px は Tailwind の text-xs が 1,000箇所以上にわたって効いている。
+     .tsx を一括置換すると紙面（[data-pdf-sheet] / .print-page）まで巻き込み、
+     版面の行数が変わって改ページ位置が動く。font-size だけを、
+     画面の器（.print-container）に限って底上げし、紙面は元の版面へ差し戻す。
+
+   触るのは font-size / line-height / min-height だけ。
+   色・角丸・枠線・余白の設計値には一切手を入れていない。
+
+   計測（2026-09-17 / 127.0.0.1:3954 の実画面・紙面を除いた葉要素 1,372件）:
+     適用前 14px未満 1,164件（12px が 1,125件）→ 適用後 0件
+     横あふれ 0px（デスクトップ幅で測定。狭幅3種はビルド後に測り直す） */
+
+/* 根拠・補足は 14px を下限にする */
+.print-container .text-xs,
+.print-container .text-\[13px\],
+.print-container .text-\[11px\],
+.print-container .text-\[10px\],
+.print-container .tooltip,
+.print-container .recharts-legend-item-text,
+.print-container .recharts-tooltip-label,
+.print-container .recharts-tooltip-item{font-size:14px;line-height:1.7}
+/* グラフの目盛も読める大きさにする（図だからと 12px のままにしない） */
+.print-container .recharts-cartesian-axis-tick text,
+.print-container .recharts-text{font-size:14px}
+/* 本文は 16px を基本にする */
+.print-container .text-sm{font-size:16px;line-height:1.75}
+/* 操作領域は 48px 以上。summary は折りたたみの開閉なので操作要素として扱う */
+.print-container summary{min-height:48px;display:flex;align-items:center}
+.print-container button{min-height:48px}
+
+/* 紙の版面はこの基準の対象外。詳細度を1つ上げて元の値へ差し戻す。
+   ここを消すと診断書PDFと提案書紙面の改ページ位置が変わる。 */
+.print-container [data-pdf-sheet] .text-xs,
+.print-container .print-page .text-xs{font-size:12px;line-height:1.5}
+.print-container [data-pdf-sheet] .text-sm,
+.print-container .print-page .text-sm{font-size:14px;line-height:1.6}
+.print-container [data-pdf-sheet] .text-\[10px\],
+.print-container .print-page .text-\[10px\]{font-size:10px}
+.print-container [data-pdf-sheet] .text-\[11px\],
+.print-container .print-page .text-\[11px\]{font-size:11px}
+.print-container [data-pdf-sheet] .text-\[13px\],
+.print-container .print-page .text-\[13px\]{font-size:13px}
+.print-container [data-pdf-sheet] summary,
+.print-container .print-page summary{min-height:0;display:list-item}
+.print-container [data-pdf-sheet] button,
+.print-container .print-page button{min-height:0}
+
+/* ===== v4 / 2026-09-17 / EHC-0039 作業3（統合指示 v2 §4・161行目「フォーカス2px」）=====
+   なぜ追記するか（v53 の焼き込み後に実画面で測って分かったこと）:
+     15行目のフォーカス環は .ehc17 に限定されている。診断画面の器は
+     div.max-w-5xl…print-container で .ehc17 が付いていないため、この環が届かない。
+     2026-09-17 の実測（127.0.0.1:3954・素の配信CSS・Tab キーで :focus-visible を発生）:
+       Tab 12回のうち 10要素が outline:auto 1px（Chrome の既定環）で、
+       2px 以上の環を持っていたのは Tailwind の focus-visible:outline-2 が
+       直に付いている input だけだった。よって「フォーカス2px」は未達。
+   なぜ :where() で包むか:
+     :where(.print-container) は詳細度に数えないので、この規則は (0,1,1) になる。
+     Tailwind の focus-visible:outline-2 / outline-brand は (0,2,0) なので必ず勝つ。
+     つまりこれは「何も無い要素だけに効く下限」であって、
+     既存合意の環（色・太さ・offset）を上書きしない。読み込み順にも依存しない。
+   色は既存の brand（rgb(40,102,68) = #286644）。新しい色を作っていない。
+   紙面（[data-pdf-sheet] / .print-page）は印刷物なので既定へ戻す。 */
+:where(.print-container) button:focus-visible,
+:where(.print-container) a[href]:focus-visible,
+:where(.print-container) input:focus-visible,
+:where(.print-container) select:focus-visible,
+:where(.print-container) textarea:focus-visible,
+:where(.print-container) summary:focus-visible,
+:where(.print-container) [tabindex]:focus-visible{outline:2px solid #286644;outline-offset:2px}
+:where(.print-container) [data-pdf-sheet] :focus-visible,
+:where(.print-container) .print-page :focus-visible{outline:revert;outline-offset:revert}
+
+/* ===== v4 / 2026-09-17 / EHC-0039 作業3（統合指示 v2 §4・161行目「320pxでも横あふれを出さず」）=====
+   なぜ追記するか（2026-09-17 に 320px の実画面で測って分かったこと）:
+     ① 数量欄と自動計算ボタンの行（div.flex.gap-2）が折り返さない。
+        親 clientWidth 174px に対し scrollWidth 346px。
+        「一般値で自動計算」は右端 417px、「実勢で自動見積」は 403px まで出ており、
+        ビューポート（clientWidth 316px）を越えていた。
+        入力欄自体も 204px あって 174px の器に収まっていない。
+     ② 制度カードの見出し側 flex-1 min-w-[220px] が、器 182px に対し 220px を要求し、
+        カードの枠（右端 249px）を 287px まで越えていた（11件）。
+     いずれも「320pxでも横あふれを出さず、3列を無理に維持しない」に反する。
+   なぜ幅480px以下に限るか:
+     min-w-[220px] も横並びも、広い画面では意図どおりの配置である。
+     広い画面の見た目を変えないため、狭いときだけ効かせる。
+     481px 以上ではこの区間は1行も適用されない（496px で実測・あふれ 0px）。
+   紙面（[data-pdf-sheet] / .print-page）を除外する理由:
+     紙面は 794px 固定の版面で、メディアクエリは画面幅で効いてしまう。
+     狭い端末から送信したときに版面が折り返すと改ページ位置が動く。
+     そこで詳細度を1つ上げて元の値へ戻す。
+     戻し方は「flex-wrap 既定 nowrap ／ .flex-wrap クラスがある行だけ wrap」とし、
+     紙面側の Tailwind の指定を潰さないようにしている。
+     なお 2026-09-17 時点の紙面（診断書）には div.flex.gap-2 も min-w-[220px] も
+     flex-wrap クラスも 0件で、この戻しは現時点では無効果の保険である（実測値）。
+   色・角丸・余白は1つも書いていない。既存合意の設計値を動かしていない。 */
+@media (max-width:480px){
+  :where(.print-container) div.flex.gap-2{flex-wrap:wrap}
+  :where(.print-container) div.flex.gap-2 > input{flex:1 1 100%;width:100%;min-width:0}
+  :where(.print-container) .min-w-\[220px\]{min-width:0}
+  /* 紙面は版面なのでこの基準の対象外。元の値へ差し戻す。 */
+  :where(.print-container) [data-pdf-sheet] div.flex.gap-2,
+  :where(.print-container) .print-page div.flex.gap-2{flex-wrap:nowrap}
+  :where(.print-container) [data-pdf-sheet] div.flex.flex-wrap,
+  :where(.print-container) .print-page div.flex.flex-wrap{flex-wrap:wrap}
+  :where(.print-container) [data-pdf-sheet] div.flex.gap-2 > input,
+  :where(.print-container) .print-page div.flex.gap-2 > input{flex:0 1 auto;width:auto;min-width:auto}
+  :where(.print-container) [data-pdf-sheet] .min-w-\[220px\],
+  :where(.print-container) .print-page .min-w-\[220px\]{min-width:220px}
+}
+
+/* ===== v5 / 2026-09-17 / EHC-0039 作業3（統合指示 v2 §4・161行目「320pxでも横あふれを出さず」）=====
+   なぜ追記するか（v54 の配信物を 1px 刻みで測って分かったこと）:
+     上の区間は max-width:480px に閉じてあるため、481px 以上では1行も効かない。
+     ところが 481〜492px の帯だけ、数量欄と自動計算ボタンの行（div.flex.gap-2）が
+     器に収まらない。2026-09-17 の実測（127.0.0.1:3954・素の配信CSS・同一オリジン iframe）:
+       479px → over=0
+       480px → over=0（ここまでは上の @media が効く）
+       481px → over=1（clientWidth 339 / scrollWidth 346 ＝ 7px あふれ）
+       482px → over=1（340 / 346）
+       485px → over=1（343 / 346）
+       496px → over=0（器が広がって収まる）
+     right=410 でビューポート（clientWidth）は越えないため横スクロールは出ないが、
+     行の内側で 7px はみ出して入力欄の右端が切れる。
+     「320pxでも横あふれを出さず」の趣旨は 320px 限定ではなく、
+     狭い幅で読ませる前提にしないことなので、帯で切れるのは未達として直す。
+   なぜ幅の条件を付けないか:
+     原因は flex アイテムの既定 min-width:auto（＝中身の最小幅より縮まない）で、
+     特定の幅だけの問題ではない。器が中身より狭いときに縮めればよいだけなので、
+     メディアクエリの外に置いて全幅で効かせる。
+     flex-basis も width も書いていないので、広い画面では中身の幅のまま変わらない
+     （520 / 768 / 1280px で実測・あふれ 0px・見た目の変化なし）。
+   紙面（[data-pdf-sheet] / .print-page）を除外する理由は上の区間と同じ。
+     794px 固定の版面で入力欄が縮むと改ページ位置が動くため、既定の auto へ戻す。
+   注入で先に検証した結果（この宣言を当てた状態・全て over=0）:
+     320 / 390 / 420 / 479 / 480 / 481 / 485 / 490 / 496 / 520 / 768 / 1280px
+     いずれも ovfDoc=0・pastNoScroll=0。
+   色・角丸・余白・文字サイズは1つも書いていない。既存合意の設計値を動かしていない。 */
+:where(.print-container) div.flex.gap-2 > input{min-width:0}
+:where(.print-container) [data-pdf-sheet] div.flex.gap-2 > input,
+:where(.print-container) .print-page div.flex.gap-2 > input{min-width:auto}

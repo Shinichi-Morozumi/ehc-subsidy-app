@@ -364,10 +364,17 @@ const STEPS: Step[] = [
       freeInput: "number",
       placeholder: "金額（万円）を直接入れてもOK",
     },
+    /* 2026-09-10 EHC-0038 P0-1
+       Math.max(50, ...) は、設備が1台も入っていなくても 50万円を既知値として置いていた。
+       設備が無ければ概算のもとが無いので、未算定のまま返す（0 = 未算定）。 */
     fallback: ({ input, setInput }) => {
-      const est = Math.max(50, estimateInvestManYenFromGroups(input.equipGroups));
+      const est = estimateInvestManYenFromGroups(input.equipGroups);
+      if (!Number.isFinite(est) || est <= 0) {
+        setInput((p) => ({ ...p, invest: 0 }));
+        return { note: "設備投資：未算定（設備の台数・馬力が未入力のため概算できません）" };
+      }
       setInput((p) => ({ ...p, invest: est }));
-      return { note: `設備投資：約${est.toLocaleString("ja-JP")}万円（実勢単価で自動見積）` };
+      return { note: `設備投資：約${est.toLocaleString("ja-JP")}万円（実勢単価で自動見積・概算）` };
     },
   },
   // ── ここから連絡先（提案書PDF・メール送付用）。診断の質問が終わってから最後にまとめて伺う ──
@@ -598,9 +605,20 @@ export function HearingChat({
 
     // invest の「自動で見積る」
     if (value === "__auto__") {
-      const est = Math.max(50, estimateInvestManYenFromGroups(inputRef.current.equipGroups));
+      /* 2026-09-10 EHC-0038 P0-1
+         ここも Math.max(50, ...) で、設備が1台も入っていなくても 50万円を
+         「自動で見積った額」として置いていた。概算のもとが無いときは
+         未算定（0）のまま返す。0 は resolveInvestState() で未算定として扱われる。 */
+      const est = estimateInvestManYenFromGroups(inputRef.current.equipGroups);
+      if (!Number.isFinite(est) || est <= 0) {
+        setInput((p) => ({ ...p, invest: 0 }));
+        setAssumed((a) => [...a, "設備投資：未算定（設備の台数・馬力が未入力のため概算できません）"]);
+        pushBot("設備の台数・馬力がまだ分からないため、金額は見積れませんでした。未算定のまま進みます（制度の候補と期限は金額なしで判定します）。");
+        advance(tone);
+        return;
+      }
       setInput((p) => ({ ...p, invest: est }));
-      setAssumed((a) => [...a, `設備投資：約${est.toLocaleString("ja-JP")}万円（実勢単価で自動見積）`]);
+      setAssumed((a) => [...a, `設備投資：約${est.toLocaleString("ja-JP")}万円（実勢単価で自動見積・概算）`]);
       pushBot(`設備内容から約${est.toLocaleString("ja-JP")}万円と見積りました。`);
       advance(tone);
       return;

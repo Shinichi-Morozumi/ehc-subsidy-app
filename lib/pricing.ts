@@ -3,6 +3,26 @@
 // あくまで「目安」。実見積は機種グレード・高所/搬入条件・配管長・電気容量で変動する。
 export const PRICING_SOURCE = "PN見積 全500件分析（第9-10期 / 2024-2025年・参考値）";
 
+/* 2026-09-14 EHC-0039: 顧客に見せる面（D段の概算見積・提案PDF）用の出典表記。
+   PRICING_SOURCE は社内表記で、協力会社の略称(PN)と当社の会計期(第9-10期)が入っている。
+   これは相手にとって意味が無いうえ、取引関係と決算期という内部情報である。
+   そこで「誰に見せるか」で2本持ち、隣に並べて置く。
+   別ファイルへ写すと片方だけ更新されて食い違うため、必ずここに置くこと。
+
+   ※内容（母数・期間・明細行数）は同じものを指している。表記だけが違う。
+     母数を変えるときは PRICING_SOURCE と一緒に直す。 */
+export const PRICING_SOURCE_PUBLIC = "施工実績500件（2024〜2025年）の工事明細7,339行";
+export const PRICING_SOURCE_PUBLIC_ASOF = "2024〜2025年の実績（2026年7月に単価を校正）";
+/** 概算に含まれない費目。金額を出す画面は必ずこれを併記する（「含む」と誤読させないため） */
+export const PRICING_EXCLUDED_ITEMS = [
+  "足場の設置費用（設置階・周囲の状況により現地で見積）",
+  "高所作業車（必要な日数が現地確認で決まるため0日で計算）",
+  "既存配管の更新・洗浄、ドレン配管の改修",
+  "電源容量の増設、分電盤の改修",
+  "夜間・休日施工の割増、養生・仮設の追加",
+  "補助金の申請書類作成を外部へ委託する場合の費用",
+];
+
 /* ───────── エネルギー換算の共通定数 ─────────
    ここが唯一の情報源。補助金マッチング／ROIチャート／ドロップイン各試算は必ずこれを参照する
    （以前は27円・0.000438が各コンポーネントに独立ハードコードされ、片方だけ直すと数字がズレていた）。 */
@@ -11,12 +31,18 @@ export const PRICING_SOURCE = "PN見積 全500件分析（第9-10期 / 2024-2025
    「公益社団法人 全国家庭電気製品公正取引協議会」の“家庭用”目安単価で、
    しかも 2022年7月22日に 31円/kWh へ改定されて既に廃止されている値である。
    業務用空調の提案に家庭用の旧目安を当てるのは根拠として成立しないため、
-   実勢の電圧区分別単価に置き換え、出典を持たせた。
+   電圧区分別の公表単価に置き換え、出典を持たせた。
+   （2026-09-10 EHC-0038 P0-5: ここは以前「実勢の電圧区分別単価」と書いていたが、
+     出典①の値は平均販売単価であって“実勢の従量単価”ではない。語を改めた。）
 
-   削減1kWhあたりで実際に回避できる費用は
-     従量料金（燃料費調整込みの実勢平均） ＋ 再エネ発電促進賦課金
+   削減1kWhあたりで実際に回避できるのは
+     従量料金（燃料費調整込み） ＋ 再エネ発電促進賦課金
    である。賦課金は使用量に比例して課されるため、削減すれば同時に減る。
    消費税は課税事業者の仕入税額控除を前提に除いている（投資額側は taxIncluded で税込換算）。
+
+   ただし下の①で置いている値は「従量料金」そのものではない。
+   その理由と、この既定値を何と呼んではいけないかは、
+   ELECTRIC_PRICE_ESTIMATE_NOTE の直上（2026-09-10 EHC-0038 P0-5）に書いた。必ず読むこと。
 
    ① 電圧区分別 平均販売単価（2026年5月実績・税および再エネ賦課金を含まない）
       出典: 一般社団法人エネルギー情報センター「新電力ネット」電気料金単価の推移
@@ -28,7 +54,8 @@ export const RENEWABLE_SURCHARGE_YEN_PER_KWH = 4.18;
 
 export type ElectricContract = "tokubetsu_kouatsu" | "kouatsu" | "teiatsu_dento" | "teiatsu_douryoku";
 
-/** 電圧区分別の従量単価（税抜・賦課金抜き）。回避可能費用は下の AVOIDED を使うこと。 */
+/** 電圧区分別の【平均販売単価】（税抜・賦課金抜き）。
+    販売収入 ÷ 販売電力量 なので基本料金を含む。従量単価ではない（P0-5 の注記を参照）。 */
 export const ELECTRIC_UNIT_PRICE_BY_CONTRACT: Record<ElectricContract, number> = {
   tokubetsu_kouatsu: 17.45,
   kouatsu: 22.78,
@@ -43,18 +70,40 @@ export const ELECTRIC_CONTRACT_LABEL: Record<ElectricContract, string> = {
   teiatsu_douryoku: "低圧動力（三相200V・50kW未満）",
 };
 
-/** 1kWh削減したときに実際に回避できる費用（円/kWh）＝ 従量単価 ＋ 再エネ賦課金 */
-export function avoidedCostYenPerKwh(contract: ElectricContract): number {
+/* ───────── この既定単価を「回避できる従量単価」と呼ばない（2026-09-10 EHC-0038 P0-5） ─────────
+
+   ① の 22.78 円/kWh は、電力・ガス取引監視等委員会「電力取引報」の
+   販売収入 ÷ 販売電力量 から作られた【平均販売単価】である。
+   分子の販売収入には基本料金（契約kWに対する固定費）が含まれている。
+   基本料金は使用量を減らしても減らない（減らせるのは契約kW自体を下げられたときだけ）ので、
+   「削減kWh × 22.78円」は“回避できる費用”の推計として上振れする。
+   にもかかわらず、この関数は avoidedCostYenPerKwh（回避可能費用）という名前で、
+   画面にも「回避できる」と書いていた。名前と表示が根拠を追い越していたので改める。
+
+   ② 再エネ賦課金 4.18 円/kWh は、①の税抜単価と税の基準が揃っているかを確認できていない。
+   揃っていなければ、足した 26.96 円/kWh は税抜と税込が混ざった数字になる。
+
+   したがってこの既定値は【契約区分から置いた推計値】であって、
+   その案件で実際に回避できる金額ではない。
+   実請求書（従量料金＋燃料費調整＋再エネ賦課金／可能なら契約kW）で引き直すまでは、
+   円・ROI が推計であることを画面と紙面に必ず明記する。 */
+export const ELECTRIC_PRICE_ESTIMATE_NOTE =
+  "この電力単価は、電圧区分別の平均販売単価（基本料金を含む）に再エネ賦課金を足した推計値です。実際に回避できる従量単価ではありません（基本料金は使用量を減らしても減りません）。電気料金明細の実額でのご確認をお願いします。";
+
+/** 区分平均から置く電力単価の【推計】（円/kWh）＝ 平均販売単価 ＋ 再エネ賦課金。
+    1kWh削減したときに実際に回避できる費用そのものではない（上の注記）。 */
+export function estimatedElectricPriceYenPerKwh(contract: ElectricContract): number {
   return Math.round((ELECTRIC_UNIT_PRICE_BY_CONTRACT[contract] + RENEWABLE_SURCHARGE_YEN_PER_KWH) * 100) / 100;
 }
 
 /* 既定値は「高圧」。業務用空調の主要顧客層であり、かつ低圧より単価が低いため、
    契約区分が未確認の段階では削減額を過大に見せない（安全側に外れる）。
    22.78 + 4.18 = 26.96 ≒ 27.0 円/kWh。
-   結果として従来の 27 と同水準になるが、今回は根拠が確定している点が異なる。
+   結果として従来の 27 と同水準になるが、根拠と出典が付いている点が異なる。
+   ただし「出典がある」ことと「その案件で回避できる」ことは別である（P0-5 の注記）。
    実案件では必ず電気料金明細の実額（従量＋燃調＋賦課金）で上書きすること。 */
 export const ELECTRIC_PRICE_DEFAULT_CONTRACT: ElectricContract = "kouatsu";
-export const ELECTRIC_PRICE_YEN_PER_KWH = avoidedCostYenPerKwh(ELECTRIC_PRICE_DEFAULT_CONTRACT); // 26.96
+export const ELECTRIC_PRICE_YEN_PER_KWH = estimatedElectricPriceYenPerKwh(ELECTRIC_PRICE_DEFAULT_CONTRACT); // 26.96（推計）
 export const ELECTRIC_PRICE_ASOF = "2026年5月実績（賦課金は2026年度単価）";
 export const ELECTRIC_PRICE_SOURCE =
   "電圧区分別平均販売単価: 新電力ネット（電力・ガス取引監視等委員会「電力取引報」より作成, 2026年8月20日更新） / 再エネ賦課金: 経済産業省 2026年度単価 4.18円/kWh";
@@ -77,11 +126,67 @@ export const taxIncluded = (yen: number) => Math.round(yen * (1 + CONSUMPTION_TA
    交付申請額は千円未満切捨てが原則。 */
 export const SUBSIDY_ROUND_UNIT_YEN = 1000;
 
-/** 補助額（万円）。investManYen: 投資額(万円) / rateNum: 補助率 / capManYen: 上限(万円) */
-export function subsidyAmountManYen(investManYen: number, rateNum: number, capManYen: number): number {
-  const rawYen = Math.min(investManYen * 10000 * rateNum, capManYen * 10000);
-  const yen = Math.floor(Math.max(0, rawYen) / SUBSIDY_ROUND_UNIT_YEN) * SUBSIDY_ROUND_UNIT_YEN;
-  return yen / 10000;
+/* ───────── 補助上限の意味（P0-7 / 2026-09-10 EHC-0038） ─────────
+   これまで capManYen の 0 が、同じアプリの中で【正反対の2通り】に読まれていた。
+
+     lib/pricing.ts  subsidyAmountManYen  … 0 = 上限0円 → 補助額は必ず 0
+     components/UpdateEstimator.tsx       … 0 = 上限なし → 頭打ちしない（Infinity）
+
+   しかも UpdateEstimator の上限入力欄は、利用者が欄を空にすると 0 を書き込み、
+   プレースホルダに「上限なし」と出していた。つまり利用者にとっての 0 は「上限なし」。
+   ここで共通関数へ寄せると、その「上限なし」が黙って「補助金0円」に化ける。
+
+   EHC-0033 §3 の符号規約（未確認=null／確定の0=0）をここにも通す。
+     ・上限なし  … SUBSIDY_CAP_NONE（Infinity）で明示する。0 では表さない。
+     ・未確認    … 0・負値・null・非有限。金額は算定しない（null を返す。0 を返さない）。
+     ・上限あり  … 正の有限値。
+   0 は「上限なし」とも「上限0円」とも読めてしまう値なので、
+   どちらとも断定せず【未確認】として扱い、画面には「未算定」と出す。
+   なお lib/subsidies.ts で capManYen: 0 の制度は 2件あるが、いずれも
+   rateNum: 0 かつ infoOnly: true（＝情報提供のみで金額を出さない）なので、
+   この変更で実在の制度の表示金額は変わらない。 */
+export type SubsidyCapState = "amount" | "none" | "unknown";
+
+/** 「上限なし」を数値で表すための値。0 を上限なしの意味で使わないこと。 */
+export const SUBSIDY_CAP_NONE = Infinity;
+
+export const SUBSIDY_CAP_NONE_LABEL = "上限なし";
+export const SUBSIDY_AMOUNT_UNKNOWN_LABEL = "未算定";
+export const SUBSIDY_CAP_UNKNOWN_NOTE =
+  "補助上限が未確認のため、補助額は算定していません（0円という意味ではありません）。公募要領で上限額をご確認のうえ入力してください。";
+
+export function resolveSubsidyCapState(capManYen: number | null | undefined): SubsidyCapState {
+  if (capManYen === SUBSIDY_CAP_NONE) return "none";
+  if (capManYen == null || !Number.isFinite(capManYen)) return "unknown";
+  return capManYen > 0 ? "amount" : "unknown";
+}
+
+/** 補助額（円）。算定できないときは null を返す（0 を返さない）。
+ *  baseYen: 補助対象経費(円・税抜) / rateNum: 補助率 / capManYen: 上限(万円)
+ *  丸めは最後に一度だけ。交付申請額は千円未満切捨てが原則。 */
+export function subsidyAmountYen(
+  baseYen: number,
+  rateNum: number,
+  capManYen: number | null | undefined
+): number | null {
+  if (!Number.isFinite(baseYen) || baseYen <= 0) return null; // 対象経費が未算定
+  if (!Number.isFinite(rateNum) || rateNum <= 0) return 0;    // 補助率0＝「補助金なし」で確定した0円
+  const cap = resolveSubsidyCapState(capManYen);
+  if (cap === "unknown") return null;                         // 上限が未確認。0 と混ぜない
+  const raw = baseYen * rateNum;
+  const capped = cap === "amount" ? Math.min(raw, Number(capManYen) * 10000) : raw;
+  return Math.floor(Math.max(0, capped) / SUBSIDY_ROUND_UNIT_YEN) * SUBSIDY_ROUND_UNIT_YEN;
+}
+
+/** 補助額（万円）。算定できないときは null。
+ *  investManYen: 投資額(万円) / rateNum: 補助率 / capManYen: 上限(万円) */
+export function subsidyAmountManYen(
+  investManYen: number,
+  rateNum: number,
+  capManYen: number | null | undefined
+): number | null {
+  const yen = subsidyAmountYen(investManYen * 10000, rateNum, capManYen);
+  return yen == null ? null : yen / 10000;
 }
 
 /* ───────── 経年劣化・維持費の共通定数 ─────────
@@ -97,8 +202,20 @@ export function subsidyAmountManYen(investManYen: number, rateNum: number, capMa
      EHCとして提示できる原典を特定できていない以上、エビデンスと呼んではいけない。
      lib/coefficients.ts と同じ扱い＝出典未確定の暫定値である。
      出典が確定したら、この定数も coefficients.ts の VerifiedCoefficient 側へ移すこと。 */
-/** 出典未確定の暫定値。原典を特定するまで「エビデンスあり」として扱わないこと。 */
+/** 出典未確定の暫定値。原典を特定するまで「エビデンスあり」として扱わないこと。
+
+   2026-09-10 EHC-0038 P0-3 での扱いの変更:
+     この 0.02 は ROI比較チャートの「何もしない（旧機器維持）」線に常時掛かっており、
+     15年で旧機の電気代が 1.30倍（1 + 0.02×15）になる前提が、
+     どの画面にも断りなく入っていた。修理費 15万円/年を既定から外したのと同じ理由で、
+     出典の無い係数で「何もしない」を不利に見せることは削減効果の水増しと変わらない。
+     よって標準比較の既定は AGE_DEGRADATION_DEFAULT_PER_YEAR（＝0・未計上）とし、
+     この 0.02 は「劣化を織り込んだ場合の参考値」を明示的に渡すときだけ使う。
+     0 にすることは「劣化しない」という主張ではない。画面には「未計上」と書く。 */
 export const AGE_DEGRADATION_PER_YEAR = 0.02;
+/** 標準比較の既定。0 は「劣化なし」ではなく「未計上（根拠が無いので加算しない）」の意味。
+    実測の効率低下が判明した案件でのみ、RoiChart の degradationPerYear に実値を渡す。 */
+export const AGE_DEGRADATION_DEFAULT_PER_YEAR = 0;
 /* 老朽機を使い続けた場合の年間修理・メンテ増分（万円/年）。
    2026-08-24 監査での修正:
      従来この値は 15 で、ROI比較チャートの「何もしない（旧機器維持）」線に
@@ -117,10 +234,35 @@ export const DEFAULT_KG_PER_UNIT = 3;
 
 /* ドロップインの想定削減率レンジ（消費電力ベース・桝口さん確認 25〜30%）。
    表示文言と clamp 上限をここで一元管理する。 */
-export const DROPIN_REDUCTION = { min: 0.1, typicalLow: 0.25, typicalHigh: 0.3, max: 0.35 };
+export const DROPIN_REDUCTION = {
+  /* 2026-09-10 EHC-0038 P0-6:
+     以前この min は 0.1 で、clampDropinRate の【下限】として使われていた。
+     つまり「削減率が分からない」「効果ゼロ」「むしろ消費が増えた」の3つを、
+     すべて “10%削減” という誰も測っていない実績値に書き換えていた。
+     実際、大塚倉庫の2025→2026年1〜8月は +2.6%（消費増）で、
+     その実測を入れても画面は「10%削減」と表示する状態だった
+     （lib/features.ts がドロップインを非表示にしている理由そのもの）。
+     いまの min は【スライダーで手動調整できる下限】でしかない。計算の下限ではない。
+     0 まで下げられること自体が正しい（効果なしは表現できなければならない）。 */
+  min: 0,
+  typicalLow: 0.25,
+  typicalHigh: 0.3,
+  /* 自動提案・自動計算の上限。想定25〜30%に対し、
+     それを超える削減率を自動で主張しないための歯止め。 */
+  max: 0.35,
+};
 export const DROPIN_REDUCTION_LABEL = `${Math.round(DROPIN_REDUCTION.typicalLow * 100)}〜${Math.round(DROPIN_REDUCTION.typicalHigh * 100)}%`;
-export const clampDropinRate = (v: number) =>
-  Math.min(DROPIN_REDUCTION.max, Math.max(DROPIN_REDUCTION.min, v));
+/** 削減率を計算に使える形へ整える。
+ *  EHC-0033 §3 の符号規約に従う: 未確認 = null ／ 効果なし = 0 ／ 消費増 = 負値。
+ *  上限だけを張り、下限は張らない。
+ *  上限は「25〜30%想定を超える削減を自動で主張しない」ための歯止めだが、
+ *  増加側にはそれに対応する主張が無いので、負値は大きさも符号もそのまま返す。
+ *  （2026-09-10 EHC-0038 P0-6） */
+export const clampDropinRate = (v: number | null | undefined): number | null => {
+  if (v == null || !Number.isFinite(v)) return null; // 未確認。0 と混ぜない
+  if (v <= 0) return v;                              // 効果なし・消費増はそのまま
+  return Math.min(DROPIN_REDUCTION.max, v);
+};
 
 /* ── ドロップインの前提テーブル（簡易シミュレーターとROI診断ウィザードの共通定義） ──
    以前は両コンポーネントが同じ表を別々に持っており、片方だけ更新されてラベル・選択肢がズレていた。
@@ -163,17 +305,39 @@ export const GAS_DESTROY_PER_KG = 3000;
                   この前提は既存消費量を「少なめ」に見積もる＝削減効果を盛らない安全側）
 
    上記で算出した4馬力機の年間電力使用量:
-     店舗   5,454 kWh/年 → 1,364 kWh/馬力・年 → 1,400 を採用
-     事務所 3,910 kWh/年 →   977 kWh/馬力・年 → 1,000 を採用
+     店舗   5,454 kWh/年（÷4 = 1,363.5 kWh/馬力・年）
+     事務所 3,910 kWh/年（÷4 =   977.5 kWh/馬力・年）
 
    ※あくまで空調分のみの目安。請求書の実数値やエニマス等の実測がある場合は必ずそちらを優先する。 */
 export const KWH_PER_HP_YEAR_SOURCE =
   "SII「設備別 省エネルギー量計算の手引き【電気式パッケージエアコン】」指定計算（JIS B 8616 東京）より試算";
 
-/** SII指定計算の建物用途は「店舗」「事務所」の2区分のみ。アプリの建物用途をそこへ寄せる。 */
+/* ───────── 既存消費量を切り上げない（2026-09-11 EHC-0038 P0-9） ─────────
+   ここは長く 1,363.5 → 1,400 ／ 977.5 → 1,000 という【切り上げた値】を採用値にしていた。
+   上振れは店舗 +2.68%、事務所 +2.30%。率としては小さく見えるが、この数字は
+   「更新しなかった場合に使う電気」＝比較の土台である。土台が膨らむと
+     年間削減kWh → 年間削減額 → 投資回収年数 → 補助金ありの回収年数 → CO2削減量
+   が全部同じ向きに良く見える。効果の水増しが一箇所の丸めから全画面に伝播する。
+
+   しかも切り上げた理由は「目安だから」であって、【上へ寄せる】根拠は無かった。
+   「切り上げでも安全側」は成立しない。安全側とは削減を小さく見せる向きのことで、
+   既存消費量（＝削減の分母かつ削減幅の源）の切り上げはその逆である。
+
+   よって採用値は SII の算出結果そのもの（参照機の年間kWh ÷ 参照機の馬力）とし、
+   定数に丸めた数字を置かない。丸めは画面に出すときだけ行う。 */
+/** SII指定計算の参照機。天井カセット形4方向 112形 ＝ 4馬力。 */
+export const SII_REFERENCE_HP = 4;
+/** 参照機（4馬力）1台の年間電力使用量(kWh/年)。SII指定計算の算出結果そのまま。 */
+export const SII_ANNUAL_KWH_AT_REFERENCE: Record<"shop" | "office", number> = {
+  shop: 5454, // 店舗（13h×30日）
+  office: 3910, // 事務所（12h×26日）
+};
+
+/** SII指定計算の建物用途は「店舗」「事務所」の2区分のみ。アプリの建物用途をそこへ寄せる。
+    値は丸めていない（店舗 1363.5 ／ 事務所 977.5 kWh/馬力・年）。 */
 export const KWH_PER_HP_YEAR_BY_USE: Record<"shop" | "office", number> = {
-  shop: 1400, // 店舗（13h×30日）
-  office: 1000, // 事務所（12h×26日）
+  shop: SII_ANNUAL_KWH_AT_REFERENCE.shop / SII_REFERENCE_HP,
+  office: SII_ANNUAL_KWH_AT_REFERENCE.office / SII_REFERENCE_HP,
 };
 
 /** アプリの building 値 → SII建物用途（店舗／事務所） */
@@ -185,23 +349,40 @@ export function kwhPerHpYear(building?: string): number {
   return KWH_PER_HP_YEAR_BY_USE[siiBuildingUse(building)];
 }
 
-export const DEFAULT_HP_WHEN_UNKNOWN = 4; // 馬力未入力のグループに仮置きする馬力（SII参考値が112形＝4馬力のため）
+/* ───────── 馬力が分からない設備に馬力を仮置きしない（2026-09-11 EHC-0038 P0-9） ─────────
+   ここには DEFAULT_HP_WHEN_UNKNOWN = 4 があり、馬力が未入力の設備群を
+   黙って4馬力として積算していた。根拠は「SIIの参考値が112形＝4馬力だから」だが、
+   それは【参照機が】4馬力だという話で、目の前の設備が4馬力だという話ではない。
+   4を置けば消費量・削減額・回収年数まで出てしまうので、利用者は
+   「機器のことは分からない」と答えたのに数字を受け取ることになる。
+   これは EHC-0038 が公開前の必須修正に挙げた「分からない→500万円」「費用未定→0年」と同じ形の欠陥である。
 
+   EHC-0033 §3 の符号規約どおり、未確認は null にして算定しない。
+   仮置きの馬力が欲しくなったら、それは利用者に馬力を聞く合図である。 */
+
+/** 設備群から年間電力使用量(kWh/年)の目安を積算する。丸めずにフル精度で返す。
+ *  算定できないときは null（0 は返さない）:
+ *    ・台数の入った設備群が1つも無い
+ *    ・台数はあるが馬力が未入力の設備群がある（馬力を仮置きしない） */
 export function estimateAnnualKwhFromGroups(
   groups: { units: number; hp?: number }[],
   building?: string
-): number {
+): number | null {
+  const gs = (groups ?? [])
+    .map((g) => ({ units: Math.max(0, Math.round(g.units || 0)), hp: g.hp }))
+    .filter((g) => g.units > 0);
+  if (!gs.length) return null; // 設備が未入力
+  if (gs.some((g) => !(g.hp && g.hp > 0))) return null; // 馬力が未確認。4馬力と置かない
   const perHp = kwhPerHpYear(building);
-  const total = (groups ?? []).reduce(
-    (a, g) =>
-      a +
-      Math.max(0, Math.round(g.units || 0)) *
-        (g.hp && g.hp > 0 ? g.hp : DEFAULT_HP_WHEN_UNKNOWN) *
-        perHp,
-    0
-  );
-  return Math.round(total / 100) * 100; // 100kWh単位に丸め（目安であることを見た目でも示す）
+  return gs.reduce((a, g) => a + g.units * (g.hp as number) * perHp, 0);
 }
+
+/** 上の積算値を入力欄・画面へ出すときの丸め。1kWh単位。
+ *  以前は 100kWh単位に丸めて「目安であること」を見た目で示していたが、
+ *  丸めの粗さで精度を語ると、粗いほど信用できるという逆の読み方もできてしまう。
+ *  粒度は1kWhにし、目安であることは文章で書く。
+ *  表示のための丸めなので、上下どちらにも寄らない（Math.round）。 */
+export const roundKwhForDisplay = (kwh: number) => Math.round(kwh);
 
 /* ── HCガス材料単価（円/kg・税抜）の並記 ──
    sale: 大塚倉庫 実見積（HyChill 8.14kg＝¥472,120 → ¥58,000/kg・お客様向け販売単価）

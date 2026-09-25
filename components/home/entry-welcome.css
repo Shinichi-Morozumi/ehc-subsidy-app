@@ -1,0 +1,71 @@
+/* v1 / 2026-09-17 / EHC-0042 — independent of the scroll-linked equipment film. */
+.ehc-entry {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #f6f6ed;
+  color: #193e33;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 280ms ease;
+}
+.ehc-entry--leaving { opacity: 0; }
+.ehc-entry__air { position: absolute; inset: 0; isolation: isolate; }
+.ehc-entry__film {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  mix-blend-mode: multiply;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.ehc-entry__film.is-playing { opacity: .85; }
+.ehc-entry__brand {
+  position: absolute;
+  top: max(24px, env(safe-area-inset-top));
+  left: 24px;
+  font: 800 30px Arial, sans-serif;
+  letter-spacing: -2px;
+  color: #66765c;
+}
+.ehc-entry__phrase {
+  position: relative;
+  margin: 0;
+  padding-inline: 24px;
+  text-align: center;
+  font-size: clamp(30px, 4vw, 48px);
+  font-weight: 500;
+  line-height: 1.8;
+  letter-spacing: .12em;
+  animation: ehcEntryWelcomePhrase 700ms ease both;
+}
+.ehc-entry__phrase span { display: block; }
+.ehc-entry__skip {
+  position: absolute;
+  right: 20px;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  min-width: 48px;
+  min-height: 48px;
+  padding: 12px 20px;
+  border: 1px solid #66765c;
+  border-radius: 24px;
+  background: #f6f6ed;
+  color: #193e33;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.ehc-entry__skip:focus-visible { outline: 2px solid #193e33; outline-offset: 4px; }
+@keyframes ehcEntryWelcomePhrase {
+  from { opacity: 0; transform: translateY(9px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce), print {
+  .ehc-entry { display: none; }
+}

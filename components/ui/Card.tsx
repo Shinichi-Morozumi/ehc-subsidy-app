@@ -5,12 +5,21 @@ import { cn } from "@/lib/utils";
      HomeV17: border:1px solid var(--line); border-radius:30px; box-shadow:none
    ダーク時代は「黒い面＋強い影」で階層を作っていたが、紙の上では
    影を重ねるほど濁るだけなので、面の白と1本の罫線だけで区切る。
-   角丸は 2xl(16px) から 3xl(24px) へ上げて HomeV17 の丸みに寄せる。 */
+   角丸は 2xl(16px) から 3xl(24px) へ上げて HomeV17 の丸みに寄せる。
+
+   ───────── 2026-09-11 EHC-0038 第2便 4-I ─────────
+   HomeV17 の .qcard は 30px だが、ここを一律 30px にするとスマホで破綻する。
+   幅 375px の画面では、カード幅に対する 30px の丸みが大きすぎて
+   角が丸いというより「角が欠けている」ように見え、
+   さらに丸みの内側に入る左右のパディングが実質的に増えて本文が窮屈になる。
+   そこで【狭幅 24px / 広幅(lg=1024px以上) 30px】にする。
+   同じ画面でスマホとPCの丸みが変わるが、両方を同時に見る人はいないので
+   一貫性より各幅での見やすさを採る。 */
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "bg-paper-card rounded-3xl border border-ink-line p-6 animate-fade-in",
+        "bg-paper-card rounded-3xl lg:rounded-[30px] border border-ink-line p-6 animate-fade-in",
         className
       )}
       {...props}
@@ -69,10 +78,17 @@ export function CardTitle({
    ehc-400(#2bba6c) は白地ではコントラスト比が 2.3 程度しかなく、
    11px の小さな太字では読めない。HomeV17 の .section-label は
    color:var(--green)＝#286644（brand）で、白地で 6.6 出る。同じ色を使う。
-   ─────────────────────────────────────────────────────────── */
+
+   ───────── 2026-09-11 EHC-0038 第2便 4-H ─────────
+   「HomeV17 と同じ型」と書きながら、実際は 11px＋字間 0.14em で実装されていた。
+   HomeV17 の .section-label は 12px＋0.08em である。11px は本文 16px の
+   2段下で、太字にしても小さく、字間を 0.14em まで開けると
+   語のまとまりが崩れて読む速度が落ちる（字間は大きいほど読みやすいわけではない）。
+   本文の最小を 12px とする方針（4-H）にも 11px は反する。
+   よって 12px＋0.08em に直し、HomeV17 の値と一致させる。 */
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex items-center gap-2.5 text-[11px] font-bold tracking-[0.14em] text-brand mb-2.5">
+    <p className="flex items-center gap-2.5 text-xs font-bold tracking-[0.08em] text-brand mb-2.5">
       <span className="w-[7px] h-[7px] rounded-full bg-brand flex-none" aria-hidden="true" />
       {children}
     </p>

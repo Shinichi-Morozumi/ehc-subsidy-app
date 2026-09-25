@@ -1,0 +1,99 @@
+/* EHC-0042 / v1 / 2026-09-17 — motion over the retained approved illustration. */
+.ehc-film__ambient-scene {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 700ms ease;
+}
+
+.ehc-film[data-ambient-ready="true"][data-ambient-image-ready="true"] .ehc-film__ambient-scene { opacity: 1; }
+
+.ehc-film__ambient-head,
+.ehc-film__ambient-rotor,
+.ehc-film__ambient-air path {
+  animation-play-state: paused;
+}
+
+.ehc-film__ambient-head {
+  transform-box: view-box;
+  animation-duration: 8.8s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.ehc-film__ambient-head--left {
+  transform-origin: 432px 659px;
+  animation-name: ehc-ambient-left-nod;
+}
+
+.ehc-film__ambient-head--right {
+  transform-origin: 517px 703px;
+  animation-name: ehc-ambient-right-nod;
+  animation-duration: 10.4s;
+  animation-delay: -2.4s;
+}
+
+.ehc-film__ambient-rotor {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation-name: ehc-ambient-fan-turn;
+  animation-duration: 2.8s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.ehc-film__ambient-rotor--b { animation-duration: 3.1s; animation-delay: -.7s; }
+.ehc-film__ambient-rotor--c { animation-duration: 3s; animation-delay: -1.4s; }
+.ehc-film__ambient-rotor--d { animation-duration: 2.9s; animation-delay: -2.1s; }
+
+.ehc-film__ambient-air path {
+  fill: none;
+  stroke: #48a5bd;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 14 86;
+  opacity: .3;
+  animation-name: ehc-ambient-air-trace;
+  animation-duration: 4.7s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.ehc-film__ambient-air path:nth-child(2) { animation-delay: -1.3s; }
+.ehc-film__ambient-air--2 path { animation-delay: -2.2s; animation-duration: 5.2s; }
+.ehc-film__ambient-air--3 path { animation-delay: -.9s; animation-duration: 4.9s; }
+.ehc-film__ambient-air--4 path { animation-delay: -3.1s; animation-duration: 5.5s; }
+
+/* Pausing, including when out of view, retains the current phase. */
+.ehc-film[data-ambient-ready="true"][data-ambient-image-ready="true"][data-wind="on"] .ehc-film__ambient-head,
+.ehc-film[data-ambient-ready="true"][data-ambient-image-ready="true"][data-wind="on"] .ehc-film__ambient-rotor,
+.ehc-film[data-ambient-ready="true"][data-ambient-image-ready="true"][data-wind="on"] .ehc-film__ambient-air path {
+  animation-play-state: running;
+}
+
+@keyframes ehc-ambient-left-nod {
+  0%, 22%, 65%, 100% { transform: rotate(0deg); }
+  36%, 45% { transform: rotate(1.1deg); }
+  53% { transform: rotate(-.35deg); }
+}
+@keyframes ehc-ambient-right-nod {
+  0%, 18%, 64%, 100% { transform: rotate(0deg); }
+  31%, 42% { transform: rotate(-1.3deg); }
+  52% { transform: rotate(.4deg); }
+}
+@keyframes ehc-ambient-fan-turn { to { transform: rotate(360deg); } }
+@keyframes ehc-ambient-air-trace {
+  0% { stroke-dashoffset: 100; opacity: 0; }
+  18%, 65% { opacity: .45; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ehc-film .ehc-film__ambient-scene { display: none; transition: none; }
+  .ehc-film .ehc-film__ambient-head,
+  .ehc-film .ehc-film__ambient-rotor,
+  .ehc-film .ehc-film__ambient-air path { animation: none; }
+}
