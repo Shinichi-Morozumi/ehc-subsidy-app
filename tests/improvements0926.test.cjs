@@ -327,7 +327,7 @@ test("検索: robots.txt と sitemap.xml", () => {
   assert.equal(robots.sitemap, "https://ehcjpn.com/sitemap.xml");
   assert.ok(robots.rules[0].disallow.includes("/kanri"));
   const map = loadTs("app/sitemap.ts").default().map((e) => e.url);
-  assert.deepEqual(map, ["https://ehcjpn.com/", "https://ehcjpn.com/company", "https://ehcjpn.com/privacy"]);
+  assert.deepEqual(map, ["https://ehcjpn.com/", "https://ehcjpn.com/kaigo", "https://ehcjpn.com/company", "https://ehcjpn.com/privacy"]); // 2026-10-01: 介護施設向けの事前確認（/kaigo）を足した
 });
 
 test("検索: 旧URLは検索に出さず、/privacy-policy は /privacy へ転送する", async () => {

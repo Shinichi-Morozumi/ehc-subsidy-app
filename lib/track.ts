@@ -34,7 +34,13 @@ export type TrackEvent =
   | "submit_error" // 相談の送信で失敗した（kind）
   | "pdf_saved" // 診断書PDFを保存した
   | "notify_signup" // 公募のお知らせに登録した（ok）
-  | "booking_click"; // 予約ページを開いた（place）
+  | "booking_click" // 予約ページを開いた（place）
+  /* 2026-10-01 EHC-0056: 介護施設向けの事前確認（/kaigo）。紹介コード（ref）は紙のQRの番号で、個人を指さない */
+  | "kaigo_open" // /kaigo を開いた（ref）
+  | "kaigo_step" // 質問の何問目を出したか（step）
+  | "kaigo_result" // 目安の結果を出した（ref）
+  | "kaigo_submit" // 相談を送った（ok, ref）
+  | "kaigo_call"; // 電話のリンクを押した（place）
 
 type VaFunction = (command: "event", payload: { name: string; data?: Record<string, TrackValue> }) => void;
 
