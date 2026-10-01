@@ -12,6 +12,7 @@ import {
   newEquipGroupId,
 } from "@/lib/diagnosisState";
 import { newPlannedUnit, type PlannedUnit } from "@/lib/targetProduct";
+import { PhotoReadButton } from "./PhotoReadButton";
 import {
   UNRESOLVED_REASON_LABEL,
   UNRESOLVED_REASON_NOTE,
@@ -335,6 +336,23 @@ export function EquipInputStage({ state, onChange }: EquipInputStageProps) {
                       </div>
                     )}
                   </fieldset>
+
+                  {/* 2026-09-26 改善11: 銘板の写真から、製造年・馬力・メーカー・型式を読み取って入れる（鍵が設定されているときだけ出る）。
+                      製造年は設置年の目安として入れる（設置は製造の少しあとのことが多い。画面で直せる）。
+                      台数は銘板には書かれていないので入れない。 */}
+                  <PhotoReadButton
+                    kind="nameplate"
+                    label="銘板の写真から読み取る"
+                    onRead={(r) => {
+                      const changes: Partial<DiagnosisEquipGroup> = {};
+                      if (r.year != null) changes.installYear = r.year;
+                      if (r.hp != null) changes.hp = r.hp;
+                      if (r.maker) changes.maker = r.maker;
+                      if (r.modelOutdoor) changes.modelOutdoor = r.modelOutdoor;
+                      if (r.modelIndoor) changes.modelIndoor = r.modelIndoor;
+                      patch(g.id, changes);
+                    }}
+                  />
 
                   {/* ── 概算に必要な数字。馬力も折り畳まずに表示する ── */}
                   <p className="inline-flex rounded-full border border-brand/30 bg-paper-tint px-3 py-1 text-[14px] font-bold leading-[1.7] text-brand-deep">

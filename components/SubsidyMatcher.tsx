@@ -27,6 +27,7 @@ import { canShowAmount, canCombine } from "@/lib/eligibility";
 import { GroupSavingsChart } from "./GroupSavingsChart";
 import { useProject } from "./ProjectContext";
 import { legacyAccessFromSearch, NO_LEGACY_ACCESS, type LegacyAccess } from "@/lib/legacyAccess";
+import { DRAFT_RESTORE_EVENT, sanitizeAnswers, writeDraft, type DiagnosisDraft } from "@/lib/diagnosisDraft";
 import { RoadmapView } from "./RoadmapView";
 import { SubsidyDisclaimer } from "./SubsidyDisclaimer";
 import { INDUSTRY_PROFILES } from "@/lib/industries";
@@ -337,6 +338,27 @@ export function SubsidyMatcher({ workspaceMode = false }: { workspaceMode?: bool
   useEffect(() => {
     setDraft(input);
   }, [input, setDraft]);
+
+  /* 2026-09-26 改善4: 途中保存（lib/diagnosisDraft.ts）。
+     お客様向けの画面で7問を終えたら、答えを端末に保存する（連絡先の欄は sanitizeAnswers で消す）。
+     担当者用の入口（?staff=1）と共有リンク（?d=）では保存しない（お客様の端末とは限らないため）。
+     「続きから再開」では、共有リンクと同じく答えを入力に戻して判定し直す。 */
+  const canSaveDraft = workspaceMode && !legacyAccess.showLegacy;
+  useEffect(() => {
+    if (!canSaveDraft || !hasRun) return;
+    const timer = window.setTimeout(() => writeDraft({ answers: sanitizeAnswers(input) }), 300);
+    return () => window.clearTimeout(timer);
+  }, [canSaveDraft, hasRun, input]);
+  useEffect(() => {
+    const onRestore = (e: Event) => {
+      const saved = (e as CustomEvent<DiagnosisDraft>).detail?.answers;
+      if (!saved) return;
+      setInput((prev) => ({ ...prev, ...saved }));
+      setHasRun(true);
+    };
+    window.addEventListener(DRAFT_RESTORE_EVENT, onRestore);
+    return () => window.removeEventListener(DRAFT_RESTORE_EVENT, onRestore);
+  }, []);
 
   const run = (checkEligibility?: boolean) => {
     if (input.bizType === "personal") {

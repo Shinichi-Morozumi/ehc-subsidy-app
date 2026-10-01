@@ -20,6 +20,12 @@ export function SiteFooter({ variant }: { variant: "home" | "workspace" }) {
           メール <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a>
         </span>
         <span>
+          {/* 2026-09-26 改善3: 会社概要のページ（app/company/page.tsx）を足した */}
+          <a href="/company" {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+            会社概要
+            {newTab && <span className="sr-only">（新しいタブで開きます）</span>}
+          </a>
+          <span aria-hidden="true">　</span>
           <a href="/privacy" {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
             プライバシーポリシー
             {newTab && <span className="sr-only">（新しいタブで開きます）</span>}

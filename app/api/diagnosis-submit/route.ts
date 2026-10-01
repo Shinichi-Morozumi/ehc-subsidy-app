@@ -57,6 +57,8 @@ import { COMPANY } from "@/lib/company";
 import { buildServerDiagnosisPdf, type ServerPdfCompany } from "@/lib/serverPdf";
 import { clientFileName } from "@/lib/diagnosisPdf";
 import { customerSafeContact } from "@/lib/customerSafe";
+import { spamMessage, spamReasonOf } from "@/lib/spamGuard";
+import { bookingMailLines, bookingUrlFrom } from "@/lib/booking";
 import type { DiagnosisSnapshot } from "@/lib/diagnosisSnapshot";
 
 export const runtime = "nodejs";
@@ -110,6 +112,8 @@ export const maxDuration = 60;
    　　DIAGNOSIS_MAIL_MODE … "send"＝お客様宛・担当者宛の両方を実送信 ／ "staff"＝担当者宛だけ実送信
 　　　　　　　　　　　　 （お客様宛は送らない。EHC-0043）／ それ以外・未設定＝dry run（既定）
    　　SMTP_USER / SMTP_PASS / SMTP_HOST / SMTP_PORT … send-proposal と共通
+   　　DIAGNOSIS_SMTP_USER / DIAGNOSIS_SMTP_PASS … 2026-09-26。診断のメールだけ別のアカウントから送るとき（両方そろったときだけ使う）
+   　　NEXT_PUBLIC_BOOKING_URL … 2026-09-26。打ち合わせの予約ページ（lib/booking.ts）
    　　DIAGNOSIS_FROM_EMAIL … 省略時 PROPOSAL_FROM_EMAIL → SMTP_USER
    　　DIAGNOSIS_STAFF_TO_EMAIL … 省略時 PROPOSAL_TO_EMAIL → info@ehcjpn.com
    　　DIAGNOSIS_STAFF_CC_EMAIL … 省略時 PROPOSAL_CC_EMAIL → info@project-neo.co.jp
@@ -399,6 +403,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "受付番号がありません。" }, { status: 400 });
   }
 
+  /* 2026-09-26 改善13: 人には見えない欄に入力がある／開いてから3秒未満の送信は受け付けない（lib/spamGuard.ts）。
+     黙って捨てず、理由を返す（取り違えたときに、お客様が受け付けたつもりにならないため）。 */
+  const spam = spamReasonOf({ hp: body.hp, elapsedMs: body.elapsedMs });
+  if (spam) {
+    console.warn(`[diagnosis-submit] 迷惑な送信の疑い（${spam}）のため受け付けません:`, receiptNo);
+    return NextResponse.json(
+      { ok: false, error: spamMessage(spam, COMPANY.tel), mode: "not_sent", receiptNo, spam },
+      { status: 400 }
+    );
+  }
+
   const contact = normalizeContact(body.contact);
   if (!contact) {
     return NextResponse.json(
@@ -678,7 +693,9 @@ export async function POST(req: Request) {
       }
     : null;
 
-  const customerText = customerMailText(customerSnapshot);
+  /* 2026-09-26 改善7: 予約ページ（lib/booking.ts）。URL を設定していれば、お客様宛と転送用の文面の末尾に足す */
+  const bookingUrl = bookingUrlFrom(process.env.NEXT_PUBLIC_BOOKING_URL);
+  const customerText = [customerMailText(customerSnapshot), ...bookingMailLines(bookingUrl)].join("\n");
   /* 確認主体・出典・確認日は社内の照合記録なので、担当者宛にだけ載せる。
      customerMailText には渡さない。 */
   const staffText = staffMailText(
@@ -724,6 +741,7 @@ export async function POST(req: Request) {
         `　3. このメールの末尾「転送用の文面」の本文を貼り、${FORWARD_STAFF_PLACEHOLDER}（2か所）をご自身の名前に書き換える`,
         "　4. 件名を「転送用の文面」の件名に差し替える",
         `　5. 宛先に ${contact.email} を入れて送信`,
+        ...(bookingUrl ? ["　※ 転送用の文面の末尾に、打ち合わせの予約ページの案内が入っています（お客様が日時を選べます）。"] : []),
         "",
         staffText,
         "",
@@ -732,13 +750,18 @@ export async function POST(req: Request) {
         subjectCustomer,
         "",
         "▼本文（ここから）",
-        forwardMailText(snapshot, PDF_COMPANY),
+        [forwardMailText(snapshot, PDF_COMPANY), ...bookingMailLines(bookingUrl)].join("\n"),
         "▲本文（ここまで）",
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━",
       ].join("\n");
 
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
+  /* 2026-09-26 改善8: 診断のメールだけ、送信元のアカウントを分けられるようにする。
+     DIAGNOSIS_SMTP_USER と DIAGNOSIS_SMTP_PASS が両方あればそれ（例：info@ehcjpn.com とそのアプリパスワード）、
+     無ければ従来どおり SMTP_USER / SMTP_PASS（旧提案書の送付と共通。いまは info@neneweb.com）。
+     片方だけ入っている組み合わせは使わない（ユーザーとパスワードが別のアカウントになるため）。 */
+  const ownSmtp = !!(process.env.DIAGNOSIS_SMTP_USER && process.env.DIAGNOSIS_SMTP_PASS);
+  const smtpUser = ownSmtp ? process.env.DIAGNOSIS_SMTP_USER : process.env.SMTP_USER;
+  const smtpPass = ownSmtp ? process.env.DIAGNOSIS_SMTP_PASS : process.env.SMTP_PASS;
   const from =
     process.env.DIAGNOSIS_FROM_EMAIL ||
     process.env.PROPOSAL_FROM_EMAIL ||
@@ -917,6 +940,8 @@ export async function POST(req: Request) {
           await transporter.sendMail({
             from,
             to: contact.email,
+            /* 2026-09-26: お客様が返信したら EHC の窓口に届くようにする（送信元が別のアカウントのときも） */
+            replyTo: COMPANY.email,
             subject: subjectCustomer,
             text: customerText,
             attachments: [customerAttachment],

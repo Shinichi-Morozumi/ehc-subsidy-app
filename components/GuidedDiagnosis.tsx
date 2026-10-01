@@ -5,6 +5,16 @@ import { DesiredTiming, EntityType, MatchInput, SizeType, UpdatePlan } from "@/l
 import { OPEN_HEARING_EVENT } from "./HowItWorks";
 import { ArrowLeft, ArrowRight, Check, Sparkles, X } from "lucide-react";
 import { useModalA11y } from "./ui/useModalA11y";
+import { DIAGNOSIS_STAGES } from "./StageNav";
+import { track } from "@/lib/track";
+import {
+  clearDraft,
+  describeDraft,
+  formatSavedAtJst,
+  readDraft,
+  DRAFT_RESTORE_EVENT,
+  type DiagnosisDraft,
+} from "@/lib/diagnosisDraft";
 
 const PREFS = [
   "北海道", "青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県", "茨城県", "栃木県", "群馬県",
@@ -43,13 +53,32 @@ export function GuidedDiagnosis({ input, setInput, onComplete }: {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has("d")) setAnswered(new Set(ALL_ANSWER_KEYS));
   }, []);
+  /* 2026-09-26 改善4: 途中保存。保存した続きがあれば、開いたときに最初の問いの代わりに案内する。
+     この画面で1問でも答えた後（基本条件の見直しで開き直したときなど）は案内しない。 */
+  const [resumeOffer, setResumeOffer] = useState<DiagnosisDraft | null>(null);
+  const answeredCountRef = useRef(0);
+  useEffect(() => { answeredCountRef.current = answered.size; }, [answered]);
+  useEffect(() => {
+    const onRestore = () => setAnswered(new Set(ALL_ANSWER_KEYS));
+    window.addEventListener(DRAFT_RESTORE_EVENT, onRestore);
+    return () => window.removeEventListener(DRAFT_RESTORE_EVENT, onRestore);
+  }, []);
   const completeRef = useRef(onComplete);
   const assistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => { completeRef.current = onComplete; }, [onComplete]);
   useEffect(() => () => { if (assistTimer.current) clearTimeout(assistTimer.current); }, [open, step]);
 
   useEffect(() => {
-    const onOpen = () => { if (assistTimer.current) clearTimeout(assistTimer.current); setStep(0); setAssist(null); setOpen(true); };
+    const onOpen = () => {
+      if (assistTimer.current) clearTimeout(assistTimer.current);
+      setStep(0);
+      setAssist(null);
+      const draft = answeredCountRef.current === 0 ? readDraft() : null;
+      setResumeOffer(draft);
+      setOpen(true);
+      track("diagnosis_open");
+      if (draft) track("resume_offer");
+    };
     window.addEventListener(OPEN_HEARING_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_HEARING_EVENT, onOpen);
   }, []);
@@ -67,11 +96,25 @@ export function GuidedDiagnosis({ input, setInput, onComplete }: {
       setAssist(null);
       if (step === TOTAL_STEPS - 1) {
         setOpen(false);
+        track("diagnosis_answered");
         completeRef.current(false);
       } else setStep((s) => Math.min(TOTAL_STEPS - 1, s + 1));
     }, 550);
   };
-  const finish = () => { setOpen(false); window.setTimeout(() => onComplete(false), 0); };
+  const finish = () => { setOpen(false); track("diagnosis_answered"); window.setTimeout(() => onComplete(false), 0); };
+  const resume = () => {
+    const draft = resumeOffer;
+    setResumeOffer(null);
+    setOpen(false);
+    if (!draft) return;
+    track("resume_used");
+    window.dispatchEvent(new CustomEvent<DiagnosisDraft>(DRAFT_RESTORE_EVENT, { detail: draft }));
+  };
+  const restart = () => {
+    clearDraft();
+    setResumeOffer(null);
+    track("resume_discarded");
+  };
 
   /* 2026-08-24 監査での修正: role="dialog" は付いていたが、Escape で閉じられず、
      Tab がモーダルの外（背後のフォーム）へ抜けていた。開閉フラグで持つ画面なので
@@ -101,7 +144,7 @@ export function GuidedDiagnosis({ input, setInput, onComplete }: {
           </div>
           <button type="button" onClick={() => setOpen(false)} aria-label="診断を閉じる" className="inline-flex min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-full border border-ink-line bg-paper-card p-2 text-ink-soft hover:bg-paper-tint hover:text-ink focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep"><X className="h-5 w-5" aria-hidden="true" /></button>
         </header>
-        <div className="shrink-0 px-4 pt-4 sm:px-6">
+        <div className="shrink-0 px-4 pt-4 sm:px-6" hidden={!!resumeOffer}>
           <p className="mb-3 text-[14px] font-semibold text-ink-soft" role="status">質問 <span className="text-ink">{step + 1}</span> / {TOTAL_STEPS}</p>
           <div className="flex gap-1.5" aria-hidden="true">
             {Array.from({ length: TOTAL_STEPS }, (_, i) => <span key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-brand-olive" : "bg-ink-line"}`} />)}
@@ -112,7 +155,11 @@ export function GuidedDiagnosis({ input, setInput, onComplete }: {
           {/* 自動補完のお知らせ。青(cobalt)をやめて紙面のセージに寄せる。
               これは警告ではないので amber は使わない（amber は未算定・未確認の予約色）。 */}
           {assist ? <div role="status" className="mb-4 flex items-start gap-2 rounded-2xl border border-ink-line bg-paper-tint p-4 text-[14px] leading-relaxed text-ink"><Sparkles className="mt-1 h-4 w-4 shrink-0 text-brand" aria-hidden="true" /> {assist}</div> : null}
-          <Question step={step} input={input} answered={answered} markAnswered={markAnswered} choose={choose} next={next} update={update} handleAssist={handleAssist} finish={finish} />
+          {resumeOffer ? (
+            <ResumePanel draft={resumeOffer} onResume={resume} onRestart={restart} />
+          ) : (
+            <Question step={step} input={input} answered={answered} markAnswered={markAnswered} choose={choose} next={next} update={update} handleAssist={handleAssist} finish={finish} />
+          )}
         </div>
         {/* 2026-09-11 EHC-0038 第2便 4-J:
             フッターの2ボタンは 48px＋左右の余白。どちらも独立したボタンなので
@@ -153,7 +200,7 @@ function Question({ step, input, answered, markAnswered, choose, next, update, h
   if (step === 1) return <>{heading("いつ頃、更新したいですか？", "受付期限と申請準備に間に合う可能性を先に判定します。")}<div className="space-y-2">{([ ["within_1m", "1か月以内"], ["within_3m", "3か月以内"], ["within_6m", "6か月以内"], ["within_12m", "1年以内"], ["undecided", "まだ決めていない"] ] as [DesiredTiming, string][]).map(([v, label]) => button(label, () => { markAnswered("desiredTiming"); update("desiredTiming", v); }, answered.has("desiredTiming") && input.desiredTiming === v))}</div></>;
   if (step === 2) return <>{heading("設備がある都道府県は？", "国の制度に加えて、自治体の制度を照合します。")}<SelectAnswer value={input.pref} options={PREFS} placeholder="選択してください（未選択のままでも進めます）" onChange={(v) => update("pref", v)} onNext={next} /></>;
   if (step === 3) return <>{heading("事業者区分を教えてください", "法人・個人事業主の区分は制度要件の確認に使います。")}<div className="space-y-2">{([ ["corporation", "法人・団体"], ["sole_proprietor", "個人事業主"] ] as [EntityType, string][]).map(([v, label]) => button(label, () => { markAnswered("entityType"); update("entityType", v); update("bizType", "business"); update("customerKind", v === "sole_proprietor" ? "individual" : "company"); }, answered.has("entityType") && input.entityType === v))}</div></>;
-  if (step === 4) return <>{heading("事業規模を教えてください", "資本金・従業員数による最終判定は、候補表示後に確認します。")}<div className="space-y-2">{([ ["sme", "中小企業・小規模事業者"], ["middle", "中堅企業"], ["large", "大企業"] ] as [SizeType, string][]).map(([v, label]) => button(label, () => { markAnswered("size"); update("size", v); }, answered.has("size") && input.size === v))}</div></>;
+  if (step === 4) return <>{heading("事業規模を教えてください", "資本金・従業員数による最終判定は、候補表示後に確認します。")}<div className="space-y-2">{([ ["sme", "中小企業・小規模事業者"], ["middle", "中堅企業"], ["large", "大企業"] ] as [SizeType, string][]).map(([v, label]) => button(label, () => { markAnswered("size"); update("size", v); }, answered.has("size") && input.size === v))}</div><SmeGuide /></>;
   if (step === 5) return <>{heading("建物の用途は？", "用途限定制度の判定と、後段の省エネ概算に使います。")}<div className="space-y-2">{BUILDINGS.map(([v, label]) => button(label, () => { markAnswered("building"); update("building", v); }, answered.has("building") && input.building === v))}</div></>;
   /* 2026-09-10 EHC-0038 P0-1
      ここは以前「分からない → 500万円で仮診断」だった。
@@ -180,4 +227,78 @@ function SelectAnswer({ value, options, onChange, onNext, placeholder }: { value
    空欄・非数値・0以下は 0 に戻し、0 は未算定として扱う（表示も空欄）。 */
 function NumberAnswer({ value, onChange, onNext }: { value: number; onChange: (value: number) => void; onNext: () => void }) {
   return <div className="mb-4"><div className="flex items-center gap-3"><input type="number" aria-label="空調更新の予算・見積額（税抜・万円）" aria-describedby="guided-question-help" inputMode="numeric" min={0} placeholder="未入力でも進めます" value={value > 0 ? value : ""} onChange={(e) => { const n = Number(e.target.value); onChange(e.target.value === "" || !Number.isFinite(n) || n <= 0 ? 0 : n); }} className="min-h-[56px] min-w-0 flex-1 rounded-2xl border-[1.5px] border-[#57685e] bg-paper-card px-4 py-3.5 text-lg font-bold text-ink placeholder:text-[14px] placeholder:font-medium placeholder:text-ink-soft focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand focus:border-brand" /><span className="shrink-0 text-[16px] text-ink-soft">万円</span></div><button type="button" onClick={onNext} className="mt-5 inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-full bg-brand-deep px-4 py-3.5 text-[16px] font-bold text-white transition-colors hover:bg-brand focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep">制度候補を見る <ArrowRight className="h-4 w-4" aria-hidden="true" /></button></div>;
+}
+
+/* ───────── 2026-09-26 改善4: 途中保存の続きの案内 ───────── */
+function ResumePanel({ draft, onResume, onRestart }: { draft: DiagnosisDraft; onResume: () => void; onRestart: () => void }) {
+  const label = (id: string) => DIAGNOSIS_STAGES.find((s) => s.id === id)?.label ?? id;
+  return (
+    <div>
+      <div className="mb-6">
+        <h3 id="guided-question-title" className="text-[22px] font-bold leading-[1.5] tracking-tight text-ink sm:text-2xl">前回の続きから再開できます</h3>
+        <p id="guided-question-help" className="mt-3 text-[16px] leading-[1.8] text-ink">
+          {formatSavedAtJst(draft.savedAt)} に保存した入力があります。
+          <span className="mt-1 block font-bold">{describeDraft(draft, label)}</span>
+        </p>
+        <p className="mt-3 text-[14px] leading-[1.8] text-ink-soft">
+          この端末の中にだけ保存しています（14日間）。お名前やメールアドレスなどの連絡先は保存していません。
+        </p>
+      </div>
+      <div className="space-y-3">
+        <button type="button" onClick={onResume} className="inline-flex min-h-[56px] w-full items-center justify-center gap-3 rounded-full bg-brand-deep px-4 py-3.5 text-[16px] font-bold text-white transition-colors hover:bg-brand focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep">
+          続きから再開する <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </button>
+        <button type="button" onClick={onRestart} className="inline-flex min-h-[56px] w-full items-center justify-center rounded-full border-[1.5px] border-[#57685e] bg-paper-card px-4 py-3.5 text-[16px] font-bold text-ink hover:border-brand hover:bg-paper-tint focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep">
+          最初から答え直す（保存を消す）
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ───────── 2026-09-26 改善9: 中小企業かどうかの目安（業種別） ─────────
+   以前は選択肢だけで、業種ごとの基準が画面に無かった。旧シミュレーターの説明は
+   製造業の基準（資本金3億円以下または従業員300人以下）だけで、小売・飲食・サービスの会社が
+   中小企業を選び間違える余地があった（例：飲食チェーンで従業員80人・資本金1億円は中小企業ではない）。
+   値は中小企業基本法の定義（中小企業庁「中小企業者の定義」）。どちらか一方を満たせば中小企業。
+   制度によっては、大企業の子会社など（みなし大企業）が対象外になる。判定は候補表示後の適合チェックで確かめる。 */
+const SME_ROWS: [string, string, string][] = [
+  ["製造業・建設業・運輸業・その他", "3億円以下", "300人以下"],
+  ["卸売業", "1億円以下", "100人以下"],
+  ["サービス業", "5,000万円以下", "100人以下"],
+  ["小売業（飲食店を含む）", "5,000万円以下", "50人以下"],
+];
+
+function SmeGuide() {
+  return (
+    <details className="mt-5 rounded-2xl border border-ink-line bg-paper-sub px-4">
+      <summary className="min-h-[48px] cursor-pointer py-3 text-[16px] font-bold leading-[1.7] text-ink focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep">
+        中小企業かどうかの目安（業種で違います）
+      </summary>
+      <div className="pb-4">
+        <p className="text-[14px] leading-[1.8] text-ink-soft">資本金か、常時使用する従業員の数の<strong className="text-ink">どちらか一方</strong>を満たせば中小企業です。</p>
+        <table className="mt-3 w-full border-collapse text-left text-[14px] leading-[1.6]">
+          <thead>
+            <tr className="border-b border-ink-line text-ink-soft">
+              <th scope="col" className="py-2 pr-2 font-bold">業種</th>
+              <th scope="col" className="py-2 pr-2 font-bold">資本金</th>
+              <th scope="col" className="py-2 font-bold">従業員</th>
+            </tr>
+          </thead>
+          <tbody>
+            {SME_ROWS.map(([kind, capital, staff]) => (
+              <tr key={kind} className="border-b border-ink-line align-top text-ink">
+                <th scope="row" className="py-2 pr-2 font-normal">{kind}</th>
+                <td className="whitespace-nowrap py-2 pr-2">{capital}</td>
+                <td className="whitespace-nowrap py-2">{staff}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="mt-3 text-[14px] leading-[1.8] text-ink-soft">
+          大企業の子会社など（いわゆる「みなし大企業」）は、中小企業の枠で申請できない制度があります。分からなければ、このまま近いものを選んでください。候補を見たあとで確かめます。
+        </p>
+      </div>
+    </details>
+  );
 }

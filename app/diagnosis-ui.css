@@ -47,6 +47,17 @@
   .ehc-workspace-footer { border-top:1px solid #d4ddd4; padding:26px 0 0; margin-top:36px; font-size:14px; color:#57685e; line-height:1.8; }
   .ehc-workspace-footer > p:first-child { display:flex; align-items:flex-start; gap:10px; margin-bottom:14px; }
   .ehc-workspace-footer svg { flex-shrink:0; margin-top:3px; }
+  /* 2026-09-26 UXレビュー No.26 の残り: 注意書きを1か所にまとめた「ご利用上の注意」 */
+  .ehc-usage-notes { margin:0 0 18px; border:1px solid #d4ddd4; border-radius:16px; background:#f9faf3; padding:0 16px; }
+  .ehc-usage-notes > summary { min-height:48px; display:flex; align-items:center; cursor:pointer; font-size:16px; font-weight:700; color:#193e33; }
+  .ehc-usage-notes > summary:focus-visible { outline:2px solid #254d39; outline-offset:2px; }
+  .ehc-usage-notes ul { margin:0; padding:0 0 14px 1.2em; list-style:disc; font-size:14px; line-height:1.8; color:#193e33; }
+  .ehc-usage-notes li + li { margin-top:6px; }
+  /* 2026-09-26 UXレビュー No.25 の残り: パソコンの幅では、制度カードを2列に並べる */
+  @media (min-width:1024px) {
+    .ehc-result-program-list { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; align-items:start; }
+    .ehc-result-program-list > li { margin-top:0 !important; }
+  }
   .ehc-workspace button { touch-action:manipulation; }
   .ehc-workspace button:disabled { cursor:not-allowed; }
   .ehc-report-benefit { background:#edf2df; border-color:#c7d5b5; }
@@ -93,3 +104,6 @@
     .ehc-stage-panel { padding-inline:14px; }
   }
 }
+
+/* 2026-09-26 改善13: 人には見えない欄（迷惑な送信の見分け）。display:none にすると機械に見抜かれやすいので、画面の外に置く。 */
+.ehc-hp-field { position:absolute !important; left:-10000px !important; top:auto !important; width:1px !important; height:1px !important; overflow:hidden !important; }

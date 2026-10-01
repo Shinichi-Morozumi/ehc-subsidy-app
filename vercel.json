@@ -3,6 +3,10 @@
     {
       "path": "/api/subsidies/monitor",
       "schedule": "15 0 * * *"
+    },
+    {
+      "path": "/api/cron/lead-followup",
+      "schedule": "0 0 * * 1-5"
     }
   ]
 }

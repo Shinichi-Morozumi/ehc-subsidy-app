@@ -44,6 +44,8 @@ import {
   type EquipProjection,
 } from "@/lib/diagnosisProjection";
 import { COMPANY } from "@/lib/company";
+import { track } from "@/lib/track";
+import { bookingUrlFrom } from "@/lib/booking";
 
 /* ───────────────────────────────────────────────────────────
    E段「診断書を受け取って相談」（EHC-0039 第7片 / 2026-09-14 v1）
@@ -136,6 +138,8 @@ interface SubmitResult {
    （send のときだけ "on"）。お客様宛を送らない運用なのに
    「このアドレスへお送りします」と約束する画面にしないため。 */
 const CUSTOMER_MAIL_ON = process.env.NEXT_PUBLIC_DIAGNOSIS_CUSTOMER_MAIL === "on";
+/** 2026-09-26 改善7: 打ち合わせの予約ページ（未設定なら null で、何も出さない） */
+const BOOKING_URL = bookingUrlFrom(process.env.NEXT_PUBLIC_BOOKING_URL);
 
 export interface ContactStageProps {
   input: MatchInput | null;
@@ -155,6 +159,8 @@ export interface ContactStageProps {
   energyBill?: EnergyBill | null;
   /** 「概算費用と工事」へ戻す */
   onBack?: () => void;
+  /** 2026-09-26 改善4: 相談を受け付けたとき（DiagnosisFlow が途中保存を消す） */
+  onSubmitted?: () => void;
 }
 
 export function ContactStage({
@@ -166,6 +172,7 @@ export function ContactStage({
   subsidyCheck,
   energyBill,
   onBack,
+  onSubmitted,
 }: ContactStageProps) {
   /* 2026-09-15 EHC-0039 修正1:
      ここは以前 useState の初期化関数で issueDocumentNumber() を呼んでいた。
@@ -183,6 +190,14 @@ export function ContactStage({
   const [phone, setPhone] = useState("");
   const [touched, setTouched] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
+  /* 2026-09-26 改善13: 迷惑な送信の見分け（lib/spamGuard.ts）。
+     hp … 人には見えない欄（画面の外に置く）。openedAt … この段を最初に開いた時刻。
+     送信の処理（下の effect）から読むので ref に持つ。 */
+  const [hp, setHp] = useState("");
+  const hpRef = useRef("");
+  const openedAtRef = useRef<number>(Date.now());
+  const onSubmittedRef = useRef(onSubmitted);
+  useEffect(() => { onSubmittedRef.current = onSubmitted; }, [onSubmitted]);
 
   const [phase, setPhase] = useState<Phase>("input");
   const [error, setError] = useState<string | null>(null);
@@ -465,11 +480,15 @@ export function ContactStage({
             energyBill: frozen.energyBill ?? null,
             pdfBase64,
             filename,
+            /* 2026-09-26 改善13 */
+            hp: hpRef.current,
+            elapsedMs: Date.now() - openedAtRef.current,
           }),
         });
         const json = (await res.json()) as SubmitResult & { error?: string };
         if (!alive()) return;
         if (!res.ok) {
+          track("submit_error", { kind: (json as { rateLimited?: boolean }).rateLimited ? "rate_limited" : json.contentMismatch ? "mismatch" : `http_${res.status}` });
           setError(json.error || "受け付けできませんでした。時間をおいて再度お試しください。");
           /* 2026-09-15 EHC-0039 修正4:
              内容不一致で止められた場合は、固めたスナップショットを捨てる。
@@ -485,8 +504,15 @@ export function ContactStage({
         }
         setResult(json);
         setPhase("done");
+        if (json.ok) {
+          track("submit_ok", { customer: json.customer });
+          onSubmittedRef.current?.();
+        } else {
+          track("submit_error", { kind: "not_delivered" });
+        }
       } catch (e) {
         if (!alive()) return;
+        track("submit_error", { kind: "network" });
         console.error("[ContactStage] 送信に失敗:", e);
         setError("通信に失敗しました。電波の良い場所で、もう一度お試しください。");
         setPhase("input");
@@ -576,6 +602,19 @@ export function ContactStage({
                   note="ご入力いただくと、お急ぎの場合にお電話でご連絡できます。"
                 />
               </div>
+            </div>
+            {/* 2026-09-26 改善13: 人には見えない欄（画面の外に置く・読み上げもしない）。ここに入力があると送信を受け付けない */}
+            <div className="ehc-hp-field" aria-hidden="true">
+              <label htmlFor="contact-hp-website">この欄は空のままにしてください</label>
+              <input
+                id="contact-hp-website"
+                name="ehc_hp_website"
+                type="text"
+                tabIndex={-1}
+                autoComplete="off"
+                value={hp}
+                onChange={(e) => { setHp(e.target.value); hpRef.current = e.target.value; }}
+              />
             </div>
           </div>
 
@@ -952,6 +991,7 @@ function SubmitReport({
           <a
             href={pdfFile.url}
             download={pdfFile.filename}
+            onClick={() => track("pdf_saved")}
             className={cn(
               "min-h-[56px] w-full rounded-2xl bg-brand px-4 text-[16px] font-bold leading-[1.7] text-white",
               "flex items-center justify-center gap-2",
@@ -1126,6 +1166,23 @@ function NextStepsAfterSubmit({ receiptNo, phoneGiven }: { receiptNo: string; ph
         <span className="font-bold">用意しておくと話が早いもの：</span>
         室外機の銘板の写真、電気料金の明細（直近1年分があれば）
       </p>
+      {/* 2026-09-26 改善7: 打ち合わせの予約ページ（NEXT_PUBLIC_BOOKING_URL を入れたときだけ出す。lib/booking.ts） */}
+      {BOOKING_URL && (
+        <div className="mt-4 rounded-xl border border-brand/35 bg-[#f3f8ea] px-4 py-3">
+          <a
+            href={BOOKING_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => track("booking_click", { place: "after_submit" })}
+            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-brand-deep px-4 text-[16px] font-bold leading-[1.7] text-white hover:bg-brand focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep"
+          >
+            打ち合わせの日時を選ぶ ↗<span className="sr-only">（新しいタブで開きます）</span>
+          </a>
+          <p className="mt-2 text-[14px] leading-[1.8] text-ink">
+            担当者との打ち合わせ（お電話・オンライン）の日時を、空いている時間から選べます。選ばなくても、担当者からご連絡します。
+          </p>
+        </div>
+      )}
       <p className="mt-3 text-[14px] leading-[1.8] text-ink-soft">
         お急ぎの場合は、お電話（<a className="font-bold text-brand-deep underline underline-offset-4" href={COMPANY.telHref}>{COMPANY.tel}</a>・{COMPANY.hours}）で受付番号 {receiptNo} をお伝えください。
       </p>

@@ -23,6 +23,9 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_DIAGNOSIS_CUSTOMER_MAIL:
       (process.env.DIAGNOSIS_MAIL_MODE || "").toLowerCase() === "send" ? "on" : "off",
+    /* 2026-09-26 改善11: 写真の読み取り（app/api/read-photo）。API キーがあるときだけ画面にボタンを出す。
+       キーの値そのものは画面に渡さない（有無だけ）。キーを入れた・消したら再デプロイする。 */
+    NEXT_PUBLIC_PHOTO_READ: process.env.ANTHROPIC_API_KEY ? "on" : "off",
   },
   /* 2026-09-25: サーバで作る診断書PDF（lib/serverPdf.ts）の日本語フォントを、
      診断の送信 API の関数に同梱する。fs で読むだけなので、指定しないと Vercel の関数に入らない。 */
@@ -30,6 +33,28 @@ const nextConfig = {
     outputFileTracingIncludes: {
       "/api/diagnosis-submit": ["./lib/fonts/**/*"],
     },
+  },
+  /* 2026-09-26 改善2: 以前のホームページ（Wix）のURLで、検索結果に残っているものを新しいページへ転送する。
+     確認できたのは www.ehcjpn.com/privacy-policy（検索結果に残っていた）。www は Vercel が ehcjpn.com へ 308 で送るので、
+     ここでは ehcjpn.com/privacy-policy → /privacy だけを書けばよい。見つかったら足す。
+     それ以外の古いURLは、日本語の「ページが見つかりません」（app/not-found.tsx）からトップ・会社概要へ案内する。 */
+  async redirects() {
+    return [
+      { source: "/privacy-policy", destination: "/privacy", permanent: true },
+      { source: "/privacy-policy/", destination: "/privacy", permanent: true },
+    ];
+  },
+  /* 2026-09-26 改善1: 旧URL（ehc-subsidy-app.vercel.app）は検索に出さない。
+     転送（リダイレクト）にしないのは、ehcjpn.com の DNS 切替の途中でも営業先に送ったリンクが開けるようにするため。
+     担当者用の画面と API は、どのホストでも検索に出さない（ページ側の noindex と二重）。 */
+  async headers() {
+    const noindex = [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
+    return [
+      { source: "/:path*", has: [{ type: "host", value: "ehc-subsidy-app.vercel.app" }], headers: noindex },
+      { source: "/kanri/:path*", headers: noindex },
+      { source: "/unlock", headers: noindex },
+      { source: "/api/:path*", headers: noindex },
+    ];
   },
   ...(process.env.EHC_DIST_DIR ? { distDir: process.env.EHC_DIST_DIR } : {}),
 };

@@ -18,7 +18,9 @@
      NOTION_DB_ID … 追記先の database_id（既定: 27c3f8fe-bc9b-49f7-bba1-430b90697cec）
    ─────────────────────────────────────────────────────────── */
 
-export type LeadStatus = "未着手" | "提案送付済み" | "現地調査" | "見積提示" | "受注" | "失注";
+/* 2026-09-26: 「お知らせ希望」を足した（次の公募のお知らせに登録した方。app/api/notify-signup）。
+   ステータスは select なので、Notion に無い選択肢は最初の登録のときに Notion が自動で作る。 */
+export type LeadStatus = "未着手" | "提案送付済み" | "現地調査" | "見積提示" | "受注" | "失注" | "お知らせ希望";
 export type LeadWish = "ものづくり" | "省エネ補助金" | "持続化" | "自治体" | "未定";
 
 export type LeadPayload = {
@@ -61,9 +63,9 @@ export function buildLeadProperties(lead: LeadPayload): Record<string, unknown> 
   return props;
 }
 
-const DEFAULT_DB_ID = "27c3f8fe-bc9b-49f7-bba1-430b90697cec";
+export const DEFAULT_DB_ID = "27c3f8fe-bc9b-49f7-bba1-430b90697cec";
 
-function notionHeaders(token: string): Record<string, string> {
+export function notionHeaders(token: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { matchSubsidies } from "@/lib/match";
@@ -23,6 +23,9 @@ import { EstimateStage } from "./EstimateStage";
 import { applyEstimateGroupPatches } from "./estimateInputFields";
 import { ContactStage } from "./ContactStage";
 import { GlossaryDetails } from "./Glossary";
+import { clearDraft, isValidFlow, writeDraft, DRAFT_RESTORE_EVENT, type DiagnosisDraft } from "@/lib/diagnosisDraft";
+import { legacyAccessFromSearch } from "@/lib/legacyAccess";
+import { track } from "@/lib/track";
 
 /* ───────────────────────────────────────────────────────────
    5段の診断フローの器（EHC-0039 第9片 / 2026-09-14 v1）
@@ -165,8 +168,41 @@ export function DiagnosisFlow() {
      5段のどこかで予算を伺うまでは未回答（null）のままにする。 */
   const desiredTiming = state.desiredTiming ?? base?.desiredTiming ?? null;
 
+  /* ───────── 2026-09-26 改善4: 途中保存（lib/diagnosisDraft.ts） ─────────
+     7問を終えたあと（confirmed がある間）の入力と、いまの段・到達した段を端末に保存する。
+     base（confirmed ?? draft）では判定しない。draft は旧シミュレーターが最初から流している入力中の値で、
+     7問に答える前から null ではないため、読み直した直後に空の入力で保存を上書きしてしまう（v70 の検証で見つけた）。
+     担当者用の入口（?staff=1）・共有リンク（?d=）では保存しない。相談を送ったら消して、以後は保存しない。 */
+  const [submitted, setSubmitted] = useState(false);
+  const [saveAllowed, setSaveAllowed] = useState(false);
+  useEffect(() => {
+    setSaveAllowed(!legacyAccessFromSearch(window.location.search).showLegacy);
+  }, []);
+  useEffect(() => {
+    if (!saveAllowed || !confirmed || submitted) return;
+    const timer = window.setTimeout(() => writeDraft({ flow: { stage, reached, state, investSource } }), 400);
+    return () => window.clearTimeout(timer);
+  }, [saveAllowed, confirmed, submitted, stage, reached, state, investSource]);
+  useEffect(() => {
+    const onRestore = (e: Event) => {
+      const flow = (e as CustomEvent<DiagnosisDraft>).detail?.flow;
+      if (!flow || !isValidFlow(flow)) return;
+      setState(flow.state);
+      setInvestSource(flow.investSource);
+      setReached(Array.from(new Set<DiagnosisStage>(["find", ...flow.reached, flow.stage])));
+      setStage(flow.stage);
+    };
+    window.addEventListener(DRAFT_RESTORE_EVENT, onRestore);
+    return () => window.removeEventListener(DRAFT_RESTORE_EVENT, onRestore);
+  }, []);
+  const handleSubmitted = useCallback(() => {
+    setSubmitted(true);
+    clearDraft();
+  }, []);
+
   const go = (next: DiagnosisStage) => {
     setStage(next);
+    track("stage_view", { stage: next });
     setReached((prev) => (prev.includes(next) ? prev : [...prev, next]));
     if (typeof window !== "undefined") {
       window.requestAnimationFrame(() => {
@@ -317,6 +353,7 @@ export function DiagnosisFlow() {
           subsidyCheck={subsidyCheck}
           energyBill={state.energyBill}
           onBack={() => go("estimate")}
+          onSubmitted={handleSubmitted}
         />
       </div>}
       </div>
@@ -432,8 +469,10 @@ function FindStage({
         </details>
       )}
 
+      {/* 2026-09-26 UXレビュー No.26 の残り: 注意書きは画面の下の「ご利用上の注意」にまとめ、ここは一言と案内だけにする */}
       <p className="text-[14px] leading-[1.7] text-ink-soft">
-        候補に挙がっていることは、採択・受給を保証するものではありません。
+        候補は目安です（採択・受給の保証ではありません）。
+        <a href="#usage-notes" className="ml-1 font-bold text-brand-deep underline underline-offset-4" onClick={openUsageNotes}>ご利用上の注意</a>
       </p>
 
       <GlossaryDetails />
@@ -488,4 +527,10 @@ function hasAnyEquipInput(state: DiagnosisState): boolean {
   return state.groups.some(
     (g) => g.kind !== null || g.units !== null || g.installYear !== null || g.hp !== null
   );
+}
+
+/* 画面の下の「ご利用上の注意」（app/page.tsx）を開いてから、そこへ移る */
+function openUsageNotes() {
+  const el = document.getElementById("usage-notes");
+  if (el instanceof HTMLDetailsElement) el.open = true;
 }

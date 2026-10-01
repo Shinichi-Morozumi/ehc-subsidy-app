@@ -166,9 +166,21 @@ export function ProgramSelfCheck({
             </div>
           </div>
 
-          <p className="text-[13px] leading-[1.7] text-ink-soft">
-            ご回答にもとづく目安で、申請できることや採択を保証するものではありません。
-            ご相談を送信すると、この回答と結果も担当者に届きます。
+          {/* 2026-09-26 UXレビュー No.26 の残り: 保証しない旨は画面の下の「ご利用上の注意」にまとめ、ここは一言と案内だけにする
+              （制度のカードごとに同じ文が何度も出ていた）。文字は14pxにそろえる。 */}
+          <p className="text-[14px] leading-[1.7] text-ink-soft">
+            ご回答にもとづく目安です（
+            <a
+              href="#usage-notes"
+              className="font-bold text-brand-deep underline underline-offset-4"
+              onClick={() => {
+                const el = document.getElementById("usage-notes");
+                if (el instanceof HTMLDetailsElement) el.open = true;
+              }}
+            >
+              ご利用上の注意
+            </a>
+            ）。ご相談を送信すると、この回答と結果も担当者に届きます。
           </p>
         </div>
       )}

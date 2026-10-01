@@ -23,6 +23,9 @@ import {
   type EquipProjection,
 } from "@/lib/diagnosisProjection";
 import { ReductionBasisPanel } from "./ReductionBasisPanel";
+import { NotifySignup } from "./NotifySignup";
+import { BUILDING_LABELS } from "@/lib/labels";
+import { TIMING_LABEL_JA } from "@/lib/diagnosisSnapshot";
 import type {
   PlannedUnitStatus,
   TargetProductApiResponse,
@@ -451,7 +454,8 @@ function ComputedResult({
           <span className="ml-auto shrink-0 tabular-nums">{current.length}件</span>
         </h3>
         {current.length > 0 ? (
-          <ul className="mt-4 space-y-4">
+          /* 2026-09-26 UXレビュー No.25 の残り: パソコンの幅では2件以上のとき2列（app/diagnosis-ui.css の .ehc-result-program-list） */
+          <ul className={cn("mt-4 space-y-4", current.length > 1 && "ehc-result-program-list")}>
             {current.map((a, i) => (
               <li key={a.subsidy.id}>
                 <ProgramCard
@@ -488,7 +492,7 @@ function ComputedResult({
           <p className="text-[14px] leading-[1.8] text-ink-soft">
             条件は合う見込みですが、今回の締切までに申請の準備が間に合わない可能性が高い制度です。次回の公募に向けて、今から準備を進められます。
           </p>
-          <ul className="mt-2 space-y-4">
+          <ul className={cn("mt-2 space-y-4", nextRound.length > 1 && "ehc-result-program-list")}>
             {nextRound.map((a, i) => (
               <li key={a.subsidy.id}>
                 <ProgramCard
@@ -524,7 +528,7 @@ function ComputedResult({
             </summary>
             <div className="pb-3">
               <p className="mt-1 text-[14px] leading-[1.8] text-ink-soft">{view.note}</p>
-              <ul className="mt-4 space-y-4">
+              <ul className={cn("mt-4 space-y-4", items.length > 1 && "ehc-result-program-list")}>
                 {items.map((a) => (
                   <li key={a.subsidy.id}>
                     <ProgramCard
@@ -543,6 +547,15 @@ function ComputedResult({
           </details>
         );
       })}
+
+      {/* 2026-09-26 改善6: 次の公募のお知らせの登録。関心のある制度は、次回に備える制度・今回の制度（見込みのあるもの）を最大6件。
+          どちらも無いときだけ「発表待ち」の制度を使う（関係の薄い制度まで担当者に渡さないため）。 */}
+      <NotifySignup
+        programNames={(nextRound.length + current.length > 0 ? [...nextRound, ...current] : byFit("on_hold")).map((a) => a.subsidy.name).slice(0, 6)}
+        pref={input.pref || null}
+        building={BUILDING_LABELS[input.building] ?? null}
+        timing={input.desiredTiming ? TIMING_LABEL_JA[input.desiredTiming] : null}
+      />
 
       {monitorCheckedAt && (
         <p className="text-sm/[1.7] text-ink-soft">

@@ -17,7 +17,11 @@ export interface ScrollFilmOptions {
   paused?: boolean;
 }
 
-type DataConnection = EventTarget & { saveData?: boolean };
+type DataConnection = EventTarget & { saveData?: boolean; effectiveType?: string };
+/* 2026-09-26 UXレビュー No.20 の残り: 回線が遅いと端末が報告しているとき（Network Information API の
+   effectiveType が slow-2g / 2g / 3g）は、動画（スマホ 1.8MB・パソコン 3.0MB）を読み込まず、静止画だけにする。
+   「データセーバー」（saveData）のときと同じ扱い。対応していないブラウザ（Safari など）は今までどおり。 */
+const SLOW_CONNECTIONS = new Set(["slow-2g", "2g", "3g"]);
 type FilmVisit = {
   completed: boolean;
   userPaused: boolean;
@@ -87,7 +91,8 @@ export function mountScrollFilm(options: ScrollFilmOptions): MountedScrollFilm {
   let restoreFrame = true;
   let sitePaused = options.paused === true;
 
-  const blocked = () => reduced.matches || connection?.saveData === true;
+  const blocked = () =>
+    reduced.matches || connection?.saveData === true || SLOW_CONNECTIONS.has(connection?.effectiveType ?? "");
   const paused = () => state.userPaused || sitePaused;
   const endTime = () => Math.max(0, video.duration - 1 / fps);
   const clearSeekTimer = () => { view.clearTimeout(seekTimer); seekTimer = 0; };

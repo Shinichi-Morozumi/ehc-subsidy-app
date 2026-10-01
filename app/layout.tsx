@@ -4,18 +4,41 @@ import "./globals.css";
    既存のダークテーマ（globals.css）と診断ツール側の表示には影響しない。 */
 import "./home-v17.css";
 import { PwaRegister } from "@/components/PwaRegister";
+import { COMPANY } from "@/lib/company";
+import { SITE_URL } from "@/lib/site";
+
+/* ───────────────────────────────────────────────────────────
+   2026-09-26 改善1・3: 会社のドメイン（ehcjpn.com）で公開しているので、検索に出す。
+   以前は「営業同行ツール（URL限定共有）」として robots に index:false を入れていた。
+   その設定のまま ehcjpn.com で配信していたため、会社名で検索しても会社のサイトが出なくなるところだった。
+   ・検索に出す：このサイトの全ページ（既定）。
+   ・出さない：担当者用の画面（/kanri・/unlock はページ側で noindex）、旧URL（ehc-subsidy-app.vercel.app。
+     next.config.mjs の headers で X-Robots-Tag を付ける）、プレビュー（Vercel が自動で付ける）。
+   ・題名は会社名が分かる形に、共有したときの画像（/og.jpg・1200×630）を付ける。
+   ─────────────────────────────────────────────────────────── */
+const SITE_TITLE = "空調更新と補助金の無料診断｜株式会社EHCソリューションズ";
+const SITE_DESCRIPTION =
+  "業務用空調の更新や冷媒の入れ替え（ドロップイン）を考えたら、発注の前に補助金の確認を。7問の無料診断で、使える可能性のある制度・受付期限・費用の目安がわかります。";
 
 export const metadata: Metadata = {
-  title: "EHC 空調更新 補助金・助成金マッチング",
-  description: "業務用空調の更新時に、申請可能性のある補助金・助成金と受付期限、次に必要な準備を確認する診断ツール。",
-  keywords: ["業務用エアコン", "補助金", "省エネ", "R32", "SII", "ドロップイン", "EHC"],
-  robots: { index: false, follow: false }, // 営業同行ツール（URL限定共有）のため検索エンジン非掲載
+  metadataBase: new URL(SITE_URL),
+  title: { default: SITE_TITLE, template: `%s｜${COMPANY.name}` },
+  description: SITE_DESCRIPTION,
+  keywords: ["業務用エアコン", "空調更新", "補助金", "省エネ補助金", "SII", "ドロップイン", "冷媒", "EHCソリューションズ"],
   openGraph: {
-    title: "EHC 空調更新 補助金・助成金マッチング",
-    description: "業務用空調の更新時に、候補制度と期限、次に必要な準備を確認。",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     type: "website",
     locale: "ja_JP",
-    siteName: "EHC Solutions",
+    siteName: COMPANY.name,
+    url: SITE_URL,
+    images: [{ url: "/og.jpg", width: 1200, height: 630, alt: "空調を発注する前に、補助金の確認を。株式会社EHCソリューションズ" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: ["/og.jpg"],
   },
   appleWebApp: {
     capable: true,
@@ -28,6 +51,29 @@ export const metadata: Metadata = {
   },
 };
 
+/* 検索結果に会社の情報（名前・所在地・電話）を正しく出すための構造化データ。値は lib/company.ts の1か所から作る。
+   郵便番号は確かな出典が無いので入れない（lib/company.ts のコメント参照）。 */
+const ORGANIZATION_JSON_LD = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: COMPANY.name,
+  url: SITE_URL,
+  logo: `${SITE_URL}/icon-512.png`,
+  email: COMPANY.email,
+  telephone: "+81-3-5937-4340",
+  address: {
+    "@type": "PostalAddress",
+    addressCountry: "JP",
+    addressRegion: "東京都",
+    addressLocality: "中野区",
+    streetAddress: "弥生町1丁目9-8 トーソービル4F",
+  },
+});
+
+/* Vercel Web Analytics のカスタムイベント（lib/track.ts）用。計測スクリプトが読み込まれるまで、
+   window.va に渡された記録を window.vaq に貯めておく（@vercel/analytics の inject() と同じ形）。 */
+const VA_QUEUE = "window.va=window.va||function(){(window.vaq=window.vaq||[]).push(Array.prototype.slice.call(arguments))};";
+
 export const viewport = {
   width: "device-width",
   initialScale: 1,
@@ -38,6 +84,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ja">
       <body>
+        <script dangerouslySetInnerHTML={{ __html: VA_QUEUE }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ORGANIZATION_JSON_LD }} />
         {children}
         <PwaRegister />
         {/* Vercel Web Analytics（Hobby枠）。@vercel/analytics を入れると package-lock.json と

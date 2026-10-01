@@ -18,6 +18,7 @@ import { ProjectProvider } from "@/components/ProjectContext";
 import { HomeV17 } from "@/components/home/HomeV17";
 import { SiteFooter } from "@/components/SiteFooter";
 import { legacyAccessFromSearch } from "@/lib/legacyAccess";
+import { DRAFT_RESTORE_EVENT } from "@/lib/diagnosisDraft";
 import { ArrowLeft, ClipboardList, ShieldCheck } from "lucide-react";
 import "./diagnosis-ui.css";
 
@@ -37,7 +38,24 @@ export default function Page() {
   useEffect(() => {
     const onOpen = () => setStarted(true);
     window.addEventListener(OPEN_HEARING_EVENT, onOpen);
-    return () => window.removeEventListener(OPEN_HEARING_EVENT, onOpen);
+    /* 2026-09-26 改善4: 「続きから再開」を押したら、診断の画面を開く（中身は各部品が戻す） */
+    window.addEventListener(DRAFT_RESTORE_EVENT, onOpen);
+    return () => {
+      window.removeEventListener(OPEN_HEARING_EVENT, onOpen);
+      window.removeEventListener(DRAFT_RESTORE_EVENT, onOpen);
+    };
+  }, []);
+
+  /* 2026-09-26: 会社概要などから「/?start=1」で来たら、7問をすぐ開く（再読み込みで開き直さないよう、URLからは消す）。
+     7問の画面（GuidedDiagnosis）は最初から置いてあるので、描画の次の回に知らせれば受け取れる。 */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("start") !== "1") return;
+    params.delete("start");
+    const rest = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`);
+    const timer = window.setTimeout(() => window.dispatchEvent(new CustomEvent(OPEN_HEARING_EVENT)), 50);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -93,6 +111,18 @@ export default function Page() {
 
         <footer className="ehc-workspace-footer no-print">
           <p><ShieldCheck size={18} aria-hidden="true" />公式情報の確認範囲を表示。採択・受給を保証するものではありません。</p>
+          {/* 2026-09-26 UXレビュー No.26 の残り: 各段に何度も出ていた注意書きを、ここ1か所にまとめる。
+              各段には短い一言と、ここへの案内だけを置く。 */}
+          <details id="usage-notes" className="ehc-usage-notes">
+            <summary>ご利用上の注意</summary>
+            <ul>
+              <li>制度の候補・判定・補助額は、ご入力の内容と公式情報（確認日を表示）にもとづく目安です。申請できること、採択・受給、補助額を保証するものではありません。</li>
+              <li>公募の内容・補助率・上限・締切は、予告なく変わることや、予算に達して早く終わることがあります。申請の前に、必ず各制度の公式の案内をご確認ください。</li>
+              <li>概算の費用は、ご入力の設備からの目安です。現地の確認のあと、正式なお見積りに置き換えます。</li>
+              <li>省エネの効果（電気代の削減）は、設備の状態・使い方・気温で変わります。削減を保証するものではありません。</li>
+              <li>複数の制度を同じ費用に重ねて使えるかは、各制度の公募要領で決まります。この診断では補助額を合算しません。</li>
+            </ul>
+          </details>
           <SiteFooter variant="workspace" />
         </footer>
       </main>

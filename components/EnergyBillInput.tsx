@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ELECTRIC_PRICE_YEN_PER_KWH } from "@/lib/pricing";
 import {
@@ -10,6 +10,8 @@ import {
   type EnergyBasis,
   type EnergyBill,
 } from "@/lib/diagnosisEnergy";
+import { PhotoReadButton } from "./PhotoReadButton";
+import { track } from "@/lib/track";
 
 /* ───────────────────────────────────────────────────────────
    電気料金の明細（任意）で、年間の電気代削減を計算し直す（2026-09-25）
@@ -39,6 +41,14 @@ export function EnergyBillInput({
   const [kwhError, setKwhError] = useState<string | null>(null);
   const [yenError, setYenError] = useState<string | null>(null);
   const reading = readEnergyBill(bill);
+  /* 2026-09-26 改善12: 明細を入れた人の数を数える（1回の表示につき1度だけ。数字そのものは送らない） */
+  const trackedRef = useRef(false);
+  useEffect(() => {
+    if (reading.entered && !trackedRef.current) {
+      trackedRef.current = true;
+      track("bill_entered", { period: bill.period });
+    }
+  }, [reading.entered, bill.period]);
 
   const setPeriod = (period: BillPeriod) => onChange({ ...bill, period });
   const onKwh = (raw: string) => {
@@ -96,6 +106,18 @@ export function EnergyBillInput({
         <p className="text-[14px] leading-[1.8] text-ink-soft">
           業務用の空調は「低圧電力（動力）」の契約で、照明などとは別の明細になっていることがあります。別になっている場合は、動力の明細の数字を入れてください。
         </p>
+
+        {/* 2026-09-26 改善11: 明細の写真から、期間・使用量・請求額を読み取って入れる（鍵が設定されているときだけ出る） */}
+        <PhotoReadButton
+          kind="bill"
+          label="明細の写真から読み取る"
+          onRead={(r) => {
+            const next: EnergyBill = { period: r.period ?? bill.period, kwh: r.kwh ?? bill.kwh, yen: r.yen ?? bill.yen };
+            if (r.kwh != null) { setKwhRaw(String(r.kwh)); setKwhError(null); }
+            if (r.yen != null) { setYenRaw(String(r.yen)); setYenError(null); }
+            onChange(next);
+          }}
+        />
 
         <fieldset>
           <legend className="text-[14px] font-bold leading-[1.7] text-ink">明細の期間</legend>

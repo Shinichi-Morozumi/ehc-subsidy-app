@@ -240,6 +240,8 @@ export function HomeV17() {
         <a href="#site-footer" onClick={(e) => jump(e, "site-footer")}>
           運営会社・お問い合わせ
         </a>
+        {/* 2026-09-26 改善3: 会社概要のページ */}
+        <a href="/company">会社概要</a>
         <a href="#home" onClick={(e) => jump(e, "home")}>
           空調更新の映像へ ↑
         </a>

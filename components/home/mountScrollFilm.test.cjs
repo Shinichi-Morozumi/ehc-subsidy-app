@@ -15,8 +15,8 @@ const sandbox = { exports: {} };
 vm.runInNewContext(compiled, sandbox, { filename: "mountScrollFilm.ts" });
 const { mountScrollFilm } = sandbox.exports;
 
-function fixture({ width = 390, height = 844, reduced = false, saveData = false, hidden = false } = {}) {
-  const env = { width, height, reduced, saveData, hidden, scroll: 0, offscreen: false, copy: 470 };
+function fixture({ width = 390, height = 844, reduced = false, saveData = false, hidden = false, effectiveType = "4g" } = {}) {
+  const env = { width, height, reduced, saveData, hidden, effectiveType, scroll: 0, offscreen: false, copy: 470 };
   const queue = new Map();
   let nextId = 0;
   class Element extends EventTarget {
@@ -67,6 +67,7 @@ function fixture({ width = 390, height = 844, reduced = false, saveData = false,
   });
   const connection = new EventTarget();
   Object.defineProperty(connection, "saveData", { get: () => env.saveData });
+  Object.defineProperty(connection, "effectiveType", { get: () => env.effectiveType });
   view.navigator = { connection };
   const medias = new Map();
   view.matchMedia = query => {
@@ -318,4 +319,19 @@ test("media failure keeps the existing travel and exposes the static poster", ()
   assert.equal(h.root.dataset.wind, "off");
   assert.equal(h.toggle.hidden, true);
   h.dispose();
+});
+
+/* 2026-09-26 UXレビュー No.20 の残り: 回線が遅いと報告されたときは動画を読まない */
+test("slow connections (slow-2g / 2g / 3g) do not request the movie, 4g does", () => {
+  for (const effectiveType of ["slow-2g", "2g", "3g"]) {
+    const h = fixture({ effectiveType });
+    assert.equal(h.video.src, "", effectiveType);
+    assert.equal(h.video.loadCalls, 0, effectiveType);
+    assert.equal(h.root.dataset.videoReady, "false", effectiveType);
+    assert.equal(h.run(), 0, effectiveType);
+    h.dispose();
+  }
+  const fast = fixture({ effectiveType: "4g" });
+  assert.notEqual(fast.run(), 0);
+  fast.dispose();
 });
