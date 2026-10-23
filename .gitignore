@@ -9,6 +9,8 @@
 
 # next.js
 /.next/
+/.next-ehc0089/
+/.next-local0089/
 /out/
 
 # production

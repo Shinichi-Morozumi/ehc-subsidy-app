@@ -16,6 +16,7 @@ import { yenJP } from "./pricing";
 import { todayJst } from "./programClock";
 import { COMPANY } from "./company";
 import type { LeadPayload, LeadWish } from "./notionLead";
+import { consultationLines } from "./consultation";
 
 /** 「最大 約166.3万円」→ 1,663,000（円）。読めなければ null */
 export function parseManYenToYen(text: string | null | undefined): number | null {
@@ -78,6 +79,7 @@ export function buildDiagnosisLead(s: DiagnosisSnapshot, opts: DiagnosisLeadOpti
       : "",
     `Web診断（5段）から。受付番号 ${s.receiptNo}（${s.issuedAtJst}）`,
     `お名前: ${s.contact.name}${s.contact.company ? `／会社: ${s.contact.company}` : ""}`,
+    ...consultationLines(s.contact.consultation),
     `設備: ${equip}`,
     `概算（税込）: ${s.estimate ? yenJP(s.estimate.total) : "未算定"}`,
     programs.length
@@ -103,6 +105,6 @@ export function buildDiagnosisLead(s: DiagnosisSnapshot, opts: DiagnosisLeadOpti
     sentDate: todayJst(now),
     memo,
     status: "未着手",
-    nextAction: `${COMPANY.replyDays}営業日以内にご連絡（目安 ${due}）。現地確認の日程調整・診断書PDFの転送`,
+    nextAction: `${COMPANY.replyDays}営業日以内にご連絡（目安 ${due}）。候補日時3件を確認しZoomの日時・URLを折り返し案内。現地確認の日程調整・診断書PDFの転送`,
   };
 }

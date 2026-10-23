@@ -142,6 +142,8 @@ export interface KaigoAnswers {
   wants: WantId[];
 }
 
+import { consultationLines, readConsultation, type ConsultationRequest } from "./consultation";
+
 export interface KaigoContact {
   company: string;
   name: string;
@@ -149,6 +151,7 @@ export interface KaigoContact {
   email: string | null;
   scope: ScopeId | null;
   callTime: CallTimeId | null;
+  consultation?: ConsultationRequest;
 }
 
 export interface KaigoSubmitInput {
@@ -311,6 +314,8 @@ export function readKaigoSubmit(body: Record<string, unknown>): KaigoReadResult 
   if (!phone && !email) return { ok: false, error: "お電話番号かメールアドレスの、どちらかをご入力ください。" };
   if (email && !EMAIL_RE.test(email)) return { ok: false, error: "メールアドレスの形式をご確認ください（例：name@example.co.jp）。" };
   if (phone && !PHONE_RE.test(phone)) return { ok: false, error: "お電話番号をご確認ください（例：03-1234-5678）。" };
+  const consultation = readConsultation(c.consultation);
+  if (consultation.error) return { ok: false, error: consultation.error };
   return {
     ok: true,
     input: {
@@ -320,7 +325,7 @@ export function readKaigoSubmit(body: Record<string, unknown>): KaigoReadResult 
         troubles: pickMany(TROUBLES, a.troubles, TROUBLES.length),
         wants: pickMany(WANTS, a.wants, WANTS.length),
       },
-      contact: { company, name, phone, email, scope: pick(SCOPES, c.scope), callTime: pick(CALL_TIMES, c.callTime) },
+      contact: { company, name, phone, email, scope: pick(SCOPES, c.scope), callTime: pick(CALL_TIMES, c.callTime), ...(consultation.value ? { consultation: consultation.value } : {}) },
       ref: sanitizeRef(body.ref),
     },
   };
@@ -387,12 +392,13 @@ export function kaigoLead(input: KaigoSubmitInput, receiptNo: string, todayYmd: 
     sentDate: todayYmd,
     memo: [
       `【介護施設パンフ（QR）の事前確認】紹介コード: ${refLabel(input.ref)}`,
+      ...consultationLines(c.consultation),
       `ご担当: ${c.name}${c.callTime ? `／連絡の希望: ${labelOf(CALL_TIMES, c.callTime)}` : ""}${c.scope ? `／相談の範囲: ${labelOf(SCOPES, c.scope)}` : ""}`,
       ...answerLines(a),
       "画面に出した目安:",
       ...estimateLines(est),
     ].join("\n"),
-    nextAction: `お電話で現地調査の日程を相談する（紹介コード ${refLabel(input.ref)}）`,
+    nextAction: `候補日時3件を確認しZoomの日時・URLを折り返し案内。現地調査の日程調整（紹介コード ${refLabel(input.ref)}）`,
   };
 }
 
@@ -419,6 +425,7 @@ export function kaigoStaffMail(
       `お名前: ${c.name}`,
       `電話: ${c.phone || "（未入力）"}`,
       `メール: ${c.email || "（未入力）"}`,
+      ...consultationLines(c.consultation),
       `連絡の希望: ${c.callTime ? labelOf(CALL_TIMES, c.callTime) : "（指定なし）"}`,
       `相談の範囲: ${c.scope ? labelOf(SCOPES, c.scope) : "（指定なし）"}`,
       "",
@@ -429,7 +436,7 @@ export function kaigoStaffMail(
       ...estimateLines(est),
       "",
       "■ 次にやること",
-      "お電話で、所在地の市区町村の募集時期と、現地調査の日程を相談してください。",
+      "候補日時3件を確認し、Zoomの日時とURLを折り返し案内してください（予約未確定）。所在地の市区町村の募集時期と現地調査の日程も相談してください。",
       "空調のほか、照明・電気・給排水・ガス・消防用設備・防水・バリアフリーの工事も EHC で対応します（2026-10-01 確認）。",
       "申請書類の作成は行政書士の業務です（EHC では作らない）。業者は補助のルールに沿って施設が公平に決めます。",
     ].join("\n"),

@@ -7,7 +7,8 @@ import { CheckCircle2, ChevronLeft, Loader2, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
 import { COMPANY } from "@/lib/company";
-import { bookingUrlFrom } from "@/lib/booking";
+import { readConsultation } from "@/lib/consultation";
+import ConsultationFields from "@/components/ConsultationFields";
 import {
   AC_AGES, AC_TYPES, BUILDING_AGES, CALL_TIMES, CAPACITIES, FACILITIES, PREFS, SCOPES, TROUBLES, WANTS,
   kaigoEstimate, labelOf, sanitizeRef,
@@ -135,7 +136,8 @@ export function KaigoChat() {
   const [receiptNo, setReceiptNo] = useState<string | null>(null);
   const openedAt = useRef(Date.now());
   const moved = useRef(false);
-  const booking = bookingUrlFrom(process.env.NEXT_PUBLIC_BOOKING_URL);
+  const [preferredDates, setPreferredDates] = useState<string[]>(["", "", ""]);
+  const consultation = readConsultation({ mode: "zoom", timezone: "Asia/Tokyo", preferredDates });
 
   /* 紹介コード：URL にあればそれを覚え直す。無ければ30日以内に覚えたものを使う。 */
   useEffect(() => {
@@ -204,7 +206,7 @@ export function KaigoChat() {
     setTouched(true);
     setError(null);
     const reachOk = (phone.trim() || email.trim()) && (!phone.trim() || phoneOk) && (!email.trim() || emailOk);
-    if (!answers || !company.trim() || !name.trim() || !reachOk || !consent || busy) return;
+    if (!answers || !company.trim() || !name.trim() || !reachOk || !consent || busy || consultation.error) return;
     setBusy(true);
     try {
       const res = await fetch("/api/kaigo-lead", {
@@ -212,7 +214,7 @@ export function KaigoChat() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           answers,
-          contact: { company: company.trim(), name: name.trim(), phone: phone.trim() || null, email: email.trim() || null, scope, callTime },
+          contact: { company: company.trim(), name: name.trim(), phone: phone.trim() || null, email: email.trim() || null, scope, callTime, consultation: consultation.value },
           consent,
           ref,
           hp,
@@ -436,6 +438,7 @@ export function KaigoChat() {
                   </div>
                   <p className="-mt-2 text-[14px] text-ink-soft">お電話かメールの、どちらかは必須です。</p>
                   {errs.reach && <p className="-mt-2 text-[14px] font-bold text-red-800">{errs.reach}</p>}
+                  <ConsultationFields id={`${id}-consultation`} dates={preferredDates} onChange={setPreferredDates} error={touched ? consultation.error : null} />
                   <fieldset>
                     <legend className="text-[14px] font-bold text-ink">ご連絡の希望（任意）</legend>
                     <div className="mt-1 flex flex-wrap gap-2">
@@ -490,17 +493,7 @@ export function KaigoChat() {
                 </span>
               </Bot>
               <div className="space-y-3 pl-10">
-                {booking && (
-                  <a
-                    href={booking}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => track("booking_click", { place: "kaigo" })}
-                    className="inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl border border-brand-deep bg-white px-4 text-[16px] font-bold text-brand-deep"
-                  >
-                    打ち合わせの日時を選ぶ<span className="sr-only">（新しいタブで開きます）</span>
-                  </a>
-                )}
+                <p className="rounded-2xl bg-paper-sub p-4 text-[15px] leading-[1.8]">候補日時を3件受け付けました。担当者が折り返し、Zoomの日時・URLをご案内します。まだ予約は確定していません。</p>
                 <div className="rounded-2xl border border-ink-line bg-white p-4 text-[15px] leading-[1.8]">
                   <p className="font-bold">ご用意いただくと早いもの</p>
                   <p className="mt-1"><b>空調の場合：</b>施設の種類・定員、開設年・前回の大規模修繕の年、空調の台数・年式（室外機の銘板の写真）、電気料金の明細（12か月分）、図面（あれば）</p>

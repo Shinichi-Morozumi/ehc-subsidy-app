@@ -38,10 +38,8 @@ import { getSubsidies } from "@/lib/subsidies";
 import { todayJst } from "@/lib/programClock";
 import {
   assessTargetProduct,
-  describeTargetProductStore,
   fiscalYearOf,
   frameUndecidedAssessment,
-  listChecks,
   targetProductKeyOf,
   targetProductStaffLines,
   FRAME_UNDECIDED_LABEL,
@@ -49,7 +47,7 @@ import {
   type TargetProductSubmitSubsidy,
   type TargetProductSubmitSummary,
 } from "@/lib/targetProduct";
-import { ensureTargetProductStore } from "@/lib/targetProductStore";
+import { openTargetProductStore } from "@/lib/targetProductStore";
 import type { EquipKind } from "@/lib/diagnosisState";
 import { buildDiagnosisLead } from "@/lib/diagnosisLead";
 import { appendLeadToNotionOnce } from "@/lib/notionLead";
@@ -58,7 +56,7 @@ import { buildServerDiagnosisPdf, type ServerPdfCompany } from "@/lib/serverPdf"
 import { clientFileName } from "@/lib/diagnosisPdf";
 import { customerSafeContact } from "@/lib/customerSafe";
 import { spamMessage, spamReasonOf } from "@/lib/spamGuard";
-import { bookingMailLines, bookingUrlFrom } from "@/lib/booking";
+import { readConsultation } from "@/lib/consultation";
 import type { DiagnosisSnapshot } from "@/lib/diagnosisSnapshot";
 
 export const runtime = "nodejs";
@@ -113,7 +111,7 @@ export const maxDuration = 60;
 　　　　　　　　　　　　 （お客様宛は送らない。EHC-0043）／ それ以外・未設定＝dry run（既定）
    　　SMTP_USER / SMTP_PASS / SMTP_HOST / SMTP_PORT … send-proposal と共通
    　　DIAGNOSIS_SMTP_USER / DIAGNOSIS_SMTP_PASS … 2026-09-26。診断のメールだけ別のアカウントから送るとき（両方そろったときだけ使う）
-   　　NEXT_PUBLIC_BOOKING_URL … 2026-09-26。打ち合わせの予約ページ（lib/booking.ts）
+   　　旧NEXT_PUBLIC_BOOKING_URLは使用しない。Zoom・候補日時3件・折り返し（lib/consultation.ts）
    　　DIAGNOSIS_FROM_EMAIL … 省略時 PROPOSAL_FROM_EMAIL → SMTP_USER
    　　DIAGNOSIS_STAFF_TO_EMAIL … 省略時 PROPOSAL_TO_EMAIL → info@ehcjpn.com
    　　DIAGNOSIS_STAFF_CC_EMAIL … 省略時 PROPOSAL_CC_EMAIL → info@project-neo.co.jp
@@ -276,7 +274,7 @@ async function buildTargetProductSummary(
   /* 接続できなければ未接続のまま進む。ここで例外にしない。
      未接続だと全制度が未確認になるだけで、送信そのものは成立する
      （相談は受け付けられる）。未接続という事実は summary に残す。 */
-  const storeStatus = ensureTargetProductStore();
+  const { status: storeStatus, client } = await openTargetProductStore();
   /* 既定の年度は今日（JST）から出す。SUBSIDY_DATA_ASOF は
      「制度データをこちらが確認した日」であって申請年度ではない。
 
@@ -299,7 +297,7 @@ async function buildTargetProductSummary(
         ? frameUndecidedAssessment(key.frames, plans)
         : assessTargetProduct(
             { subsidyId: s.id, fiscalYear: key.fiscalYear, frame: key.frame, plans },
-            await listChecks(s.id, key.fiscalYear),
+            await client.list(s.id, key.fiscalYear),
             [...s.target]
           );
     subsidies.push({
@@ -320,7 +318,7 @@ async function buildTargetProductSummary(
     fiscalYear,
     checkedAt,
     store: {
-      ...describeTargetProductStore(),
+      name: storeStatus.name, connected: storeStatus.connected,
       ...(storeStatus.reason ? { reason: storeStatus.reason } : {}),
     },
     plans,
@@ -421,6 +419,10 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+
+  const consultation = readConsultation((body.contact as Record<string, unknown>)?.consultation);
+  if (consultation.error) return NextResponse.json({ ok: false, error: consultation.error }, { status: 400 });
+  if (consultation.value) contact.consultation = consultation.value;
 
   const equipGroups = normalizeGroups(body.equipGroups);
   const unpriced = normalizeUnpriced(body.unpriced);
@@ -693,9 +695,8 @@ export async function POST(req: Request) {
       }
     : null;
 
-  /* 2026-09-26 改善7: 予約ページ（lib/booking.ts）。URL を設定していれば、お客様宛と転送用の文面の末尾に足す */
-  const bookingUrl = bookingUrlFrom(process.env.NEXT_PUBLIC_BOOKING_URL);
-  const customerText = [customerMailText(customerSnapshot), ...bookingMailLines(bookingUrl)].join("\n");
+  /* EHC-0089: 候補日時は確定スナップショットから出す。外部カレンダーへ誘導しない。 */
+  const customerText = customerMailText(customerSnapshot);
   /* 確認主体・出典・確認日は社内の照合記録なので、担当者宛にだけ載せる。
      customerMailText には渡さない。 */
   const staffText = staffMailText(
@@ -741,7 +742,7 @@ export async function POST(req: Request) {
         `　3. このメールの末尾「転送用の文面」の本文を貼り、${FORWARD_STAFF_PLACEHOLDER}（2か所）をご自身の名前に書き換える`,
         "　4. 件名を「転送用の文面」の件名に差し替える",
         `　5. 宛先に ${contact.email} を入れて送信`,
-        ...(bookingUrl ? ["　※ 転送用の文面の末尾に、打ち合わせの予約ページの案内が入っています（お客様が日時を選べます）。"] : []),
+        "　※ 候補日時3件を確認し、Zoomの日時とURLを折り返しご案内ください（予約未確定）。",
         "",
         staffText,
         "",
@@ -750,7 +751,7 @@ export async function POST(req: Request) {
         subjectCustomer,
         "",
         "▼本文（ここから）",
-        [forwardMailText(snapshot, PDF_COMPANY), ...bookingMailLines(bookingUrl)].join("\n"),
+        forwardMailText(snapshot, PDF_COMPANY),
         "▲本文（ここまで）",
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━",
       ].join("\n");

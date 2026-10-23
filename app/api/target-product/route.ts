@@ -42,16 +42,14 @@ import { getSubsidies } from "@/lib/subsidies";
 import { todayJst } from "@/lib/programClock";
 import {
   assessTargetProduct,
-  describeTargetProductStore,
   fiscalYearOf,
   frameUndecidedAssessment,
-  listChecks,
   targetProductKeyOf,
   FRAME_UNDECIDED_LABEL,
   type PlannedUnit,
   type TargetProductApiResponse,
 } from "@/lib/targetProduct";
-import { ensureTargetProductStore } from "@/lib/targetProductStore";
+import { openTargetProductStore } from "@/lib/targetProductStore";
 import type { EquipKind } from "@/lib/diagnosisState";
 
 export const runtime = "nodejs";
@@ -89,7 +87,7 @@ export async function POST(req: Request) {
   /* 保存先へ接続する。接続できなければ既定の未接続のまま進む。
      ここで失敗しても照合は走る（結果が必ず未確認になるだけ）。
      未接続であることは store で表に出し、画面がそのまま言えるようにする。 */
-  const storeStatus = ensureTargetProductStore();
+  const { status: storeStatus, client } = await openTargetProductStore();
 
   const today = todayJst();
   const fiscalYear = fiscalYearOf(today);
@@ -112,7 +110,7 @@ export async function POST(req: Request) {
         : assessTargetProduct(
             { subsidyId: s.id, fiscalYear: key.fiscalYear, frame: key.frame, plans },
             /* 保存先から引き直す。クライアントが送ってきた値は一切見ていない。 */
-            await listChecks(s.id, key.fiscalYear),
+            await client.list(s.id, key.fiscalYear),
             /* この制度が対象とする設備群。s.target は "ac" | "multi" で、
                room はここに入らない。入らない群を ac へ読み替えない。 */
             [...s.target]
@@ -137,7 +135,7 @@ export async function POST(req: Request) {
     fiscalYear,
     checkedAt: today,
     store: {
-      ...describeTargetProductStore(),
+      name: storeStatus.name, connected: storeStatus.connected,
       ...(storeStatus.reason ? { reason: storeStatus.reason } : {}),
     },
     checks,

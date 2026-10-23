@@ -43,6 +43,29 @@ const { buildDiagnosisSnapshot } = loadTs("lib/diagnosisSnapshot.ts");
 const { diagnosisContentForId, diagnosisFingerprint, estimateDigest } = loadTs("lib/diagnosisId.ts");
 const { resetSubmitLedger } = loadTs("lib/submitLedger.ts");
 const { resetSubmitRateLimit } = loadTs("lib/submitRateLimit.ts");
+test("Zoom候補日時: 不完全・過去・重複は送信前に400、正常3件は指紋照合後にdry_run", async () => {
+  const request = { mode: "zoom", timezone: "Asia/Tokyo", preferredDates: ["2027-02-01T10:00", "2027-02-02T11:00", "2027-02-03T12:00"] };
+  for (const bad of [{}, { ...request, preferredDates: ["", "", ""] },
+    { ...request, preferredDates: ["2000-01-01T10:00", ...request.preferredDates.slice(1)] },
+    { ...request, preferredDates: Array(3).fill(request.preferredDates[0]) }]) {
+    const b = body(); b.contact.consultation = bad;
+    const response = await post(b); assert.equal(response.status, 400); assert.equal(transportCalls, 0);
+  }
+  const beforeMode = process.env.DIAGNOSIS_MAIL_MODE;
+  process.env.DIAGNOSIS_MAIL_MODE = "dry_run";
+  try {
+    const b = body(); b.contact.consultation = request;
+    b.contentFingerprint = diagnosisFingerprint({ kind: "diagnosis", caseKey: b.contact.email, content: diagnosisContentForId(b) });
+    const { jsPDF } = require("jspdf"); const pdf = new jsPDF(); pdf.text("Local fixture only", 10, 10); b.pdfBase64 = pdf.output("datauristring");
+    resetSubmitLedger(); resetSubmitRateLimit();
+    const response = await post(b); const result = await response.json();
+    assert.equal(response.status, 200); assert.equal(result.mode, "dry_run"); assert.equal(result.contentVerified, true); assert.equal(transportCalls, 0);
+    b.contact.consultation = { ...request, preferredDates: ["2027-02-01T10:30", ...request.preferredDates.slice(1)] };
+    const mismatch = await post(b); assert.equal(mismatch.status, 409); assert.equal(transportCalls, 0);
+  } finally {
+    if (beforeMode === undefined) delete process.env.DIAGNOSIS_MAIL_MODE; else process.env.DIAGNOSIS_MAIL_MODE = beforeMode;
+  }
+});
 function body() {
   const input = { contact: { name: "Test", email: "test@example.invalid", company: null, phone: null },
     equipGroups: [], unpriced: [], customerBudgetYen: null, desiredTiming: null };

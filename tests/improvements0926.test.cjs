@@ -117,13 +117,13 @@ test("迷惑な送信: 診断の相談の口は、理由つきの 400 を返し�
 });
 
 /* ───────── 予約ページ ───────── */
-test("予約ページ: https で始まるURLだけ使い、無ければ本文に何も足さない", () => {
-  assert.equal(bookingUrlFrom(" https://calendar.app.google/abc "), "https://calendar.app.google/abc");
+test("旧予約ページ: 環境変数にURLが残っていてもリンクを返さない", () => {
+  assert.equal(bookingUrlFrom(" https://calendar.app.google/abc "), null);
   assert.equal(bookingUrlFrom("javascript:alert(1)"), null);
   assert.equal(bookingUrlFrom("http://example.com"), null);
   assert.equal(bookingUrlFrom(undefined), null);
   assert.deepEqual(bookingMailLines(null), []);
-  assert.ok(bookingMailLines("https://x.example/b").includes("https://x.example/b"));
+  assert.deepEqual(bookingMailLines("https://x.example/b"), []);
 });
 
 /* ───────── 送信元 ───────── */

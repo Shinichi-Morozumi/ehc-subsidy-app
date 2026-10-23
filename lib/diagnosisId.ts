@@ -402,7 +402,7 @@ export function diagnosisIdRegistrySize(): number {
        　　　　金額の一致はサーバの再計算で別に確かめる（修正4）。 */
 
 export interface DiagnosisContentForId {
-  contact: { name: string; email: string; company: string | null; phone: string | null };
+  contact: { name: string; email: string; company: string | null; phone: string | null; consultation?: import("./consultation").ConsultationRequest };
   /** 計算に渡した群。id は入れない（並べ替えで指紋が変わるのを避ける） */
   equipGroups: Array<{
     equip: string;
@@ -423,7 +423,7 @@ export interface DiagnosisContentForId {
  * （画面で群を入れ替えただけで別番号になるのを避ける）。
  */
 export function diagnosisContentForId(src: {
-  contact: { name: string; email: string; company: string | null; phone: string | null };
+  contact: DiagnosisContentForId["contact"];
   equipGroups: Array<{
     equip: string;
     refri: string;
@@ -455,6 +455,7 @@ export function diagnosisContentForId(src: {
       email: src.contact.email,
       company: src.contact.company,
       phone: src.contact.phone,
+      ...(src.contact.consultation ? { consultation: src.contact.consultation } : {}),
     },
     equipGroups: groups,
     unpriced,

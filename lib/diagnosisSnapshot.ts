@@ -38,6 +38,7 @@ import { readEnergyBill } from "./diagnosisEnergy";
    lib/reductionBasisView.ts を1本の組み立て口にした意味が消える。
    import type は出力時に消えるので、実行時の依存も増えない。 */
 import type { ReductionBasisView } from "./reductionBasisView";
+import { consultationLines, type ConsultationRequest } from "./consultation";
 
 export const EQUIP_LABEL_JA: Record<EquipType, string> = {
   ac: "業務用パッケージ",
@@ -59,6 +60,7 @@ export interface DiagnosisContact {
   email: string;
   company: string | null;
   phone: string | null;
+  consultation?: ConsultationRequest;
 }
 
 /** 金額を出さなかった項目。件名だけ残して理由を添える。0円にしない。 */
@@ -351,6 +353,8 @@ function customerCoreLines(s: DiagnosisSnapshot): string[] {
     `受付番号: ${s.receiptNo}`,
     `受付日時: ${s.issuedAtJst}`,
     "",
+    ...consultationLines(s.contact.consultation),
+    "",
     "■ ご入力の設備",
     ...equipLines(s),
     "",
@@ -445,6 +449,7 @@ export function staffMailText(s: DiagnosisSnapshot, targetProductLines?: string[
     `　メール: ${s.contact.email}`,
     `　会社名: ${s.contact.company || "（未入力）"}`,
     `　電話: ${s.contact.phone || "（未入力）"}`,
+    ...consultationLines(s.contact.consultation),
     "",
     "■ 入力された設備",
     ...equipLines(s),

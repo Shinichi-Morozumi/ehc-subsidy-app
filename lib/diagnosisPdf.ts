@@ -25,6 +25,7 @@
    ─────────────────────────────────────────────────────────── */
 
 import { documentFileName } from "@/lib/docNumber";
+import { planPdfSlices, type PdfKeepRange } from "./pdfPagination";
 
 /* 2026-09-25: お客様ごとの個別のPDFなので、ファイル名にお客様名を入れる（担当者が転送するときに取り違えない）。
    ファイル名に使えない文字は「_」に置き換え、長すぎる名前は切り詰める。 */
@@ -75,6 +76,8 @@ export async function buildDiagnosisPdf(
        一番気づかれにくい失敗になる。 */
     throw new Error("PDFにする内容が画面に描画されていません。");
   }
+  // フォント確定前の行高で改ページ位置を決めない。
+  if (document.fonts) await document.fonts.ready;
 
   const [{ default: html2canvas }, jsPDFmod] = await Promise.all([
     import("html2canvas"),
@@ -90,29 +93,52 @@ export async function buildDiagnosisPdf(
     backgroundColor: "#ffffff",
     windowWidth: el.scrollWidth,
   });
-  const imgData = canvas.toDataURL("image/jpeg", 0.92);
-
   const pdf = new JsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
-  const imgW = pageW;
-  const imgH = (canvas.height * imgW) / canvas.width;
-
-  let heightLeft = imgH;
-  let position = 0;
-  let pages = 1;
-  pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH);
-  heightLeft -= pageH;
-  while (heightLeft > 0) {
-    position -= pageH;
-    pdf.addPage();
-    pdf.addImage(imgData, "JPEG", 0, position, imgW, imgH);
-    heightLeft -= pageH;
-    pages += 1;
-    /* 保険。レイアウトが壊れて imgH が異常値になったとき、
-       ここが無いと addPage が止まらずブラウザごと固まる。 */
-    if (pages > 60) break;
+  const margin = 10;
+  const imgW = pageW - margin * 2;
+  const mmPerPixel = imgW / canvas.width;
+  const origin = el.getBoundingClientRect();
+  const scale = canvas.height / el.scrollHeight;
+  const ranges: PdfKeepRange[] = [];
+  const addRect = (r: DOMRect) => {
+    if (r.height > 0) ranges.push({ top: (r.top - origin.top) * scale, bottom: (r.bottom - origin.top) * scale });
+  };
+  // 表の行・段落・箇条書きを優先して一緒に送る。大きな段落は文字の行単位で保護。
+  el.querySelectorAll("tr, p, li, h1, h2, h3, [data-pdf-keep]").forEach(node => {
+    const r = node.getBoundingClientRect();
+    if (r.height * scale < (pageH - 2 * margin - 5) / mmPerPixel) addRect(r);
+  });
+  el.querySelectorAll("[data-pdf-heading]").forEach(node => {
+    const heading = node.getBoundingClientRect();
+    const next = node.nextElementSibling?.getBoundingClientRect();
+    ranges.push({ top: (heading.top - origin.top) * scale, bottom: ((next ? Math.min(next.bottom, next.top + 28) : heading.bottom) - origin.top) * scale });
+  });
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    if (!walker.currentNode.textContent?.trim()) continue;
+    const range = document.createRange();
+    range.selectNodeContents(walker.currentNode);
+    Array.from(range.getClientRects()).forEach(addRect);
+    range.detach();
   }
+  const slices = planPdfSlices(canvas.height, (pageH - 2 * margin - 5) / mmPerPixel, ranges);
+  for (const [i, slice] of slices.entries()) {
+    if (i) pdf.addPage();
+    const page = document.createElement("canvas");
+    page.width = canvas.width;
+    page.height = slice.height;
+    const ctx = page.getContext("2d");
+    if (!ctx) throw new Error("PDFのページを描画できませんでした。");
+    ctx.drawImage(canvas, 0, slice.top, canvas.width, slice.height, 0, 0, canvas.width, slice.height);
+    pdf.addImage(page.toDataURL("image/jpeg", 0.92), "JPEG", margin, margin, imgW, slice.height * mmPerPixel);
+    pdf.setFontSize(8);
+    pdf.setTextColor(90);
+    pdf.text(`${receiptNo} | ${i + 1} / ${slices.length}`, pageW - margin, pageH - 7, { align: "right" });
+    page.width = page.height = 0;
+  }
+  const pages = slices.length;
 
   const base64 = pdf.output("datauristring");
   return {

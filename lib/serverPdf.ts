@@ -30,6 +30,7 @@ import { jsPDF } from "jspdf";
 import type { DiagnosisSnapshot } from "./diagnosisSnapshot";
 import { EQUIP_LABEL_JA, TIMING_LABEL_JA, pricedGroupsOf } from "./diagnosisSnapshot";
 import { yenJP } from "./pricing";
+import { consultationLines } from "./consultation";
 
 export type ServerPdfCompany = {
   name: string;
@@ -276,6 +277,7 @@ export function buildServerDiagnosisPdf(s: DiagnosisSnapshot, opts: ServerPdfOpt
   doc.line(M_L, w.y, PAGE_W - M_R, w.y);
   w.space(3);
   if (opts.note) w.para(opts.note, { size: 9.5, color: SOFT, gapAfter: 1 });
+  consultationLines(s.contact.consultation).forEach(text => w.para(text, { size: 9.5, gapAfter: 0.7 }));
 
   /* ───────── 1. ご入力の設備 ───────── */
   sec("ご入力の設備");

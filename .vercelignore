@@ -5,3 +5,6 @@ node_modules
 tests
 **/*.test.cjs
 *.tsbuildinfo
+.data
+引き継ぎ_fable5_2026-07-03.md
+納品物_はClaude成果物へ移動.txt

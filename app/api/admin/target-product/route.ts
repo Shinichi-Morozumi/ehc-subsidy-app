@@ -35,15 +35,13 @@
 import { NextResponse } from "next/server";
 import { getSubsidies } from "@/lib/subsidies";
 import {
-  addCheck,
   fiscalYearOf,
   framesOf,
-  listChecks,
   targetProductKeyOf,
   validateCheck,
   type TargetProductCheck,
 } from "@/lib/targetProduct";
-import { ensureTargetProductStore } from "@/lib/targetProductStore";
+import { openTargetProductStore } from "@/lib/targetProductStore";
 import { todayJst } from "@/lib/programClock";
 
 export const runtime = "nodejs";
@@ -71,7 +69,7 @@ export async function GET(req: Request) {
   const auth = authorize(req);
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
-  const store = ensureTargetProductStore();
+  const { status: store, client } = await openTargetProductStore();
   const url = new URL(req.url);
   const subsidyId = url.searchParams.get("subsidyId")?.trim() ?? "";
   const yearRaw = url.searchParams.get("fiscalYear")?.trim();
@@ -83,7 +81,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "fiscalYear が整数ではありません。" }, { status: 400 });
   }
 
-  const checks = await listChecks(subsidyId, fiscalYear);
+  const checks = await client.list(subsidyId, fiscalYear);
   return NextResponse.json({ store, subsidyId, fiscalYear, checks });
 }
 
@@ -92,7 +90,7 @@ export async function POST(req: Request) {
   const auth = authorize(req);
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
-  const store = ensureTargetProductStore();
+  const { status: store, client } = await openTargetProductStore();
   if (!store.connected) {
     /* 書けない場所へ「受け付けました」と返すと、担当者は入れたつもりになる。
        入っていないことは、その場で言う。 */
@@ -170,7 +168,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    await addCheck(check);
+    await client.add(check);
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "保存できませんでした。" },
@@ -178,6 +176,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const checks = await listChecks(check.subsidyId, check.fiscalYear);
+  const checks = await client.list(check.subsidyId, check.fiscalYear);
   return NextResponse.json({ saved: check, store, count: checks.length });
 }

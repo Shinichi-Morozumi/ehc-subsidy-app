@@ -45,7 +45,8 @@ import {
 } from "@/lib/diagnosisProjection";
 import { COMPANY } from "@/lib/company";
 import { track } from "@/lib/track";
-import { bookingUrlFrom } from "@/lib/booking";
+import { consultationLines, readConsultation } from "@/lib/consultation";
+import ConsultationFields from "@/components/ConsultationFields";
 
 /* ───────────────────────────────────────────────────────────
    E段「診断書を受け取って相談」（EHC-0039 第7片 / 2026-09-14 v1）
@@ -139,7 +140,6 @@ interface SubmitResult {
    「このアドレスへお送りします」と約束する画面にしないため。 */
 const CUSTOMER_MAIL_ON = process.env.NEXT_PUBLIC_DIAGNOSIS_CUSTOMER_MAIL === "on";
 /** 2026-09-26 改善7: 打ち合わせの予約ページ（未設定なら null で、何も出さない） */
-const BOOKING_URL = bookingUrlFrom(process.env.NEXT_PUBLIC_BOOKING_URL);
 
 export interface ContactStageProps {
   input: MatchInput | null;
@@ -190,6 +190,8 @@ export function ContactStage({
   const [phone, setPhone] = useState("");
   const [touched, setTouched] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
+  const [preferredDates, setPreferredDates] = useState<string[]>(["", "", ""]);
+  const consultation = readConsultation({ mode: "zoom", timezone: "Asia/Tokyo", preferredDates });
   /* 2026-09-26 改善13: 迷惑な送信の見分け（lib/spamGuard.ts）。
      hp … 人には見えない欄（画面の外に置く）。openedAt … この段を最初に開いた時刻。
      送信の処理（下の effect）から読むので ref に持つ。 */
@@ -226,6 +228,7 @@ export function ContactStage({
     privacyAgreed &&
     name.trim().length > 0 &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
+    !consultation.error &&
     phase === "input";
 
   const unpriced: SnapshotUnpricedItem[] = projection.unresolvedGroups.map((u) => ({
@@ -267,6 +270,7 @@ export function ContactStage({
     email: email.trim(),
     company: company.trim() || null,
     phone: phone.trim() || null,
+    ...(consultation.value ? { consultation: consultation.value } : {}),
   };
   /* すでに同じ内容で発行済みなら、その番号を先に見せる。
      「戻る」で離れて同じ内容に戻ってきた人に、同じ番号が出る。
@@ -286,6 +290,8 @@ export function ContactStage({
           ? "contact-name"
           : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
             ? "contact-email"
+            : consultation.error
+              ? `contact-consultation-${Math.max(0, preferredDates.findIndex(d => !d))}`
             : !privacyAgreed
               ? "contact-privacy"
               : null;
@@ -304,6 +310,7 @@ export function ContactStage({
       email: email.trim(),
       company: company.trim() || null,
       phone: phone.trim() || null,
+      ...(consultation.value ? { consultation: consultation.value } : {}),
     };
     /* 内容を確定した時点で1回だけ引き当てる。
        同じ内容で2回目に押したときは、同じ record が返る（新発行はされない）。 */
@@ -339,6 +346,9 @@ export function ContactStage({
     email,
     company,
     phone,
+    preferredDates,
+    consultation.value,
+    consultation.error,
     buildIdInput,
     input,
     matchResult,
@@ -619,6 +629,8 @@ export function ContactStage({
           </div>
 
           <WhatYouGet input={input} projection={projection} receiptRecord={issuedRecord} />
+
+          <ConsultationFields id="contact-consultation" dates={preferredDates} onChange={setPreferredDates} error={touched ? consultation.error : null} />
 
           <div className="ehc-contact-privacy rounded-2xl border border-ink-line bg-paper-sub p-4">
             <h3 className="text-[16px] font-bold leading-[1.7] text-ink">送信前にご確認ください</h3>
@@ -1007,7 +1019,7 @@ function SubmitReport({
         </div>
       )}
 
-      {result.ok && <NextStepsAfterSubmit receiptNo={result.receiptNo} phoneGiven={!!snapshot?.contact.phone} />}
+      {result.ok && <NextStepsAfterSubmit receiptNo={result.receiptNo} phoneGiven={!!snapshot?.contact.phone} consultation={snapshot?.contact.consultation} />}
 
       <dl className="divide-y divide-ink-line rounded-2xl border border-ink-line bg-paper-card">
         {rows.map((r) => (
@@ -1146,7 +1158,7 @@ function SubmitReport({
    「いつ・誰から連絡が来るか」「待つ間に何を用意すればよいか」が無く、
    待っていてよいのか分からなかった。流れは D段の「相談から工事までの4ステップ」と同じ言葉で書く。
    連絡の目安（5営業日以内）と受付時間は 2026-09-25 に運用として決まった値（lib/company.ts）。 */
-function NextStepsAfterSubmit({ receiptNo, phoneGiven }: { receiptNo: string; phoneGiven: boolean }) {
+function NextStepsAfterSubmit({ receiptNo, phoneGiven, consultation }: { receiptNo: string; phoneGiven: boolean; consultation?: DiagnosisContact["consultation"] }) {
   return (
     <section aria-labelledby="after-submit-heading" className="ehc-after-submit rounded-2xl border border-ink-line bg-paper-card p-4 sm:p-5">
       <h3 id="after-submit-heading" className="text-[18px] font-bold leading-[1.6] text-ink">このあとの流れ</h3>
@@ -1166,23 +1178,9 @@ function NextStepsAfterSubmit({ receiptNo, phoneGiven }: { receiptNo: string; ph
         <span className="font-bold">用意しておくと話が早いもの：</span>
         室外機の銘板の写真、電気料金の明細（直近1年分があれば）
       </p>
-      {/* 2026-09-26 改善7: 打ち合わせの予約ページ（NEXT_PUBLIC_BOOKING_URL を入れたときだけ出す。lib/booking.ts） */}
-      {BOOKING_URL && (
-        <div className="mt-4 rounded-xl border border-brand/35 bg-[#f3f8ea] px-4 py-3">
-          <a
-            href={BOOKING_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => track("booking_click", { place: "after_submit" })}
-            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-brand-deep px-4 text-[16px] font-bold leading-[1.7] text-white hover:bg-brand focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep"
-          >
-            打ち合わせの日時を選ぶ ↗<span className="sr-only">（新しいタブで開きます）</span>
-          </a>
-          <p className="mt-2 text-[14px] leading-[1.8] text-ink">
-            担当者との打ち合わせ（お電話・オンライン）の日時を、空いている時間から選べます。選ばなくても、担当者からご連絡します。
-          </p>
-        </div>
-      )}
+      <div className="mt-4 rounded-xl border border-brand/35 bg-paper-sub px-4 py-3 text-[15px] leading-[1.8] text-ink">
+        {consultationLines(consultation).map(line => <p key={line}>{line}</p>)}
+      </div>
       <p className="mt-3 text-[14px] leading-[1.8] text-ink-soft">
         お急ぎの場合は、お電話（<a className="font-bold text-brand-deep underline underline-offset-4" href={COMPANY.telHref}>{COMPANY.tel}</a>・{COMPANY.hours}）で受付番号 {receiptNo} をお伝えください。
       </p>
@@ -1225,6 +1223,9 @@ function DiagnosisSheet({ snapshot: s }: { snapshot: DiagnosisSnapshot }) {
         </div>
       </div>
 
+      <div data-pdf-keep style={{ marginBottom: 12, padding: 10, background: "#f3f8ea", fontSize: 12 }}>
+        {consultationLines(s.contact.consultation).map(line => <div key={line}>{line}</div>)}
+      </div>
       <SheetHeading>{nextNo()}. ご入力の設備</SheetHeading>
       {/* 2026-09-14 EHC-0039: 1章の表だけ列幅を固定する
           ───────────────────────────────────────────
@@ -1542,6 +1543,7 @@ function ReductionBasisSheetSection({
 function SheetHeading({ children }: { children: ReactNode }) {
   return (
     <div
+      data-pdf-heading
       style={{
         fontSize: 14,
         fontWeight: 700,

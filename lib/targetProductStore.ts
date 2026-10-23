@@ -38,9 +38,11 @@ import path from "node:path";
 import {
   describeTargetProductStore,
   setTargetProductStore,
+  resetTargetProductStore,
   type TargetProductCheck,
   type TargetProductStore,
 } from "./targetProduct";
+import { createNotionTargetProductStore } from "./targetProductNotionStore";
 
 /** 接続を試みた結果。画面と検証ログに、そのまま出せる言葉で残す。 */
 export interface TargetProductStoreStatus {
@@ -53,6 +55,30 @@ export interface TargetProductStoreStatus {
 }
 
 let status: TargetProductStoreStatus | null = null;
+
+export interface TargetProductConnection { status: TargetProductStoreStatus; client: TargetProductStore }
+function unavailable(reason: string): TargetProductConnection {
+  return {
+    status: { connected: false, name: "not_connected", file: "", reason },
+    client: { connected: false, name: "not_connected", async list() { return []; }, async add() { throw new Error(reason); } },
+  };
+}
+
+/** 各要求で得た接続を保持する。別要求の成功・失敗により根拠が入れ替わらない。 */
+export async function openTargetProductStore(): Promise<TargetProductConnection> {
+  const sourceId = process.env.EHC_TARGET_PRODUCT_NOTION_DATA_SOURCE_ID?.trim();
+  if (sourceId || process.env.VERCEL) {
+    try {
+      if (!sourceId) return unavailable("本番の確認根拠Notionが未設定です。EHC_TARGET_PRODUCT_NOTION_DATA_SOURCE_IDを設定してください。一時ファイルには保存しません。");
+      const client = await createNotionTargetProductStore(sourceId, process.env.EHC_TARGET_PRODUCT_NOTION_TOKEN?.trim() || "");
+      return { client, status: { connected: true, name: client.name, file: "", reason: null } };
+    } catch (e) {
+      return unavailable(e instanceof Error ? e.message : "確認根拠Notionに接続できませんでした。");
+    }
+  }
+  const local = await ensureTargetProductStore();
+  return local.connected ? { status: local, client: createFileStore(local.file) } : unavailable(local.reason || "確認根拠に接続できません。");
+}
 
 function resolveFile(): string {
   const dir = process.env.EHC_TARGET_PRODUCT_DIR?.trim() || path.join(process.cwd(), ".data");
@@ -101,7 +127,15 @@ function createFileStore(file: string): TargetProductStore {
 /* 何度呼ばれても1回しか接続しない。API の入口ごとに呼んで構わない。
    モジュール読み込み時の副作用にしないのは、接続したかどうかを
    呼び出し側が受け取れるようにするため。 */
-export function ensureTargetProductStore(): TargetProductStoreStatus {
+export async function ensureTargetProductStore(): Promise<TargetProductStoreStatus> {
+  const sourceId = process.env.EHC_TARGET_PRODUCT_NOTION_DATA_SOURCE_ID?.trim();
+  if (sourceId || process.env.VERCEL) {
+    // 旧呼び出し口の互換用。現行APIは要求ごとのopenTargetProductStoreを使用。
+    const connection = await openTargetProductStore();
+    setTargetProductStore(connection.client);
+    status = connection.status;
+    return status;
+  }
   if (status) return status;
 
   const file = resolveFile();
@@ -115,6 +149,7 @@ export function ensureTargetProductStore(): TargetProductStoreStatus {
     fs.writeFileSync(probe, "1", "utf8");
     fs.unlinkSync(probe);
   } catch (e) {
+    resetTargetProductStore();
     status = {
       connected: false,
       name: describeTargetProductStore().name,
