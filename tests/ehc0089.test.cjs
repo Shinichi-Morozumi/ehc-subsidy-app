@@ -137,3 +137,47 @@ test("Vercel: 未設定・障害時にローカル/tmpへ逃げず未接続。�
     forgetTargetProductStoreStatus(); target.resetTargetProductStore();
   }
 });
+
+test("Notion: 専用DBの単一データソースだけをAPIで特定する", async () => {
+  const old = global.fetch; const databaseId = "22222222-2222-2222-2222-222222222222";
+  try {
+    for (const sources of [[], [{ id: sourceId }, { id: sourceId }], [{ id: "not-an-id" }]]) {
+      global.fetch = async () => Response.json({ object: "database", data_sources: sources });
+      await assert.rejects(createNotionTargetProductStore("", "mock", databaseId), /1つに特定/);
+    }
+    const called = [];
+    global.fetch = async url => {
+      called.push(String(url));
+      return Response.json(String(url).includes("/databases/") ? { object: "database", data_sources: [{ id: sourceId }] } : String(url).endsWith("/query") ? { results: [], has_more: false } : schema);
+    };
+    assert.equal((await createNotionTargetProductStore("", "mock", databaseId)).connected, true);
+    assert.ok(called[0].endsWith(`/databases/${databaseId}`));
+    assert.ok(called[1].endsWith(`/data_sources/${sourceId}`));
+    await assert.rejects(createNotionTargetProductStore(sourceId, "mock", databaseId));
+  } finally { global.fetch = old; }
+});
+
+test("Notion: 既存資格情報は明示opt-inのときだけ使う。未指定でCRMへ逃げない", async () => {
+  const old = global.fetch;
+  const keys = ["VERCEL", "NOTION_TOKEN", "EHC_TARGET_PRODUCT_NOTION_TOKEN", "EHC_TARGET_PRODUCT_NOTION_DATA_SOURCE_ID", "EHC_TARGET_PRODUCT_NOTION_DATABASE_ID", "EHC_TARGET_PRODUCT_USE_EXISTING_NOTION_TOKEN"];
+  const env = Object.fromEntries(keys.map(k => [k, process.env[k]]));
+  try {
+    process.env.VERCEL = "1"; process.env.NOTION_TOKEN = "existing-mock-only";
+    process.env.EHC_TARGET_PRODUCT_NOTION_DATABASE_ID = "22222222-2222-2222-2222-222222222222";
+    delete process.env.EHC_TARGET_PRODUCT_NOTION_TOKEN; delete process.env.EHC_TARGET_PRODUCT_NOTION_DATA_SOURCE_ID; delete process.env.EHC_TARGET_PRODUCT_USE_EXISTING_NOTION_TOKEN;
+    let calls = 0;
+    global.fetch = async (url, options) => {
+      calls++; assert.equal(options.headers.Authorization, "Bearer existing-mock-only");
+      return Response.json(String(url).includes("/databases/") ? { object: "database", data_sources: [{ id: sourceId }] } : String(url).endsWith("/query") ? { results: [], has_more: false } : schema);
+    };
+    assert.equal((await openTargetProductStore()).status.connected, false); assert.equal(calls, 0);
+    process.env.EHC_TARGET_PRODUCT_USE_EXISTING_NOTION_TOKEN = "1";
+    assert.equal((await openTargetProductStore()).status.connected, true); assert.equal(calls, 3);
+    delete process.env.EHC_TARGET_PRODUCT_NOTION_DATABASE_ID;
+    assert.equal((await openTargetProductStore()).status.connected, false); assert.equal(calls, 3);
+  } finally {
+    global.fetch = old;
+    for (const key of keys) { if (env[key] === undefined) delete process.env[key]; else process.env[key] = env[key]; }
+    forgetTargetProductStoreStatus(); target.resetTargetProductStore();
+  }
+});

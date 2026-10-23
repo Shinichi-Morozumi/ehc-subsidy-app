@@ -13,8 +13,10 @@ function readEvidence(row: Row): TargetProductCheck {
   return check;
 }
 
-export async function createNotionTargetProductStore(dataSourceId: string, token: string): Promise<TargetProductStore> {
-  if (!uuid.test(dataSourceId) || !token) throw new Error("確認根拠専用のNotionデータソースID・トークンが必要です。");
+export async function createNotionTargetProductStore(dataSourceId: string, token: string, databaseId?: string): Promise<TargetProductStore> {
+  if (!token || (databaseId ? !uuid.test(databaseId) || !!dataSourceId : !uuid.test(dataSourceId))) {
+    throw new Error("確認根拠専用のNotion保存先を1つと、トークンを設定してください。");
+  }
   async function call(endpoint: string, body?: unknown) {
     const response = await fetch(`https://api.notion.com/v1/${endpoint}`, {
       method: body === undefined ? "GET" : "POST",
@@ -25,6 +27,15 @@ export async function createNotionTargetProductStore(dataSourceId: string, token
     // API本文（個人情報・内部情報を含む可能性）は画面へ返さない。
     if (!response.ok) throw new Error(`確認根拠Notionへの接続に失敗しました（HTTP ${response.status}）。権限・設定を確認してください。`);
     return response.json();
+  }
+  // 2026-10-23: UIで作成した専用DBの実データソースをAPIで照合する。
+  // 顧客DBの既定値も、複数ソースの先頭を選ぶ推測も使わない。
+  if (databaseId) {
+    const database = await call(`databases/${databaseId}`);
+    if (database.object !== "database" || !Array.isArray(database.data_sources) || database.data_sources.length !== 1 || !uuid.test(database.data_sources[0]?.id ?? "")) {
+      throw new Error("専用Notionのデータソースを1つに特定できません。設定を確認してください。");
+    }
+    dataSourceId = database.data_sources[0].id;
   }
   const source = await call(`data_sources/${dataSourceId}`);
   if (source.object !== "data_source" || source.properties?.Name?.type !== "title" || source.properties?.Evidence?.type !== "rich_text") {

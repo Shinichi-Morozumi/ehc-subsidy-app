@@ -67,10 +67,15 @@ function unavailable(reason: string): TargetProductConnection {
 /** 各要求で得た接続を保持する。別要求の成功・失敗により根拠が入れ替わらない。 */
 export async function openTargetProductStore(): Promise<TargetProductConnection> {
   const sourceId = process.env.EHC_TARGET_PRODUCT_NOTION_DATA_SOURCE_ID?.trim();
-  if (sourceId || process.env.VERCEL) {
+  const databaseId = process.env.EHC_TARGET_PRODUCT_NOTION_DATABASE_ID?.trim();
+  if (sourceId || databaseId || process.env.VERCEL) {
     try {
-      if (!sourceId) return unavailable("本番の確認根拠Notionが未設定です。EHC_TARGET_PRODUCT_NOTION_DATA_SOURCE_IDを設定してください。一時ファイルには保存しません。");
-      const client = await createNotionTargetProductStore(sourceId, process.env.EHC_TARGET_PRODUCT_NOTION_TOKEN?.trim() || "");
+      if (!sourceId && !databaseId) return unavailable("本番の確認根拠Notionが未設定です。専用のDATA_SOURCE_IDまたはDATABASE_IDを設定してください。一時ファイルには保存しません。");
+      // 既存EHC接続の権限内で利用する場合だけ明示的に選択する。
+      // 秘密値の復号・外部への受け渡し・顧客DBへのフォールバックはしない。
+      const token = process.env.EHC_TARGET_PRODUCT_NOTION_TOKEN?.trim() ||
+        (process.env.EHC_TARGET_PRODUCT_USE_EXISTING_NOTION_TOKEN === "1" ? process.env.NOTION_TOKEN?.trim() : "") || "";
+      const client = await createNotionTargetProductStore(sourceId || "", token, databaseId);
       return { client, status: { connected: true, name: client.name, file: "", reason: null } };
     } catch (e) {
       return unavailable(e instanceof Error ? e.message : "確認根拠Notionに接続できませんでした。");
@@ -129,7 +134,7 @@ function createFileStore(file: string): TargetProductStore {
    呼び出し側が受け取れるようにするため。 */
 export async function ensureTargetProductStore(): Promise<TargetProductStoreStatus> {
   const sourceId = process.env.EHC_TARGET_PRODUCT_NOTION_DATA_SOURCE_ID?.trim();
-  if (sourceId || process.env.VERCEL) {
+  if (sourceId || process.env.EHC_TARGET_PRODUCT_NOTION_DATABASE_ID?.trim() || process.env.VERCEL) {
     // 旧呼び出し口の互換用。現行APIは要求ごとのopenTargetProductStoreを使用。
     const connection = await openTargetProductStore();
     setTargetProductStore(connection.client);
