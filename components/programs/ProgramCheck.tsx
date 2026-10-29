@@ -207,6 +207,7 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
               {soon.length > 0 && (
                 <div className="rounded-2xl border-2 border-red-700/30 bg-red-50 p-4 text-[15px] leading-[1.7]">
                   <p className="font-bold text-red-800">ほかの制度にも、受付が近いものがあります</p>
+                  <p className="text-[13px] text-ink-soft">準備に1か月ほどかかるため、締切まで1か月を切った回は次の回を目指すことがあります（カードの「いつ」）。</p>
                   <ul className="mt-1 space-y-1">
                     {soon.map((i) => (
                       <li key={i.program.id}>

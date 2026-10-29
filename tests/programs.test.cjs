@@ -286,3 +286,16 @@ test("入口カードの一言：どの制度にも 何に使える・いくら�
     assert.ok(p.useShort && p.amountShort && p.noneText, id);
   }
 });
+
+test("EHC の回答：準備に1か月ほどかかる。締切まで1か月を切った回には、間に合う次の回を添えて注意を出す", () => {
+  assert.equal(P.PREP_DAYS, 30);
+  const z = P.prepWarning(P.PROGRAMS.tokyoZeroemi, "2026-10-29");
+  assert.equal(z.window.short, "第5回");
+  assert.equal(z.later.short, "第6回（最終回）");
+  const c = P.prepWarning(P.PROGRAMS.tokyoChiiki, "2026-10-29");
+  assert.equal(c.daysToEnd, 29);
+  assert.equal(c.later, null);
+  assert.equal(P.prepWarning(P.PROGRAMS.tokyoKaishu, "2026-10-29"), null, "締切まで71日なら出さない");
+  assert.equal(P.prepWarning(P.PROGRAMS.kokuKaigo, "2026-10-29"), null, "日付の無い制度には出さない");
+  assert.equal(P.prepWarning(P.PROGRAMS.tokyoZeroemi, "2026-12-01"), null, "第6回（1/29）まで59日なら出さない");
+});

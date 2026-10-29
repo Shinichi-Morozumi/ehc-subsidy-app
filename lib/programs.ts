@@ -493,6 +493,19 @@ export function countdownLabel(item: CountItem): string {
   return `${countdownKind(item)}あと${item.daysToEnd}日`;
 }
 
+/* 2026-10-29 EHC の回答（本人）：「対応期間が短すぎる。締切まで1か月くらいないと無理」。
+   申し込みの準備（現地調査・見積・図面・省エネの計算）に1か月ほどかかるので、締切まで1か月を切った回にはそう書く。 */
+/** 申し込みの準備にかかる日数の目安 */
+export const PREP_DAYS = 30;
+
+/** 締切まで1か月を切っていて、準備が間に合わないことがある回か。間に合う次の回があれば一緒に返す */
+export function prepWarning(p: Program, today: string = todayJst()): { window: ProgramWindow; daysToEnd: number; later: ProgramWindow | null } | null {
+  const next = nextWindow(p, today);
+  if (!next.window || next.daysToEnd === null || next.daysToEnd >= PREP_DAYS) return null;
+  const later = upcomingWindows(p, today).find((w) => w.end !== next.window!.end && daysBetween(today, w.end) >= PREP_DAYS) ?? null;
+  return { window: next.window, daysToEnd: next.daysToEnd, later };
+}
+
 /** 確認日から日数が経って、公式で確かめ直す必要があるか */
 export function needsRecheck(p: Program, today: string = todayJst()): boolean {
   return daysBetween(p.verifiedAt, today) > RECHECK_AFTER_DAYS;

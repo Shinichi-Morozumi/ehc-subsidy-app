@@ -17,7 +17,7 @@ import { AlertTriangle, CalendarDays, Check, ChevronDown, ExternalLink, Info } f
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
 import {
-  COLORS, countdownLabel, estimateFor, estimateSummary, fmtMan, jaDate, manRange, needsRecheck, nextWindow, upcomingWindows, windowRangeText,
+  COLORS, countdownLabel, estimateFor, estimateSummary, fmtMan, jaDate, manRange, needsRecheck, nextWindow, prepWarning, upcomingWindows, windowRangeText,
   type Estimate, type Program, type ProgramId,
 } from "@/lib/programs";
 import type { MatchStatus } from "@/lib/programMatch";
@@ -148,6 +148,7 @@ export function ProgramCard({
   const example = !estimate;
   const est = estimate ?? estimateFor(p, p.costBasis === "equipment" ? EXAMPLE_COST : { costMan: EXAMPLE_COST.costMan });
   const w = next.window;
+  const prep = prepWarning(p, today);
 
   return (
     <article id={`program-${p.id}`} className="scroll-mt-32 overflow-hidden rounded-3xl border-2 bg-white shadow-card" style={{ borderColor: c.head }} aria-labelledby={`card-${p.id}`}>
@@ -239,8 +240,14 @@ export function ProgramCard({
               </span>
               {w.time && <p className="mt-1 text-[14px] text-ink-soft">{w.time}</p>}
               {w.note && <p className="mt-1 text-[14px] leading-[1.7] text-ink">{w.note}</p>}
-              {upcomingWindows(p, today).slice(1).map((o) => (
-                <p key={o.end} className="mt-2 rounded-xl bg-paper-sub px-3 py-2 text-[14px] leading-[1.6]">次の回：<b>{o.short}</b>　{windowRangeText(o, today)}<span className="block text-[13px] text-ink-soft">見積や書類の準備が間に合わないときは、次の回を目指せます。</span></p>
+              {prep && (
+                <p className="mt-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[14px] leading-[1.7] text-amber-950">
+                  申し込みの準備（現地調査・見積・図面・省エネの計算）には1か月ほどかかります。締切まで1か月を切ったこの回は、間に合わないことがあります。
+                  {prep.later ? <b className="block">次の回（{prep.later.short}　{windowRangeText(prep.later, today)}）を目指すことをおすすめします。</b> : <span className="block">お急ぎの場合は、お電話でご相談ください。</span>}
+                </p>
+              )}
+              {upcomingWindows(p, today).slice(1).filter((o) => o.end !== prep?.later?.end).map((o) => (
+                <p key={o.end} className="mt-2 rounded-xl bg-paper-sub px-3 py-2 text-[14px] leading-[1.6]">次の回：<b>{o.short}</b>　{windowRangeText(o, today)}</p>
               ))}
             </div>
           ) : (
@@ -274,10 +281,10 @@ export function ProgramCard({
             現地調査・見積・図面・省エネの計算の資料づくりから工事まで、ご相談先は EHC ひとつです。空調だけでなく、建物と設備の工事をまとめて計画できます。
           </p>
           {p.selection === "bid" && (
-            <p className="mt-1 text-[14px] leading-[1.75] text-ink">この制度では、施設が入札などで公平に業者を選びます。EHC はその中の1社として、見積り・図面をご用意して加わります。</p>
+            <p className="mt-1 text-[14px] leading-[1.75] text-ink">この制度では、施設が入札などで公平に業者を選びます。EHC はその中の1社として、見積り・図面をご用意して加わります。選ばれなかった場合も、資料づくりには工事の規模によって費用がかかることがあります。</p>
           )}
           {p.selection === "quotes" && (
-            <p className="mt-1 text-[14px] leading-[1.75] text-ink">この制度では3社以上の見積りが要ります。EHC の見積りは、そのうちの1社分です。</p>
+            <p className="mt-1 text-[14px] leading-[1.75] text-ink">この制度では3社以上の見積りが要ります。EHC の見積りは、そのうちの1社分です。選ばれなかった場合も、資料づくりには工事の規模によって費用がかかることがあります。</p>
           )}
           <a href="/team" className="mt-2 inline-flex min-h-[44px] items-center text-[14px] font-bold underline underline-offset-4" style={{ color: c.num }}>
             なぜ全部受けられるの？ メンバーと実績を見る →

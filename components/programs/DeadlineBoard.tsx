@@ -11,7 +11,7 @@
    ・今日は開いた端末の日本時間（lib/useToday.ts）。日付が決まるまでは数字を出さない。
    ─────────────────────────────────────────────────────────── */
 
-import { COLORS, PROGRAMS, PROGRAM_ORDER, VERIFIED_AT, countdownKind, countdownLabel, jaDate, upcomingWindowItems, windowRangeText, type ProgramId, type WindowItem } from "@/lib/programs";
+import { COLORS, PREP_DAYS, PROGRAMS, PROGRAM_ORDER, VERIFIED_AT, countdownKind, countdownLabel, jaDate, upcomingWindowItems, windowRangeText, type ProgramId, type WindowItem } from "@/lib/programs";
 import { daysBetween } from "@/lib/programClock";
 import { cn } from "@/lib/utils";
 
@@ -96,7 +96,7 @@ export function WhatWhenHowMuch({ programId, item, today, compact = false }: { p
   const c = COLORS[p.color];
   const rows: [string, React.ReactNode][] = [
     ["何に使える", p.useShort],
-    ["いつ", item ? <><b>{item.window.short}</b>　{windowRangeText(item.window, today)}{item.window.note && !compact ? <span className="block text-[13px] text-ink-soft">{item.window.note}</span> : null}</> : p.noneText],
+    ["いつ", item ? <><b>{item.window.short}</b>　{windowRangeText(item.window, today)}{item.window.note && !compact ? <span className="block text-[13px] text-ink-soft">{item.window.note}</span> : null}{item.daysToEnd < PREP_DAYS ? <span className="block text-[13px] font-bold text-amber-900">締切まで1か月を切っています（準備に1か月ほどかかるため、間に合わないことがあります）</span> : null}</> : p.noneText],
     ["いくら", <b key="a">{p.amountShort}</b>],
   ];
   return (
@@ -134,6 +134,7 @@ export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "受付中�
         <h2 id="deadline-board" className="text-[20px] font-bold">{title}</h2>
         <p className="text-[12px] text-ink-soft">公式確認日 {VERIFIED_AT.replace(/-/g, "/")}・今日 {jaDate(today, false)}</p>
       </div>
+      <p className="mt-1 text-[13px] leading-[1.7] text-ink-soft">申し込みの準備（現地調査・見積・図面・省エネの計算）には1か月ほどかかります。締切の1か月前までにご相談ください。</p>
 
       {first ? (() => {
         const p = PROGRAMS[first.programId];

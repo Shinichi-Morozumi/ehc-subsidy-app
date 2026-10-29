@@ -55,7 +55,7 @@ export default function TeamPage() {
             <ul className="mt-2 flex flex-wrap gap-2">
               {WORKS_WE_DO.map((w) => <li key={w} className="rounded-full bg-paper-tint px-3 py-1.5 text-[14px] font-bold text-brand-deep">{w}</li>)}
             </ul>
-            <p className="mt-2 text-[13px] leading-[1.7] text-ink-soft">ご契約の相手（EHC か、チームの施工会社か）と必要な許可は、工事の種類で決まります。お見積りの書面でお示しします。</p>
+            <p className="mt-2 text-[13px] leading-[1.7] text-ink-soft">ご契約の相手（EHC か、チームの施工会社か）は、工事の内容で決まります。建設業の許可が要る工事にも対応でき、必要な書類はその都度お出しします。工事は全国でお受けします（一都三県のほか、山梨県・福岡県などでも施工しています）。介護施設の空調・設備の工事も、ふだんから行っています（施設名は載せていません）。</p>
           </div>
         </section>
 

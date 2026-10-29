@@ -124,7 +124,7 @@ export function HomeV18() {
               ))}
             </ul>
             <p className="mt-3 text-[16px] leading-[1.9] text-ink-soft">
-              国の制度は全国、東京都の制度は都内が対象です（県・市区町村の独自の補助は、このサイトには載せていません）。所在地や施設の種類などに答えるだけで（約1分）、使えそうな制度を「何に使えるか・いつ・結局いくら」のカードで出します。
+              国の制度は全国、東京都の制度は都内が対象です（県・市区町村の独自の補助は、このサイトには載せていません）。工事は全国でお受けします（一都三県のほか、山梨県・福岡県などでも施工しています）。所在地や施設の種類などに答えるだけで（約1分）、使えそうな制度を「何に使えるか・いつ・結局いくら」のカードで出します。
             </p>
             <div className="mt-5 grid gap-2 sm:flex">
               <Link href="/shindan?from=top" className="inline-flex min-h-[56px] items-center justify-center gap-1 rounded-2xl bg-brand-deep px-6 text-[17px] font-bold text-white hover:bg-brand">
