@@ -12,6 +12,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     /* 2026-10-29 EHC-0102: 東京都の制度と6問の診断 */
     { url: `${SITE_URL}/tokyo`, lastModified: new Date("2026-10-29T00:00:00+09:00"), changeFrequency: "weekly", priority: 0.9 },
     { url: `${SITE_URL}/shindan`, lastModified: new Date("2026-10-29T00:00:00+09:00"), changeFrequency: "weekly", priority: 0.7 },
+    { url: `${SITE_URL}/team`, lastModified: new Date("2026-10-29T00:00:00+09:00"), changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE_URL}/company`, lastModified: UPDATED, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE_URL}/privacy`, lastModified: UPDATED, changeFrequency: "yearly", priority: 0.2 },
   ];

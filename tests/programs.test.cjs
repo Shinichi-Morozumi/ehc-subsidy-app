@@ -200,3 +200,34 @@ test("言葉: 景品表示法・行政書士法で使わない言い方が、制
     }
   }
 });
+
+test("入口と締切ボード：受付を1行ずつ、次の節目が近い順。いつからいつまでの書き方（年が違えば年を付ける）", () => {
+  const items = P.upcomingWindowItems("2026-11-06");
+  assert.deepEqual(items.map((i) => `${i.programId}:${i.window.short}:${i.state}:${i.nextDays}`), [
+    "tokyoZeroemi:第5回:upcoming:3",
+    "tokyoChiiki:協議の最終期限（区市町村→都）:open:21",
+    "tokyoKaishu:第2回 協議書:open:63",
+    "tokyoZeroemi:第6回（最終回）:upcoming:73",
+  ]);
+  assert.equal(P.windowRangeText(P.PROGRAMS.tokyoZeroemi.windows[0], "2026-11-06"), "11月9日（月）〜11月20日（金）");
+  assert.equal(P.windowRangeText(P.PROGRAMS.tokyoZeroemi.windows[1], "2026-11-06"), "2027年1月18日（月）〜1月29日（金）");
+  assert.equal(P.windowRangeText(P.PROGRAMS.tokyoKaishu.windows[0], "2026-11-06"), "2027年1月8日（金）まで");
+  assert.equal(P.windowRangeText(P.PROGRAMS.tokyoKaishu.windows[0], "2027-01-02"), "1月8日（金）まで");
+});
+
+test("残り日数の書き方は「開始まで」「終了まで」（ご指示 2026-10-29）", () => {
+  const [z5] = P.upcomingWindowItems("2026-11-06", ["tokyoZeroemi"]);
+  assert.equal(P.countdownLabel(z5), "開始まであと3日");
+  const [open] = P.upcomingWindowItems("2026-11-10", ["tokyoZeroemi"]);
+  assert.equal(P.countdownLabel(open), "終了まであと10日");
+  assert.equal(P.countdownLabel(P.upcomingWindowItems("2026-11-19", ["tokyoZeroemi"])[0]), "明日で終了");
+  assert.equal(P.countdownLabel(P.upcomingWindowItems("2026-11-20", ["tokyoZeroemi"])[0]), "今日で終了");
+  assert.equal(P.countdownLabel(P.nextWindow(P.PROGRAMS.tokyoKaishu, "2026-11-06")), "終了まであと63日");
+});
+
+test("入口カードの一言：どの制度にも 何に使える・いくら・受付が無いときの一言 がある", () => {
+  for (const id of P.PROGRAM_ORDER) {
+    const p = P.PROGRAMS[id];
+    assert.ok(p.useShort && p.amountShort && p.noneText, id);
+  }
+});

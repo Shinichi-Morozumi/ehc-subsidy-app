@@ -140,3 +140,63 @@ test("受け口: 見えない欄・速すぎる送信は止める。どこにも
   assert.equal(none.status, 502);
   assert.match((await none.json()).error, /03-5937-4340/);
 });
+
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200, 1)]);
+const PDF = Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(200, 2)]);
+const EXE = Buffer.concat([Buffer.from("MZ"), Buffer.alloc(200, 3)]);
+
+test("添付: 写真とPDFは中身の先頭で確かめる。ほかの形式・数・合計の大きさは止める。名前は整える", () => {
+  const ok = L.readAttachments([{ name: "../銘板 1.HEIC", data: `data:image/jpeg;base64,${JPEG.toString("base64")}` }, { name: "明細.pdf", data: PDF.toString("base64") }]);
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.files.map((f) => [f.filename, f.contentType, f.kind]), [["01_銘板 1.jpg", "image/jpeg", "photo"], ["02_明細.pdf", "application/pdf", "pdf"]]);
+  assert.match(L.readAttachments([{ name: "a.exe", data: EXE.toString("base64") }]).error, /写真（JPEG・PNG・HEIC）か PDF/);
+  assert.match(L.readAttachments(Array.from({ length: 6 }, () => ({ name: "x", data: JPEG.toString("base64") }))).error, /5つまで/);
+  const big = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(3_300_000, 0)]).toString("base64");
+  assert.match(L.readAttachments([{ name: "big", data: big }]).error, /大きすぎます/);
+  assert.deepEqual(L.readAttachments(undefined), { ok: true, files: [] });
+  assert.equal(L.readAttachments("nope").ok, false);
+});
+
+test("添付: 担当者宛メールに付き、Notion のメモに件数が残る。画面には届いたかを返す", async () => {
+  const { POST } = loadTs("app/api/program-lead/route.ts");
+  process.env.NOTION_TOKEN = "ntn_test";
+  process.env.DIAGNOSIS_MAIL_MODE = "staff";
+  process.env.SMTP_USER = "info@neneweb.com";
+  process.env.SMTP_PASS = "pass";
+  const realFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (url, init) => {
+    calls.push({ url: String(url), body: init && init.body ? JSON.parse(init.body) : null });
+    if (String(url).endsWith("/query")) return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    return new Response(JSON.stringify({ id: "page" }), { status: 200 });
+  };
+  try {
+    const res = await POST(request(form({ attachments: [{ name: "銘板.jpg", data: JPEG.toString("base64") }, { name: "図面.pdf", data: PDF.toString("base64") }] })));
+    const json = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(json.attachments, 2);
+    assert.equal(json.attachmentsDelivered, true);
+    const mail = sent.at(-1);
+    assert.equal(mail.attachments.length, 2);
+    assert.equal(mail.attachments[1].contentType, "application/pdf");
+    assert.ok(Buffer.isBuffer(mail.attachments[0].content));
+    const page = calls.find((c) => c.url.endsWith("/v1/pages"));
+    assert.match(page.body.properties["メモ"].rich_text[0].text.content, /添付: 2件（写真1・PDF1/);
+    const bad = await POST(request(form({ attachments: [{ name: "a.exe", data: EXE.toString("base64") }] })));
+    assert.equal(bad.status, 400);
+  } finally {
+    global.fetch = realFetch;
+    delete process.env.NOTION_TOKEN;
+    delete process.env.DIAGNOSIS_MAIL_MODE;
+    delete process.env.SMTP_USER;
+    delete process.env.SMTP_PASS;
+  }
+});
+
+test("メンバーと実績: 名前と役割だけ。確かめられない数字（累計台数）や学歴は載せない", () => {
+  const T = loadTs("lib/team.ts");
+  assert.deepEqual(T.TEAM.map((m) => m.name), ["相澤 圭太", "碓井 涼太", "両角 慎一", "桝口 卓摩"]);
+  const all = JSON.stringify(T);
+  assert.ok(!/10,000台|1万台|東京大学|キーエンス/.test(all));
+  assert.ok(T.TEAM_SOURCES.every((s) => s.url.startsWith("https://")));
+});

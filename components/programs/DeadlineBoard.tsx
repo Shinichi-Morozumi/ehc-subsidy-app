@@ -3,12 +3,13 @@
 /* ───────────────────────────────────────────────────────────
    v1 / 2026-10-29 / EHC-0102 締切ボード（トップ・/tokyo）
 
-   ・いちばん近い締切を大きな残り日数で出し、その下にこれからの節目（受付開始・締切）を近い順に並べる。
+   ・いちばん近い受付を大きな残り日数（開始まで／終了まで）で出し、その下にこれからの受付を近い順に1行ずつ並べる。
+   　どの行にも「何に使える・いつ（いつからいつまで）・いくら」を出す（ご指示 2026-10-29）。
    ・今日から3か月の帯の図（受付の期間＝帯、締切だけのもの＝点）。
    ・今日は開いた端末の日本時間（lib/useToday.ts）。日付が決まるまでは数字を出さない。
    ─────────────────────────────────────────────────────────── */
 
-import { COLORS, PROGRAMS, PROGRAM_ORDER, VERIFIED_AT, daysLabel, jaDate, upcomingMilestones, type ProgramId } from "@/lib/programs";
+import { COLORS, PROGRAMS, PROGRAM_ORDER, VERIFIED_AT, countdownLabel, jaDate, upcomingWindowItems, windowRangeText, type ProgramId, type WindowItem } from "@/lib/programs";
 import { daysBetween } from "@/lib/programClock";
 import { cn } from "@/lib/utils";
 
@@ -87,13 +88,43 @@ export function Timeline({ today, ids = PROGRAM_ORDER }: { today: string; ids?: 
   );
 }
 
+/** 1行の中の「何に使える・いつ・いくら」 */
+export function WhatWhenHowMuch({ programId, item, today, compact = false }: { programId: ProgramId; item: WindowItem | null; today: string; compact?: boolean }) {
+  const p = PROGRAMS[programId];
+  const c = COLORS[p.color];
+  const rows: [string, React.ReactNode][] = [
+    ["何に使える", p.useShort],
+    ["いつ", item ? <><b>{item.window.short}</b>　{windowRangeText(item.window, today)}{item.window.note && !compact ? <span className="block text-[13px] text-ink-soft">{item.window.note}</span> : null}</> : p.noneText],
+    ["いくら", <b key="a">{p.amountShort}</b>],
+  ];
+  return (
+    <dl className="mt-2 grid gap-1.5 text-[14px] leading-[1.65]">
+      {rows.map(([k, v]) => (
+        <div key={k} className="grid grid-cols-[5.5em_1fr] gap-2">
+          <dt className="font-bold" style={{ color: c.num }}>{k}</dt>
+          <dd>{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function Pill({ item }: { item: WindowItem }) {
+  const urgent = item.state === "open" && item.daysToEnd <= 14;
+  return (
+    <span className={cn("inline-block whitespace-nowrap rounded-full px-3 py-1 text-[13px] font-bold", urgent ? "bg-red-700 text-white" : "bg-paper-pill text-ink")}>
+      {countdownLabel(item)}
+    </span>
+  );
+}
+
 export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "いま近い締切" }: { today: string | null; ids?: ProgramId[]; title?: string }) {
   if (!today) {
     return <div className="h-[420px] animate-pulse rounded-3xl bg-white/70" aria-hidden />;
   }
-  const ms = upcomingMilestones(today, ids);
-  const firstEnd = ms.find((m) => m.kind === "end");
-  const list = ms.slice(0, 5);
+  const items = upcomingWindowItems(today, ids);
+  const first = items[0];
+  const rest = items.slice(1, 6);
   return (
     <section aria-labelledby="deadline-board" className="rounded-3xl border border-ink-line bg-white p-5 shadow-card sm:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -101,48 +132,57 @@ export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "いま近�
         <p className="text-[12px] text-ink-soft">公式確認日 {VERIFIED_AT.replace(/-/g, "/")}・今日 {jaDate(today, false)}</p>
       </div>
 
-      {firstEnd ? (
-        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl p-4" style={{ background: COLORS[PROGRAMS[firstEnd.programId].color].soft }}>
-          <p className="leading-none">
-            <span className="block text-[13px] font-bold" style={{ color: COLORS[PROGRAMS[firstEnd.programId].color].num }}>{PROGRAMS[firstEnd.programId].tag}</span>
-            <span className="mt-1 block text-[17px] font-bold leading-[1.4]">{PROGRAMS[firstEnd.programId].title}</span>
-            <span className="mt-1 block text-[14px] text-ink-soft">{firstEnd.label}・{jaDate(firstEnd.date)}</span>
-          </p>
-          <p className="ml-auto whitespace-nowrap text-right leading-none">
-            {firstEnd.days <= 1 ? (
-              <span className="text-[34px] font-bold text-red-800">{daysLabel(firstEnd.days)}</span>
-            ) : (
-              <>
-                <span className="text-[15px] font-bold">あと</span>
-                <span className="mx-1 text-[56px] font-bold tracking-tight" style={{ color: COLORS[PROGRAMS[firstEnd.programId].color].num }}>{firstEnd.days}</span>
-                <span className="text-[15px] font-bold">日</span>
-              </>
-            )}
-          </p>
-        </div>
-      ) : (
-        <p className="mt-3 rounded-2xl bg-paper-sub p-4 text-[15px]">この3本柱で、いま日付が決まっている締切はありません。次の募集が出たらここに出します。</p>
+      {first ? (() => {
+        const p = PROGRAMS[first.programId];
+        const c = COLORS[p.color];
+        const big = first.state === "upcoming" ? first.daysToStart ?? 0 : first.daysToEnd;
+        return (
+          <div className="mt-3 grid gap-3 rounded-2xl p-4 sm:grid-cols-[1fr_auto] sm:items-center" style={{ background: c.soft }}>
+            <div>
+              <p className="text-[13px] font-bold" style={{ color: c.num }}>{p.tag}</p>
+              <p className="mt-0.5 text-[18px] font-bold leading-[1.45]">{p.title}</p>
+              <WhatWhenHowMuch programId={first.programId} item={first} today={today} />
+            </div>
+            <p className="whitespace-nowrap text-right leading-none">
+              {first.state === "open" && first.daysToEnd <= 1 ? (
+                <span className="text-[30px] font-bold text-red-800">{countdownLabel(first)}</span>
+              ) : (
+                <>
+                  <span className="text-[15px] font-bold">{first.state === "upcoming" ? "開始まで" : "終了まで"} あと</span>
+                  <span className="mx-1 text-[56px] font-bold tracking-tight" style={{ color: c.num }}>{big}</span>
+                  <span className="text-[15px] font-bold">日</span>
+                </>
+              )}
+            </p>
+          </div>
+        );
+      })() : (
+        <p className="mt-3 rounded-2xl bg-paper-sub p-4 text-[15px]">いま日付が決まっている受付はありません。次の募集が出たらここに出します。</p>
       )}
 
-      <ul className="mt-4 divide-y divide-ink-line">
-        {list.map((m) => {
-          const p = PROGRAMS[m.programId];
-          const c = COLORS[p.color];
-          return (
-            <li key={`${m.programId}-${m.kind}-${m.date}`} className="flex items-center gap-3 py-2.5">
-              <span className="h-10 w-1.5 shrink-0 rounded-full" style={{ background: c.head }} aria-hidden />
-              <span className="min-w-0 flex-1">
-                <span className="block text-[12px] font-bold" style={{ color: c.num }}>{p.tag}</span>
-                <span className="block text-[15px] font-bold leading-[1.45]">{m.label}</span>
-                <span className="block text-[13px] text-ink-soft">{jaDate(m.date)}</span>
-              </span>
-              <span className={cn("shrink-0 rounded-full px-3 py-1 text-[13px] font-bold", m.kind === "end" && m.days <= 14 ? "bg-red-700 text-white" : "bg-paper-pill text-ink")}>
-                {m.kind === "start" ? `開始まで${m.days}日` : m.days <= 1 ? daysLabel(m.days) : `あと${m.days}日`}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+      {rest.length > 0 && (
+        <ul className="mt-4 divide-y divide-ink-line">
+          {rest.map((it) => {
+            const p = PROGRAMS[it.programId];
+            const c = COLORS[p.color];
+            return (
+              <li key={`${it.programId}-${it.window.end}`} className="flex gap-3 py-3">
+                <span className="w-1.5 shrink-0 rounded-full" style={{ background: c.head }} aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="leading-[1.45]">
+                      <span className="block text-[12px] font-bold" style={{ color: c.num }}>{p.tag}</span>
+                      <span className="block text-[16px] font-bold">{p.title}</span>
+                    </p>
+                    <Pill item={it} />
+                  </div>
+                  <WhatWhenHowMuch programId={it.programId} item={it} today={today} compact />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       <Timeline today={today} ids={ids} />
     </section>

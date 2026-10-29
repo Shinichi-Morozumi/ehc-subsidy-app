@@ -12,11 +12,12 @@
 import type { LeadPayload, LeadWish } from "./notionLead";
 import { EMAIL_RE, PHONE_RE } from "./kaigo";
 import { COMPANY } from "./company";
+import { ATTACH_MAX_FILES, ATTACH_MAX_TOTAL_BYTES, fmtBytes } from "./attachLimits";
 import { readReferralClaim, referralLines, referralTag, type ResolvedReferral } from "./referral";
 import { PROGRAMS, type ProgramId } from "./programs";
 import { CHECK_PREFS, checkAnswerLines, labelOfOpt, matchLines, matchPrograms, readCheckAnswers, type CheckAnswers } from "./programMatch";
 
-export const PROGRAM_LEAD_SOURCES = ["top", "shindan", "tokyo", "kaigo"] as const;
+export const PROGRAM_LEAD_SOURCES = ["top", "shindan", "tokyo", "kaigo", "team"] as const;
 export type ProgramLeadSource = (typeof PROGRAM_LEAD_SOURCES)[number];
 
 const SOURCE_JA: Record<ProgramLeadSource, string> = {
@@ -24,6 +25,7 @@ const SOURCE_JA: Record<ProgramLeadSource, string> = {
   shindan: "6問の診断（/shindan）",
   tokyo: "東京都の制度（/tokyo）",
   kaigo: "介護施設の制度（/kaigo）",
+  team: "メンバーと実績（/team）",
 };
 
 export interface ProgramLeadInput {
@@ -36,6 +38,62 @@ export interface ProgramLeadInput {
   programId: ProgramId | null;
   answers: CheckAnswers | null;
   referral: ResolvedReferral | null;
+  /** 添付（写真・PDF）。担当者宛のメールに付ける */
+  attachments: LeadAttachment[];
+}
+
+export interface LeadAttachment {
+  filename: string;
+  contentType: string;
+  content: Buffer;
+  kind: "photo" | "pdf";
+}
+
+/** 中身の先頭のバイトで種類を確かめる（拡張子や画面から来た type は信じない） */
+export function sniffAttachment(buf: Buffer): { contentType: string; ext: string; kind: "photo" | "pdf" } | null {
+  if (buf.length < 12) return null;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { contentType: "image/jpeg", ext: "jpg", kind: "photo" };
+  if (buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return { contentType: "image/png", ext: "png", kind: "photo" };
+  if (buf.subarray(0, 4).toString("latin1") === "RIFF" && buf.subarray(8, 12).toString("latin1") === "WEBP") return { contentType: "image/webp", ext: "webp", kind: "photo" };
+  if (buf.subarray(0, 5).toString("latin1") === "%PDF-") return { contentType: "application/pdf", ext: "pdf", kind: "pdf" };
+  const brand = buf.subarray(4, 12).toString("latin1");
+  if (/^ftyp(heic|heix|hevc|heim|heis|mif1|msf1)$/.test(brand)) return { contentType: "image/heic", ext: "heic", kind: "photo" };
+  return null;
+}
+
+/** 送られてきた添付を確かめる。数・大きさ・種類のどれかが合わなければ、画面に出せる文で返す */
+export function readAttachments(raw: unknown): { ok: true; files: LeadAttachment[] } | { ok: false; error: string } {
+  if (raw === undefined || raw === null) return { ok: true, files: [] };
+  if (!Array.isArray(raw)) return { ok: false, error: "添付の形が正しくありません。お手数ですが、写真はメールでお送りください。" };
+  if (raw.length > ATTACH_MAX_FILES) return { ok: false, error: `添付は${ATTACH_MAX_FILES}つまでです。` };
+  const files: LeadAttachment[] = [];
+  let total = 0;
+  for (const [i, item] of raw.entries()) {
+    const o = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+    const data = typeof o.data === "string" ? o.data.replace(/^data:[^,]*,/, "") : "";
+    if (!data || !/^[A-Za-z0-9+/=\s]+$/.test(data)) return { ok: false, error: "添付を読み取れませんでした。お手数ですが、写真はメールでお送りください。" };
+    const buf = Buffer.from(data, "base64");
+    total += buf.length;
+    if (total > ATTACH_MAX_TOTAL_BYTES) return { ok: false, error: `添付の合計が大きすぎます（${fmtBytes(ATTACH_MAX_TOTAL_BYTES)}まで）。枚数を減らすか、メールでお送りください。` };
+    const t = sniffAttachment(buf);
+    if (!t) return { ok: false, error: "写真（JPEG・PNG・HEIC）か PDF だけ添付できます。" };
+    const base = (typeof o.name === "string" ? o.name : "")
+      .replace(/[\u0000-\u001f\u007f\\/:*?"<>|]/g, "")
+      .replace(/\.[A-Za-z0-9]{1,5}$/, "")
+      .replace(/^[.\s]+/, "")
+      .trim()
+      .slice(0, 60);
+    files.push({ filename: `${String(i + 1).padStart(2, "0")}_${base || (t.kind === "pdf" ? "資料" : "写真")}.${t.ext}`, contentType: t.contentType, content: buf, kind: t.kind });
+  }
+  return { ok: true, files };
+}
+
+export function attachmentLine(files: LeadAttachment[], mailed: boolean | null): string {
+  if (!files.length) return "添付: なし";
+  const photos = files.filter((f) => f.kind === "photo").length;
+  const pdfs = files.length - photos;
+  const where = mailed === false ? "担当者宛メールの送信に失敗したため、届いていません。お客様に再送をお願いしてください" : "担当者宛メールに添付して送る";
+  return `添付: ${files.length}件（写真${photos}・PDF${pdfs}、${where}）`;
 }
 
 export type ProgramLeadRead = { ok: true; input: ProgramLeadInput } | { ok: false; error: string };
@@ -63,6 +121,8 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
   if (!name) return { ok: false, error: "お名前をご入力ください。" };
   const reach = splitReach(clean(body.reach, 120));
   if (reach.error) return { ok: false, error: reach.error };
+  const att = readAttachments(body.attachments);
+  if (!att.ok) return { ok: false, error: att.error };
   const source = (PROGRAM_LEAD_SOURCES as readonly string[]).includes(body.source as string) ? (body.source as ProgramLeadSource) : "top";
   const programId = typeof body.programId === "string" && Object.prototype.hasOwnProperty.call(PROGRAMS, body.programId) ? (body.programId as ProgramId) : null;
   return {
@@ -76,6 +136,7 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
       programId,
       answers: body.answers === undefined || body.answers === null ? null : readCheckAnswers(body.answers),
       referral: readReferralClaim(body.referral),
+      attachments: att.files,
     },
   };
 }
@@ -92,6 +153,7 @@ function bodyLines(input: ProgramLeadInput, receiptNo: string, todayYmd: string)
   return [
     `入口: ${SOURCE_JA[input.source]}`,
     `相談したい制度: ${p ? `${p.tag} ${p.title}（${p.officialName}）` : "指定なし"}`,
+    attachmentLine(input.attachments, null),
     ...referralLines(input.referral, receiptNo),
     ...(input.answers ? ["6問の答え:", ...checkAnswerLines(input.answers)] : ["6問の答え: なし（カードから直接の相談）"]),
     ...(result ? ["画面に出した判定（断定はしていない）:", ...matchLines(result)] : []),

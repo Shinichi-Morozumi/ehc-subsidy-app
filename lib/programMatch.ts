@@ -63,11 +63,12 @@ export const CHECK_STAFF = [
   { id: "unknown", label: "わからない" },
 ] as const;
 
+/* 2026-10-29 ご指示「新しい機器？だと初見で何となる」：何を入れ替えるのかが分かる言い方にする */
 export const CHECK_WORKS = [
-  { id: "renew", label: "新しい機器に更新する" },
-  { id: "building", label: "空調と一緒に建物も直す（屋上・給排水など）" },
-  { id: "dropin", label: "冷媒だけ入れ替える（ドロップイン）" },
-  { id: "undecided", label: "まだ決めていない" },
+  { id: "renew", label: "空調機を、新しい機種に入れ替える（更新）", hint: "室外機・室内機ごと交換します" },
+  { id: "building", label: "空調の入れ替えと一緒に、建物も直す", hint: "屋上の防水・給排水・浴室・外壁など" },
+  { id: "dropin", label: "空調機はそのまま、冷媒（ガス）だけ入れ替える", hint: "ドロップイン。機器は交換しません" },
+  { id: "undecided", label: "まだ決めていない（相談して決めたい）", hint: "現地で機器の状態を見てご提案します" },
 ] as const;
 
 export type CheckPrefId = IdOf<typeof CHECK_PREFS>;
@@ -96,7 +97,7 @@ export const CHECK_STEPS = [
   { key: "facility", q: "施設の種類は？", hint: "介護施設の種類で、国と都の補助の対象が変わります。" },
   { key: "capacity", q: "定員は何人ですか？", hint: "国の交付金は、29人以下か30人以上かで窓口と対象が変わります。" },
   { key: "corp", q: "法人の種類と、従業員の数は？", hint: "国の省エネ補助金は、従業員300人以下なら中小企業者等として扱われます（社会福祉法人・医療法人）。" },
-  { key: "work", q: "考えている工事は？", hint: "冷媒だけの入れ替え（ドロップイン）は、多くの補助の対象外の見込みです。" },
+  { key: "work", q: "どんな工事を考えていますか？", hint: "補助の多くは、空調機を新しい機種に入れ替える工事が対象です。冷媒だけの入れ替え（ドロップイン）は、多くの補助の対象外の見込みです。" },
   { key: "cost", q: "工事費の目安は？（分かれば）", hint: "税抜の金額で。分からなければ飛ばせます。入れると「結局いくら」の目安を出します。" },
 ] as const;
 
@@ -153,11 +154,11 @@ function judge(id: ProgramId, a: CheckAnswers): Judge | null {
       if (!tokyo) return out("対象外の見込み", [], ["都内の事業所が対象です。"]);
       if (pubCorp) return out("対象外の見込み", [], ["公立の施設は対象外の見込みです。"]);
       if (dropin) return out("対象外の見込み", [], ["冷媒だけの入れ替えは対象外の見込みです（事務局に確認中）。"]);
-      const reasons = ["都内", ...(a.corp !== "unknown" ? [corpLabel] : []), ...(a.work === "renew" || a.work === "building" ? ["新しい機器に更新"] : [])];
+      const reasons = ["都内", ...(a.corp !== "unknown" ? [corpLabel] : []), ...(a.work === "renew" || a.work === "building" ? ["空調機の入れ替え（更新）"] : [])];
       const checks: string[] = ["中小規模の事業所か（年間の光熱費がおおむね1億円未満が目安）", "CO2の削減量の区分（省エネ診断で分かります）"];
       if (a.corp === "company" && a.staff !== "le300") checks.unshift("中小企業に当たるか（資本金・従業員の数）");
       if (a.corp === "npo" || a.corp === "unknown") checks.unshift("法人の種類が対象に入るか");
-      if (a.work === "undecided") checks.push("新しい機器への更新であること");
+      if (a.work === "undecided") checks.push("空調機を新しい機種に入れ替える工事であること");
       const sure = (a.corp === "shafuku" || a.corp === "iryou" || (a.corp === "company" && a.staff === "le300")) && a.work !== "undecided";
       return out(sure ? "可能性あり" : "要確認", reasons, checks);
     }
@@ -198,7 +199,7 @@ function judge(id: ProgramId, a: CheckAnswers): Judge | null {
     }
     case "sii": {
       if (dropin) return out("対象外の見込み", [], ["指定された機種への更新が対象です。冷媒だけの入れ替えは対象外の見込みです。"]);
-      const reasons = ["全国が対象", ...(a.work === "renew" || a.work === "building" ? ["新しい機器に更新"] : [])];
+      const reasons = ["全国が対象", ...(a.work === "renew" || a.work === "building" ? ["空調機の入れ替え（更新）"] : [])];
       if ((a.corp === "shafuku" || a.corp === "iryou") && a.staff === "le300") reasons.push("従業員300人以下（中小企業者等）");
       const checks = ["次の公募の時期（未発表）", "更新する機種が指定の設備に入っているか"];
       if (pubCorp) checks.unshift("公立の施設の扱い");

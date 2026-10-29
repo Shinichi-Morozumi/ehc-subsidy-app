@@ -372,14 +372,20 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
           />
           <p className="mt-4 inline-block rounded-xl bg-paper-tint px-3 py-1 text-[14px] font-bold text-brand-deep">定員29人以下の介護施設なら</p>
           <h1 className="mt-2 text-[26px] font-bold leading-[1.45] sm:text-[30px]">
-            空調の入れ替えに、国の補助 <span className="whitespace-nowrap rounded-lg bg-[#B8913A] px-2 text-white">10/10</span>
+            {/* 2026-10-29 ご指示「空調の入れ替えだけじゃない」：建物と設備の大規模修繕に使えることを見出しで伝える */}
+            空調も、建物と設備の修繕も。<br className="sm:hidden" />国の補助 <span className="whitespace-nowrap rounded-lg bg-[#B8913A] px-2 text-white">10/10</span>
           </h1>
-          <p className="mt-2 text-[16px] leading-[1.8] text-ink-soft">
-            1施設あたり最大1,660万円まで（施設の種類により833万円）。市区町村を通じた国の交付金です。
+          <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="使える工事の例">
+            {["空調（冷暖房）", "照明", "電気設備", "給排水・給湯", "ガス設備", "消防用設備", "防水・外壁・浴室", "バリアフリー・避難経路", "非常用自家発電"].map((w) => (
+              <li key={w} className="rounded-full bg-[#F6EED9] px-3 py-1 text-[13px] font-bold text-[#7A5E22]">{w}</li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[16px] leading-[1.8] text-ink-soft">
+            定員29人以下の介護施設は、建物と設備をまとめて直す大規模修繕に、1施設あたり最大1,660万円まで（施設の種類により833万円）。市区町村を通じた国の交付金です。どの工事も EHC のチームでまとめてお受けします。
             補助金を工事の前に受け取れる場合もあります（概算払・市区町村が認めた場合）。
           </p>
           <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            自治体ごとの受付・予算は確認が必要です。以下は10月1日時点の公表条件で、受付中や受給額の確定を示すものではありません。
+            自治体ごとの受付・予算は確認が必要です。以下は2026年10月29日に公表資料で確かめた条件で、受付中や受給額の確定を示すものではありません。
           </p>
         </section>
 
@@ -539,7 +545,7 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
             電話 <a href={COMPANY.telHref} onClick={() => track("kaigo_call", { place: "footer" })} className="font-bold text-brand-deep underline underline-offset-4">{COMPANY.tel}</a>（受付 {COMPANY.hours}）／ <a href={`mailto:${COMPANY.email}`} className="underline underline-offset-4">{COMPANY.email}</a>
           </p>
           <p className="mt-2">
-            制度の内容は2026年10月1日時点の公表資料によります。採択と金額は審査と自治体の要綱で決まり、お約束するものではありません。
+            制度の内容は2026年10月29日に確かめた公表資料によります。採択と金額は審査と自治体の要綱で決まり、お約束するものではありません。
           </p>
           {ref && <p className="mt-2">紹介リンクからのご相談として受け付けます。</p>}
         </footer>

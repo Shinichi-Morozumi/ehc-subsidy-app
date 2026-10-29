@@ -16,6 +16,7 @@ import { COMPANY } from "@/lib/company";
    ・Notion に「未着手」で1行（提案No＝受付番号）。通知メールの決め方も同じ（kaigoMailPlan）。
    ・どちらかができれば「受け付けました」。どちらもできなければ、電話の案内つきで失敗を返す。
    ・欄が3つだけのフォームなので、送信までの時間の下限は短い方（MIN_ELAPSED_MS_SHORT_FORM）を使う。
+   ・写真・PDF の添付（5つ・合計3.2MBまで）は担当者宛メールに付ける。保存はしない（lib/attachLimits.ts）。
    ─────────────────────────────────────────────────────────── */
 
 export const runtime = "nodejs";
@@ -72,6 +73,7 @@ export async function POST(req: Request) {
         ...(input.email ? { replyTo: input.email } : {}),
         subject: `${plan.subjectPrefix}${mail.subject}`,
         text: mail.text,
+        ...(input.attachments.length ? { attachments: input.attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) } : {}),
       });
       mailed = true;
     } catch (e) {
@@ -84,6 +86,7 @@ export async function POST(req: Request) {
   if (!saved && !mailed) {
     return NG(502, `ただいま受け付けできませんでした。お手数ですが、お電話（${COMPANY.tel}・${COMPANY.hours}）かメール（${COMPANY.email}）でご連絡ください。`);
   }
-  console.info(`[program-lead] 受付 ${receiptNo}（制度 ${input.programId ?? "指定なし"}・紹介 ${input.referral?.ref ?? "なし"}・Notion ${saved ? "○" : "×"}・通知メール ${mailed ? `○ ${plan.to.join(",")}` : "×"}）`);
-  return NextResponse.json({ ok: true, receiptNo });
+  console.info(`[program-lead] 受付 ${receiptNo}（添付 ${input.attachments.length}件・制度 ${input.programId ?? "指定なし"}・紹介 ${input.referral?.ref ?? "なし"}・Notion ${saved ? "○" : "×"}・通知メール ${mailed ? `○ ${plan.to.join(",")}` : "×"}）`);
+  /* 添付は担当者宛メールでだけ届く。メールが送れなかったときは、画面で「写真はメールで」と案内する */
+  return NextResponse.json({ ok: true, receiptNo, attachments: input.attachments.length, attachmentsDelivered: input.attachments.length ? mailed : null });
 }

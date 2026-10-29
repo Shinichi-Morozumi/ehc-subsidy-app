@@ -14,7 +14,7 @@ import { AlertTriangle, CalendarDays, Check, ChevronDown, ExternalLink, Info } f
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
 import {
-  COLORS, daysLabel, estimateFor, fmtMan, jaDate, needsRecheck, nextWindow,
+  COLORS, countdownLabel, estimateFor, fmtMan, jaDate, needsRecheck, nextWindow, upcomingWindows, windowRangeText,
   type Estimate, type Program, type ProgramId,
 } from "@/lib/programs";
 import type { MatchStatus } from "@/lib/programMatch";
@@ -137,11 +137,14 @@ export function ProgramCard({
 
         <section>
           <Label color={c.num}>何に使えるか</Label>
-          <ul className="mt-1 space-y-1 text-[16px] leading-[1.7]">
+          <ul className="mt-2 flex flex-wrap gap-1.5">
             {p.use.map((u) => (
-              <li key={u} className="flex gap-2"><span aria-hidden style={{ color: c.head }}>●</span><span>{u}</span></li>
+              <li key={u} className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[14px] font-bold leading-[1.5]" style={{ background: c.box }}>
+                <Check aria-hidden className="h-3.5 w-3.5 shrink-0" style={{ color: c.num }} />{u}
+              </li>
             ))}
           </ul>
+          <p className="mt-2 text-[14px] leading-[1.7] text-ink">{p.useNote}</p>
         </section>
 
         <section>
@@ -189,11 +192,14 @@ export function ProgramCard({
                   <span className="text-[15px] font-bold">{jaDate(w.end).match(/（.）$/)?.[0]}{w.start ? "まで" : ""}</span>
                 </p>
                 <span className={cn("rounded-full px-3 py-1 text-[14px] font-bold", (next.daysToEnd ?? 99) <= 14 ? "bg-red-700 text-white" : "bg-paper-pill text-ink")}>
-                  {next.state === "upcoming" && next.daysToStart !== null ? `受付開始まで あと${next.daysToStart}日` : `締切 ${daysLabel(next.daysToEnd)}`}
+                  {countdownLabel(next)}
                 </span>
               </div>
               {w.time && <p className="mt-1 text-[14px] text-ink-soft">{w.time}</p>}
               {w.note && <p className="mt-1 text-[14px] leading-[1.7] text-ink">{w.note}</p>}
+              {upcomingWindows(p, today).slice(1).map((o) => (
+                <p key={o.end} className="mt-2 rounded-xl bg-paper-sub px-3 py-2 text-[14px] leading-[1.6]">次の回：<b>{o.short}</b>　{windowRangeText(o, today)}</p>
+              ))}
             </div>
           ) : (
             <p className="mt-1 text-[18px] font-bold">次の募集は未発表です</p>
@@ -214,6 +220,16 @@ export function ProgramCard({
               </li>
             ))}
           </ol>
+        </section>
+
+        <section aria-label="EHCにできること" className="rounded-2xl border-2 p-4" style={{ borderColor: c.box, background: "#FFFFFF" }}>
+          <p className="text-[15px] font-bold leading-[1.6]">工事も設備も、EHC のチームでまとめてお受けします</p>
+          <p className="mt-1 text-[14px] leading-[1.75] text-ink">
+            現地調査・見積・図面・省エネの資料づくりから工事まで、窓口は EHC ひとつです。空調だけでなく、建物と設備の工事をまとめて計画できます。
+          </p>
+          <a href="/team" className="mt-2 inline-flex min-h-[44px] items-center text-[14px] font-bold underline underline-offset-4" style={{ color: c.num }}>
+            なぜ全部受けられるの？ メンバーと実績を見る →
+          </a>
         </section>
 
         <details className="group rounded-2xl border border-ink-line">

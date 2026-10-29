@@ -45,12 +45,22 @@ const ROWS: { label: string; value: React.ReactNode }[] = [
     value: (
       <ul className="list-disc space-y-1.5 pl-5">
         <li>業務用空調の冷媒の入れ替え（ドロップイン）：いまの空調機を活かしたまま、冷媒を炭化水素系の冷媒へ入れ替えます</li>
-        <li>業務用空調の更新工事のご相談（施工は連携先と行います）</li>
+        <li>空調・照明・電気・給排水・防水・内装などの工事（EHC のチームで、相談から施工までお受けします）</li>
         <li>省エネ補助金・助成金を使った更新のご相談：候補の制度と受付状況の確認、申請の準備のご支援</li>
       </ul>
     ),
   },
-  { label: "施工の連携先", value: "株式会社プロジェクトネオ（神奈川県川崎市）" },
+  /* 2026-10-29 EHC-0102 ご指示「EHC のチームとして書く」。代表者・許可は各社の公式サイト（lib/team.ts） */
+  {
+    label: "施工の体制",
+    value: (
+      <ul className="list-disc space-y-1.5 pl-5">
+        <li>空調・給排水・電気設備：株式会社プロジェクトネオ（神奈川県川崎市・代表取締役 碓井涼太＝EHC 取締役）</li>
+        <li>建物の設計・施工・内装：株式会社Leap（東京都中野区・代表取締役 相澤圭太＝EHC 代表取締役社長）</li>
+        <li><Link href="/team" className="font-bold text-brand-deep underline underline-offset-4">メンバーと実績</Link></li>
+      </ul>
+    ),
+  },
 ];
 
 export default function CompanyPage() {

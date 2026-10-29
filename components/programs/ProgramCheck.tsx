@@ -25,6 +25,13 @@ import { ProgramCard } from "./ProgramCard";
 import { ConsultForm } from "./ConsultForm";
 import { DropinCard } from "./DropinCard";
 
+type Focus = "tokyo" | "sii" | "kaigo";
+const FOCUS: Record<Focus, { label: string; intro: string; ids: ProgramId[] }> = {
+  tokyo: { label: "東京都の補助", intro: "東京都の補助（業種を問わず）を、6つの質問で調べます。事業所の省エネ（ゼロエミ）から介護施設の改修まで、答えに合う制度をカードで出します。", ids: ["tokyoZeroemi", "tokyoChiiki", "tokyoKaishu"] },
+  sii: { label: "国の省エネ補助金（SII）", intro: "国の省エネ補助金（SII・業種を問わず）を、6つの質問で調べます。都や介護施設の補助で、より合うものがあれば一緒に出します。", ids: ["sii"] },
+  kaigo: { label: "介護施設の補助", intro: "介護施設の補助（国の交付金・東京都の改修費など）を、6つの質問で調べます。施設の種類と定員で、使える制度が変わります。", ids: ["kokuKaigo", "kokuKaigo30", "tokyoKaishu", "tokyoChiiki"] },
+};
+
 type Draft = {
   pref?: CheckPrefId;
   facility?: CheckFacilityId;
@@ -69,9 +76,14 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
   const headRef = useRef<HTMLHeadingElement | null>(null);
   const moved = useRef(false);
 
+  /* 入口（ご指示 2026-10-29）：東京都・SII・介護施設のどこから入っても6問で振り分ける。入口の制度を結果の先頭にまとめる */
+  const [focus, setFocus] = useState<Focus | null>(null);
   useEffect(() => {
-    const from = new URLSearchParams(window.location.search).get("from");
-    track("check_open", { from: from && /^[a-z]{1,12}$/.test(from) ? from : "direct" });
+    const q = new URLSearchParams(window.location.search);
+    const f = q.get("for");
+    if (f === "tokyo" || f === "sii" || f === "kaigo") setFocus(f);
+    const from = q.get("from");
+    track("check_open", { from: f ?? (from && /^[a-z]{1,12}$/.test(from) ? from : "direct") });
   }, []);
 
   const steps = useMemo(() => CHECK_STEPS.filter((s) => s.key !== "capacity" || asksCapacity(d.facility)), [d.facility]);
@@ -141,12 +153,37 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
           </div>
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          {result.items.map((i) => (
+        {(() => {
+          const fIds = focus ? FOCUS[focus].ids : [];
+          const first = result.items.filter((i) => fIds.includes(i.program.id));
+          const rest = result.items.filter((i) => !fIds.includes(i.program.id));
+          const card = (i: (typeof result.items)[number]) => (
             <ProgramCard key={i.program.id} program={i.program} today={today} match={i} estimate={i.estimate} onConsult={consult} onAskCost={askCost} place="shindan" />
-          ))}
-          {result.showDropin && <DropinCard onConsult={() => consult(null)} />}
-        </div>
+          );
+          return (
+            <>
+              {focus && (
+                <h2 className="text-[20px] font-bold">
+                  {FOCUS[focus].label}で使えそうな制度 {first.length}件
+                  {first.length === 0 && <span className="block text-[15px] font-normal text-ink-soft">この条件では見つかりませんでした。下のほかの制度をご覧ください。</span>}
+                </h2>
+              )}
+              <div className="grid gap-6 lg:grid-cols-2">
+                {(focus ? first : result.items).map(card)}
+                {!focus && result.showDropin && <DropinCard onConsult={() => consult(null)} />}
+              </div>
+              {focus && (rest.length > 0 || result.showDropin) && (
+                <>
+                  <h2 className="pt-2 text-[20px] font-bold">ほかに使えそうな制度 {rest.length}件</h2>
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    {rest.map(card)}
+                    {result.showDropin && <DropinCard onConsult={() => consult(null)} />}
+                  </div>
+                </>
+              )}
+            </>
+          );
+        })()}
 
         {result.items.length === 0 && !result.showDropin && (
           <p className="rounded-2xl bg-white p-5 text-[16px] leading-[1.8]">
@@ -176,8 +213,11 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
   const n = steps.length;
   return (
     <section aria-labelledby={`${id}-q`} className="rounded-3xl border border-ink-line bg-white p-5 shadow-card sm:p-7">
+      {focus && step === 0 && (
+        <p className="mb-4 rounded-2xl bg-paper-tint px-4 py-3 text-[15px] leading-[1.8] text-ink">{FOCUS[focus].intro}</p>
+      )}
       <div className="flex items-center justify-between text-[14px] font-bold text-ink-soft">
-        <span>質問 {step + 1} / {n}</span>
+        <span>{focus ? `${FOCUS[focus].label}・` : ""}質問 {step + 1} / {n}</span>
         <span>約1分</span>
       </div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-paper-sub" aria-hidden>
@@ -221,7 +261,12 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
         )}
         {cur.key === "work" && (
           <div className="grid gap-2">
-            {CHECK_WORKS.map((o) => <Chip key={o.id} selected={d.work === o.id} onClick={() => { set({ work: o.id }); next(); }}>{o.label}</Chip>)}
+            {CHECK_WORKS.map((o) => (
+              <Chip key={o.id} selected={d.work === o.id} onClick={() => { set({ work: o.id }); next(); }}>
+                {o.label}
+                <span className={cn("mt-0.5 block text-[13px] font-normal", d.work === o.id ? "text-white/90" : "text-ink-soft")}>{o.hint}</span>
+              </Chip>
+            ))}
           </div>
         )}
         {cur.key === "cost" && (

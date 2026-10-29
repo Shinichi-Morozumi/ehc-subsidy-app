@@ -87,6 +87,14 @@ export interface Program {
   organizer: string;
   /** 何に使えるか */
   use: string[];
+  /** 何に使えるかの補足（対象経費・ほかのメニューなど） */
+  useNote: string;
+  /** 何に使えるか（トップの入口カード用の1行） */
+  useShort: string;
+  /** いくら（トップの入口カード用の1行。補助率・上限） */
+  amountShort: string;
+  /** これからの受付が無いときの一言（トップの入口カード用） */
+  noneText: string;
   /** 対象 */
   target: string;
   targetNote: string;
@@ -138,7 +146,11 @@ export const PROGRAMS: Readonly<Record<ProgramId, Program>> = {
     icon: "survey",
     officialName: "ゼロエミッション化に向けた省エネ設備導入・運用改善支援事業",
     organizer: "東京都・クール・ネット東京",
-    use: ["高効率な空調への更新", "全熱交換器・LED照明・断熱窓など", "設計費・設備費・工事費が対象"],
+    use: ["高効率な空調への入れ替え", "全熱交換器（換気）", "LED照明", "断熱窓", "高効率ボイラー・給湯", "高効率な変圧器・コンプレッサ", "冷凍冷蔵設備", "人感センサー・照明スイッチの細分化などの運用改善"],
+    useNote: "設計費・設備費・工事費が対象。事前に省エネ診断を受けると、2/3・最大2,500万円の区分も使えます。",
+    useShort: "高効率な空調・換気・LED照明・断熱窓・給湯などへの入れ替え（設計費・設備費・工事費が対象）",
+    amountShort: "3/4・最大4,500万円（区分により2/3・最大2,500万円／1,000万円）",
+    noneText: "令和8年度の受付は終わりました（令和9年度は未発表）",
     target: "都内の中小規模事業所",
     targetNote: "中小企業・社会福祉法人・医療法人など。年間の光熱費がおおむね1億円未満が目安。宗教法人などは対象外。",
     requirements: [
@@ -186,7 +198,11 @@ export const PROGRAMS: Readonly<Record<ProgramId, Program>> = {
     icon: "ac",
     officialName: "特別養護老人ホーム等改修費補助（大規模改修／大規模改修（空調設備更新））",
     organizer: "東京都 福祉局",
-    use: ["老朽化した空調の更新", "給排水・浴室・食堂・外壁・屋上防水などの大規模な改修"],
+    use: ["老朽化した空調の更新", "給排水・電気・ガス・冷暖房・消防などの設備の改造", "浴室・食堂の改修、外壁・屋上の防水", "居室・浴室・食堂の内部改修、段差の解消", "避難しやすくする改修", "換気設備・アスベストの処理", "法令改正で必要になった消防設備・昇降機", "緊急災害時用の自家発電設備"],
+    useNote: "このほか、多床室のプライバシー保護（1床90.6万円）・看取り対応（1施設450万円）・増床・ユニット化・耐震などの改修のメニューもあります。",
+    useShort: "特養・養護の空調の更新、給排水・電気・消防設備、浴室・防水・外壁、段差の解消、自家発電などの大規模改修",
+    amountShort: "3/4・最大1億8,419.2万円（空調の特別枠は最大6,759.7万円）",
+    noneText: "次の協議は未発表です",
     target: "都内の特別養護老人ホーム・養護老人ホーム",
     targetNote: "建物の所有者が民間の法人などの条件あり。公立の施設と八王子市内の施設は対象外。",
     requirements: [
@@ -226,7 +242,11 @@ export const PROGRAMS: Readonly<Record<ProgramId, Program>> = {
     icon: "build",
     officialName: "地域密着型サービス等整備推進事業（大規模な修繕等）",
     organizer: "東京都 福祉局（区市町村を通じて）",
-    use: ["空調・給排水・屋上防水などの大規模な修繕"],
+    use: ["空調の入れ替え", "給排水・給湯・電気設備の修繕", "屋上防水・外壁", "そのほか既存施設の大規模な修繕"],
+    useNote: "工事費と工事事務費（工事費の2.6%まで）が対象です。",
+    useShort: "地域密着型特養・小規模多機能の、空調・給排水・電気・防水などの大規模な修繕",
+    amountShort: "1/2（都1/4＋区市町村1/4）・1施設1,660万円／833万円（読み方を都に確認中）",
+    noneText: "次の協議は未発表です",
     target: "都内の地域密着型特養・小規模多機能・看護小規模多機能",
     targetNote: "区市町村がこの事業を行っている場合に限ります。",
     requirements: ["区市町村がこの事業を行っていること（実施は区市町村の任意）", "都の内示のあとに入札・契約・着工すること", "令和8年度内に工事を終えること", "対象経費が80万円以上", "国の交付金（大規模修繕等）とは併用できない"],
@@ -260,7 +280,11 @@ export const PROGRAMS: Readonly<Record<ProgramId, Program>> = {
     icon: "build",
     officialName: "地域介護・福祉空間整備等施設整備交付金（防災改修等支援事業・大規模修繕等）",
     organizer: "厚生労働省（市区町村を通じて）",
-    use: ["空調などの大規模修繕", "非常用自家発電・給水・水害対策・換気など"],
+    use: ["空調（冷暖房）", "照明", "電気設備（分電盤など）", "給排水・給湯", "ガス設備", "消防用設備（スプリンクラーは別の補助）", "防水・外壁・浴室", "バリアフリー・避難経路", "非常用自家発電・給水設備", "水害対策・換気"],
+    useNote: "空調だけでなく、建物と設備をまとめて直す修繕に使えます。どの工事も EHC のチームでまとめて計画・施工できます。",
+    useShort: "空調・照明・電気・給排水・ガス・消防・防水・バリアフリーなどの大規模修繕、非常用発電・換気など（定員29人以下）",
+    amountShort: "10/10・1施設 最大1,660万円（施設の種類により833万円）",
+    noneText: "次の募集は未発表（市区町村が案内します）",
     target: "定員29人以下の介護施設",
     targetNote: "特養・老健・介護医療院・ケアハウスは1施設1,660万円、グループホーム・小規模多機能・看護小規模多機能・養護などは833万円まで。",
     requirements: [
@@ -302,7 +326,11 @@ export const PROGRAMS: Readonly<Record<ProgramId, Program>> = {
     icon: "build",
     officialName: "地域介護・福祉空間整備等施設整備交付金（防災対策と一体の大規模修繕）",
     organizer: "厚生労働省（都道府県を通じて）",
-    use: ["耐震化・非常用発電などの防災対策と一体で行う大規模修繕"],
+    use: ["耐震化と一体の大規模修繕", "非常用発電・給水と一体の改修", "防災対策と合わせた空調・設備の更新"],
+    useNote: "防災の工事と組み合わせることが条件です。どの組み合わせが対象になるかは都道府県のメニューで決まります。",
+    useShort: "定員30人以上の施設の、耐震化・非常用発電など防災と一体の改修",
+    amountShort: "2/3・最大2,106万円（基準額3,160万円）",
+    noneText: "次の募集は未発表（都道府県が案内します）",
     target: "定員30人以上の介護施設",
     targetNote: "窓口は都道府県。対象になる工事のメニューが限られます。",
     requirements: ["定員30人以上", "防災対策と一体で行う改修であること", "都道府県の募集に合わせて協議する"],
@@ -332,7 +360,11 @@ export const PROGRAMS: Readonly<Record<ProgramId, Program>> = {
     icon: "ac",
     officialName: "省エネルギー投資促進支援事業費補助金（設備単位型）",
     organizer: "経済産業省・環境共創イニシアチブ（SII）",
-    use: ["指定された高効率な機種（空調など）への更新", "対象は設備費（工事費は対象外）"],
+    use: ["高効率な空調（指定された機種）", "業務用給湯器・産業ヒートポンプ", "制御機能付きLED照明", "冷凍冷蔵設備・変圧器"],
+    useNote: "指定された機種への入れ替えが対象で、補助は設備費だけです（工事費は対象外）。",
+    useShort: "指定された高効率な空調への更新（全国・対象は設備費だけ）",
+    amountShort: "1/3・最大1億円（工事費は対象外。トップ性能枠は1/2）",
+    noneText: "次の公募は未発表（後継の事業が国の予算要求に入っています）",
     target: "国内の法人・個人事業主",
     targetNote: "社会福祉法人・医療法人は従業員300人以下なら中小企業者等。大企業は条件あり。",
     requirements: ["指定された機種への更新", "3社以上の見積り", "点数の高い順に予算の範囲で採択", "交付決定の前に契約しない"],
@@ -389,6 +421,56 @@ export function nextWindow(p: Program, today: string = todayJst()): NextWindow {
     return { state, window: w, daysToStart: state === "upcoming" ? startIn : null, daysToEnd: daysBetween(today, w.end) };
   }
   return { state: "none", window: null, daysToStart: null, daysToEnd: null };
+}
+
+/** これからの受付（締切が今日以降のもの）を早い順に */
+export function upcomingWindows(p: Program, today: string = todayJst()): ProgramWindow[] {
+  return [...p.windows].filter((w) => daysBetween(today, w.end) >= 0).sort((a, b) => a.end.localeCompare(b.end));
+}
+
+/** 受付の期間の書き方（例：11月9日（月）〜11月20日（金）／2027年1月8日（金）まで）。今日と年が違えば年を付ける */
+export function windowRangeText(w: ProgramWindow, today: string = todayJst()): string {
+  const y = today.slice(0, 4);
+  const withYear = (ymd: string) => ymd.slice(0, 4) !== y;
+  if (w.start) {
+    const endYear = withYear(w.end) && w.end.slice(0, 4) !== w.start.slice(0, 4);
+    return `${jaDate(w.start, withYear(w.start))}〜${jaDate(w.end, endYear)}`;
+  }
+  return `${jaDate(w.end, withYear(w.end))}まで`;
+}
+
+export interface WindowItem {
+  programId: ProgramId;
+  window: ProgramWindow;
+  state: "open" | "upcoming";
+  daysToStart: number | null;
+  daysToEnd: number;
+  /** 次の節目までの日数（これからなら開始まで、受付中なら終了まで） */
+  nextDays: number;
+}
+
+/** これからの受付（受付中・これから始まるもの）を、次の節目が近い順に1行ずつ。締切ボードとトップの入口に使う */
+export function upcomingWindowItems(today: string = todayJst(), ids: ProgramId[] = PROGRAM_ORDER): WindowItem[] {
+  const out: WindowItem[] = [];
+  for (const id of ids) {
+    for (const w of PROGRAMS[id].windows) {
+      const toEnd = daysBetween(today, w.end);
+      if (toEnd < 0) continue;
+      const toStart = w.start ? daysBetween(today, w.start) : null;
+      const upcoming = toStart !== null && toStart > 0;
+      out.push({ programId: id, window: w, state: upcoming ? "upcoming" : "open", daysToStart: upcoming ? toStart : null, daysToEnd: toEnd, nextDays: upcoming ? (toStart as number) : toEnd });
+    }
+  }
+  return out.sort((a, b) => a.nextDays - b.nextDays || a.daysToEnd - b.daysToEnd);
+}
+
+/** 残り日数の書き方（ご指示 2026-10-29「開始まで」「終了まで」）。これからなら開始まで、受付中・締切だけのものは終了まで */
+export function countdownLabel(item: { state: "open" | "upcoming" | "none"; daysToStart: number | null; daysToEnd: number | null }): string {
+  if (item.state === "upcoming" && item.daysToStart !== null) return `開始まであと${item.daysToStart}日`;
+  if (item.daysToEnd === null) return "";
+  if (item.daysToEnd <= 0) return "今日で終了";
+  if (item.daysToEnd === 1) return "明日で終了";
+  return `終了まであと${item.daysToEnd}日`;
 }
 
 /** 確認日から日数が経って、公式で確かめ直す必要があるか */
