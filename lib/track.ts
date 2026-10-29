@@ -51,6 +51,7 @@ export type TrackEvent =
   | "check_done" // 質問に答えて制度カードを出した（items, cost）
   | "check_print" // 結果を印刷・PDFで残すボタンを押した
   | "card_consult" // 制度カードの「この制度で相談する」を押した（program, place）
+  | "card_detail" // 制度カードの「くわしく見る」を開いた（program）
   | "official_open" // 制度カードの「公式の情報」を開いた（program）
   | "consult_submit" // 3項目のフォームを送った（ok, source）
   | "consult_call"; // 電話・写真のリンクを押した（kind, place）

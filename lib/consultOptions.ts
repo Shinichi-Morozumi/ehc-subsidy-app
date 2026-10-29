@@ -12,6 +12,12 @@ export type ConsultFlagId = (typeof CONSULT_FLAGS)[number]["id"];
 /** ご相談の内容の文字数の上限 */
 export const CONSULT_NOTE_MAX = 600;
 
+/* ブラッシュアップ4（2026-10-29）：法人の本部・ビル管理会社など、施設が複数あるときに一度でまとめて相談できる */
+/** 施設の一覧（1行に1施設）の文字数の上限 */
+export const CONSULT_SITES_MAX = 1500;
+/** どのページからでも「施設が複数」の相談フォームを開く合図（トップのボタンなど） */
+export const CONSULT_MULTI_EVENT = "ehc:consult-multi";
+
 export function readConsultFlags(raw: unknown): ConsultFlagId[] {
   if (!Array.isArray(raw)) return [];
   const ok = new Set<string>(CONSULT_FLAGS.map((f) => f.id));

@@ -174,6 +174,7 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
               <Printer aria-hidden className="h-4 w-4" />この結果を印刷・PDFで残す
             </button>
           </div>
+          <p className="no-print mt-1 text-[13px] leading-[1.7] text-ink-soft">施設が複数あるときは、ほかの施設は「答えを直す」で調べられます。ご相談は、下のフォームの「施設・建物が複数ある」で一覧にしてまとめて送れます。</p>
           <dl className="mt-3 grid gap-1.5 rounded-2xl border border-ink-line p-3 text-[14px] leading-[1.6]">
             {[
               ["可能性あり", "答えから見ると、対象になりそうです。", "bg-brand-deep text-white"],

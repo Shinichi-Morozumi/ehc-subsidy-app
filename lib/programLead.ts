@@ -18,7 +18,7 @@ import { ATTACH_MAX_FILES, ATTACH_MAX_TOTAL_BYTES, fmtBytes } from "./attachLimi
 import { readReferralClaim, referralLines, referralTag, type ResolvedReferral } from "./referral";
 import { PROGRAMS, type ProgramId } from "./programs";
 import { CHECK_PREFS, checkAnswerLines, labelOfOpt, matchLines, matchPrograms, readCheckAnswers, type CheckAnswers } from "./programMatch";
-import { CONSULT_NOTE_MAX, consultFlagLabels, readConsultFlags, type ConsultFlagId } from "./consultOptions";
+import { CONSULT_NOTE_MAX, CONSULT_SITES_MAX, consultFlagLabels, readConsultFlags, type ConsultFlagId } from "./consultOptions";
 
 export const PROGRAM_LEAD_SOURCES = ["top", "shindan", "tokyo", "kaigo", "team", "dropin"] as const;
 export type ProgramLeadSource = (typeof PROGRAM_LEAD_SOURCES)[number];
@@ -46,6 +46,8 @@ export interface ProgramLeadInput {
   flags: ConsultFlagId[];
   /** ご相談の内容（任意） */
   note: string | null;
+  /** 施設・建物の一覧（任意・施設が複数のとき） */
+  sites?: string | null;
   answers: CheckAnswers | null;
   referral: ResolvedReferral | null;
   /** 添付（写真・PDF）。担当者宛のメールに付ける */
@@ -115,7 +117,7 @@ const clean = (v: unknown, max: number): string | null => {
 };
 
 /** ご相談の内容：制御文字を落とし、改行は2つまで、600字まで */
-export function cleanNote(v: unknown): string | null {
+export function cleanNote(v: unknown, max: number = CONSULT_NOTE_MAX): string | null {
   if (typeof v !== "string") return null;
   const t = v
     .replace(/\r\n?/g, "\n")
@@ -123,7 +125,7 @@ export function cleanNote(v: unknown): string | null {
     .replace(/[ \t\u3000]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  return t ? t.slice(0, CONSULT_NOTE_MAX) : null;
+  return t ? t.slice(0, max) : null;
 }
 
 const isProgramId = (v: unknown): v is ProgramId => typeof v === "string" && Object.prototype.hasOwnProperty.call(PROGRAMS, v);
@@ -163,6 +165,7 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
       programIds,
       flags: readConsultFlags(body.flags),
       note: cleanNote(body.note),
+      sites: cleanNote(body.sites, CONSULT_SITES_MAX),
       answers: body.answers === undefined || body.answers === null ? null : readCheckAnswers(body.answers),
       referral: readReferralClaim(body.referral),
       attachments: att.files,
@@ -190,6 +193,7 @@ function bodyLines(input: ProgramLeadInput, receiptNo: string, todayYmd: string)
       : "相談したい制度: 指定なし",
     `印: ${flags.length ? flags.join("・") : "なし"}`,
     `ご相談の内容: ${input.note ? input.note : "（未入力）"}`,
+    ...(input.sites ? [`施設・建物の一覧（${input.sites.split("\n").filter((l) => l.trim()).length}件）:`, input.sites] : []),
     attachmentLine(input.attachments, null),
     ...referralLines(input.referral, receiptNo),
     ...(input.answers ? ["質問の答え:", ...checkAnswerLines(input.answers)] : ["質問の答え: なし（カードから直接の相談）"]),

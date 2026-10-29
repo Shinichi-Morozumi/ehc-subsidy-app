@@ -29,6 +29,7 @@ import { DeadlineBoard } from "../programs/DeadlineBoard";
 import { ConsultForm } from "../programs/ConsultForm";
 import { SiteFooterSimple, SiteHeader } from "../programs/SiteShell";
 import { WHY } from "@/lib/team";
+import { CONSULT_MULTI_EVENT } from "@/lib/consultOptions";
 
 type PillarDef = { pillar: "tokyo" | "kaigo" | "sii"; color: ProgramColor; icon: string; title: string; lead: string; ids: ProgramId[]; cta: string; more: { label: string; href?: string } };
 
@@ -82,8 +83,8 @@ function PillarCard({ def, today, onSii }: { def: PillarDef; today: string | nul
                 )}
               </div>
               <dl className="mt-2 grid gap-1.5 text-[14px] leading-[1.65]">
-                <div className="grid grid-cols-[5.5em_1fr] gap-2"><dt className="font-bold" style={{ color: c.num }}>何に使える</dt><dd>{p.useShort}</dd></div>
-                <div className="grid grid-cols-[5.5em_1fr] gap-2">
+                <div className="grid grid-cols-[5.5em_minmax(0,1fr)] gap-2"><dt className="font-bold" style={{ color: c.num }}>何に使える</dt><dd>{p.useShort}</dd></div>
+                <div className="grid grid-cols-[5.5em_minmax(0,1fr)] gap-2">
                   <dt className="font-bold" style={{ color: c.num }}>いつ</dt>
                   <dd>
                     {!today ? "…" : its.length ? its.slice(0, 2).map((it) => (
@@ -91,7 +92,7 @@ function PillarCard({ def, today, onSii }: { def: PillarDef; today: string | nul
                     )) : p.noneText}
                   </dd>
                 </div>
-                <div className="grid grid-cols-[5.5em_1fr] gap-2"><dt className="font-bold" style={{ color: c.num }}>いくら</dt><dd><b>{p.amountShort}</b></dd></div>
+                <div className="grid grid-cols-[5.5em_minmax(0,1fr)] gap-2"><dt className="font-bold" style={{ color: c.num }}>いくら</dt><dd><b>{p.amountShort}</b></dd></div>
               </dl>
             </li>
           );
@@ -135,6 +136,9 @@ export function HomeV18() {
               </a>
             </div>
             <p className="mt-2 text-[13px] text-ink-soft">電話の受付 {COMPANY.hours}・制度の公式確認日 {VERIFIED_AT.replace(/-/g, "/")}</p>
+            <button type="button" onClick={() => { track("consult_call", { kind: "multi", place: "top-hero" }); window.dispatchEvent(new CustomEvent(CONSULT_MULTI_EVENT)); }} className="mt-3 inline-flex min-h-[44px] items-center gap-1 text-left text-[15px] font-bold text-brand-deep underline underline-offset-4">
+              施設や建物が複数ある法人の方は、まとめて相談できます<ArrowRight aria-hidden className="h-4 w-4 shrink-0" />
+            </button>
           </div>
           <Image src="/v17/hero-scene.webp" alt="事務所と店舗の天井の空調と、室外機の前で確かめる作業員のイラスト" width={1536} height={1024} priority sizes="(max-width: 1024px) 100vw, 560px" className="h-auto w-full rounded-3xl" />
         </section>
@@ -177,7 +181,7 @@ export function HomeV18() {
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             {[
               { icon: ClipboardCheck, head: "補助が決まる前に契約しない", text: "どの制度も、交付決定・内示（補助が決まったという知らせ）の前に契約・発注すると対象外になります。見積りと計画は先に進められます。" },
-              { icon: HandCoins, head: "多くは後払い（いったん立て替え）", text: "工事代金をいったん施設が支払い、完了の報告と確認のあとに補助金が入るものが多いです。国の介護の交付金は、市区町村が認めれば前払い（概算払）の場合もあります。制度ごとの入り方はカードの「お金はいつ入るか」に書いています。" },
+              { icon: HandCoins, head: "多くは後払い（いったん立て替え）", text: "工事代金をいったん施設が支払い、完了の報告と確認のあとに補助金が入るものが多いです。国の介護の交付金は、市区町村によっては前払い（概算払）の場合もあります。完了から入金までの期間の目安は、どの制度も公式には示されていません。制度ごとの流れはカードの「お金はいつ入るか」に書いています。" },
               { icon: FileText, head: "重ねて使えるかは制度のルールしだい", text: "同じ工事に補助を重ねられるかは、制度ごとのルール（要綱）によります。この画面では金額を合算しません。" },
             ].map((x) => (
               <div key={x.head} className="rounded-2xl bg-paper-sub p-4">

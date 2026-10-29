@@ -102,7 +102,7 @@ export function WhatWhenHowMuch({ programId, item, today, compact = false }: { p
   return (
     <dl className="mt-2 grid gap-1.5 text-[14px] leading-[1.65]">
       {rows.map(([k, v]) => (
-        <div key={k} className="grid grid-cols-[5.5em_1fr] gap-2">
+        <div key={k} className="grid grid-cols-[5.5em_minmax(0,1fr)] gap-2">
           <dt className="font-bold" style={{ color: c.num }}>{k}</dt>
           <dd>{v}</dd>
         </div>

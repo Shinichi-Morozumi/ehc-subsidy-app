@@ -22,6 +22,8 @@ export const metadata: Metadata = {
   title: "プライバシーポリシー",
   description: "株式会社EHCソリューションズの個人情報の取扱い（空調更新と補助金の候補診断など）。",
   alternates: { canonical: "/privacy" },
+  openGraph: { title: "プライバシーポリシー｜株式会社EHCソリューションズ", description: "株式会社EHCソリューションズの個人情報の取扱い。", type: "website", locale: "ja_JP", url: "/privacy", images: [{ url: "/og.jpg" }] },
+  twitter: { card: "summary_large_image", title: "プライバシーポリシー｜株式会社EHCソリューションズ", description: "株式会社EHCソリューションズの個人情報の取扱い。", images: ["/og.jpg"] },
 };
 
 const H2 = ({ children }: { children: React.ReactNode }) => (

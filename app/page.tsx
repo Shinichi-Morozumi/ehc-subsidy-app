@@ -10,11 +10,11 @@
    visibility ではなく display を使い、アンマウントもしない。
    判定ロジック・補助金データ・API には一切手を入れていない。 */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { OPEN_HEARING_EVENT } from "@/components/HowItWorks";
-import { SubsidyMatcher } from "@/components/SubsidyMatcher";
-import { DiagnosisFlow } from "@/components/DiagnosisFlow";
-import { ProjectProvider } from "@/components/ProjectContext";
+/* 2026-10-29 EHC-0102 ブラッシュアップ5：7問の診断はトップの最初の読み込みから外し、開く合図が来たときだけ読み込む */
+const DiagnosisTools = dynamic(() => import("@/components/DiagnosisTools"), { ssr: false });
 /* 2026-10-29 EHC-0102: トップを締切ボード＋3つの入口（HomeV18）に替えた。旧トップ（HomeV17）のファイルは残してある。 */
 import { HomeV18 } from "@/components/home/HomeV18";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -29,13 +29,24 @@ import "./diagnosis-ui.css";
 export default function Page() {
   const [started, setStarted] = useState(false);
   const [staffMode, setStaffMode] = useState(false);
+  /* 7問の部品を読み込んだか。読み込む前に来た「開く合図」は、読み込み後にもう一度送る */
+  const [toolsWanted, setToolsWanted] = useState(false);
+  const toolsReady = useRef(false);
+  const pendingOpen = useRef(false);
+  const onToolsReady = useCallback(() => {
+    toolsReady.current = true;
+    if (pendingOpen.current) {
+      pendingOpen.current = false;
+      window.setTimeout(() => window.dispatchEvent(new CustomEvent(OPEN_HEARING_EVENT)), 0);
+    }
+  }, []);
 
   /* 2026-09-25 UXレビュー No.3:
      担当者用の入口（?staff=1）と旧シミュレーターの共有リンク（?d=）は、
      ホームを飛ばして診断画面をそのまま開く。旧シミュレーターはこの2つの入口でしか出さない。 */
   useEffect(() => {
     const access = legacyAccessFromSearch(window.location.search);
-    if (access.showLegacy) setStarted(true);
+    if (access.showLegacy) { setToolsWanted(true); setStarted(true); }
     setStaffMode(access.staff);
   }, []);
 
@@ -51,7 +62,11 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    const onOpen = () => setStarted(true);
+    const onOpen = () => {
+      if (!toolsReady.current) pendingOpen.current = true;
+      setToolsWanted(true);
+      setStarted(true);
+    };
     window.addEventListener(OPEN_HEARING_EVENT, onOpen);
     /* 2026-09-26 改善4: 「続きから再開」を押したら、診断の画面を開く（中身は各部品が戻す） */
     window.addEventListener(DRAFT_RESTORE_EVENT, onOpen);
@@ -119,10 +134,7 @@ export default function Page() {
             DiagnosisFlow が読むので、入口は今までどおり
             HomeV17 → OPEN_HEARING_EVENT → GuidedDiagnosis のままでよい。
             SubsidyMatcher 自体には手を入れていない（既存の導線を壊さないため）。 */}
-        <ProjectProvider>
-          <DiagnosisFlow />
-          <SubsidyMatcher workspaceMode />
-        </ProjectProvider>
+        {toolsWanted && <DiagnosisTools onReady={onToolsReady} />}
 
         <footer className="ehc-workspace-footer no-print">
           <p><ShieldCheck size={18} aria-hidden="true" />公式情報の確認範囲を表示。採択・受給を保証するものではありません。</p>

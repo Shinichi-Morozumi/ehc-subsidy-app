@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: "/kaigo" },
+  /* 2026-10-29 ブラッシュアップ6：SNS で共有したときに、トップの説明文ではなくこのページの説明文を出す */
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: ["/kaigo/hero.jpg"] },
   openGraph: {
     title: TITLE,
     description: DESCRIPTION,

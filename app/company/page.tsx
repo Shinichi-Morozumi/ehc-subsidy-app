@@ -21,6 +21,9 @@ export const metadata: Metadata = {
   description:
     "株式会社EHCソリューションズの会社概要。業務用空調の冷媒の入れ替え（ドロップイン）、空調更新工事のご相談、省エネ補助金・助成金を使った更新のご相談。",
   alternates: { canonical: "/company" },
+  /* 2026-10-29 ブラッシュアップ6：共有したときにこのページの説明文を出す */
+  openGraph: { title: "会社概要｜株式会社EHCソリューションズ", description: "株式会社EHCソリューションズの会社概要。業務用空調の冷媒の入れ替え（ドロップイン）、空調更新工事、補助金を使った更新のご相談。", type: "website", locale: "ja_JP", url: "/company", images: [{ url: "/og.jpg" }] },
+  twitter: { card: "summary_large_image", title: "会社概要｜株式会社EHCソリューションズ", description: "株式会社EHCソリューションズの会社概要。業務用空調の冷媒の入れ替え（ドロップイン）、空調更新工事、補助金を使った更新のご相談。", images: ["/og.jpg"] },
 };
 
 const ROWS: { label: string; value: React.ReactNode }[] = [

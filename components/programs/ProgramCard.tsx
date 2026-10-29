@@ -1,7 +1,9 @@
 "use client";
 
 /* ───────────────────────────────────────────────────────────
-   v2 / 2026-10-29 / EHC-0102 制度カード
+   v3 / 2026-10-29 / EHC-0102 制度カード
+   ブラッシュアップ（2026-10-29）：要点（何に使える・いつ・いくら）と「契約しない」の一言だけを見せ、残りは「くわしく見る」へ。
+   　　　　　　　　　　　　　　　区分で金額が分かれる制度は、区分を選ぶと1つの数字になる。
    直し2回目（10名のレビュー）：「結局いくら」を1行に（区分で違えば幅）・「〜」をやめて何が別にかかるかを書く／
    「いつ」は受付の期間をそのまま大きく／お金はいつ入るかと、確かめる点をカードの外に出す／
    入札・3社以上の見積りがある制度では、EHC がその中の1社として加わることを書く。
@@ -13,6 +15,7 @@
    ─────────────────────────────────────────────────────────── */
 
 import Image from "next/image";
+import { useState } from "react";
 import { AlertTriangle, CalendarDays, Check, ChevronDown, ExternalLink, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
@@ -45,13 +48,33 @@ function Label({ children, color }: { children: React.ReactNode; color?: string 
 /** 診断の答えが無いカード（/tokyo・/kaigo）に出す例の工事費 */
 export const EXAMPLE_COST = { costMan: 1000, equipmentMan: 600 } as const;
 
-function EstimateBox({ p, est, onAskCost, example }: { p: Program; est: Estimate; onAskCost?: () => void; example: boolean }) {
+function EstimateBox({ p, est: estAll, onAskCost, example }: { p: Program; est: Estimate; onAskCost?: () => void; example: boolean }) {
   const c = COLORS[p.color];
   const exampleLabel = p.costBasis === "equipment" ? "工事費1,000万円・うち機器代600万円" : "工事費1,000万円";
+  /* ブラッシュアップ3（2026-10-29）：区分で金額が分かれる制度（ゼロエミ）は、区分を選ぶと1つの数字にする */
+  const [tier, setTier] = useState<number | null>(null);
+  const tierable = p.capsBy === "tier" && estAll.kind === "ok" && estAll.lines.length > 1;
+  const est: Estimate = tierable && tier !== null && estAll.lines[tier] ? { ...estAll, lines: [estAll.lines[tier]] } : estAll;
   const sum = estimateSummary(est);
   return (
     <div className="rounded-2xl p-4" style={{ background: c.soft }}>
       <Label color={c.num}>{example && est.kind === "ok" ? `結局いくら（例：${exampleLabel}の場合）` : "結局いくら（目安）"}</Label>
+      {tierable && (
+        <fieldset className="mt-2">
+          <legend className="text-[13px] font-bold text-ink">申し込む区分を選ぶと、1つの数字になります</legend>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {estAll.lines.map((l, i) => (
+              <button key={l.label} type="button" aria-pressed={tier === i} onClick={() => setTier(i)} className={cn("min-h-[40px] rounded-full border px-3 text-left text-[13px] font-bold", tier === i ? "border-transparent text-white" : "border-ink-line bg-white text-ink")} style={tier === i ? { background: c.head } : undefined}>
+                {l.label}（{p.caps.find((cap) => cap.label === l.label)?.rateLabel}）
+              </button>
+            ))}
+            <button type="button" aria-pressed={tier === null} onClick={() => setTier(null)} className={cn("min-h-[40px] rounded-full border px-3 text-[13px] font-bold", tier === null ? "border-transparent text-white" : "border-ink-line bg-white text-ink")} style={tier === null ? { background: c.head } : undefined}>
+              分からない（幅で見る）
+            </button>
+          </div>
+          <p className="mt-1 text-[12px] leading-[1.6] text-ink-soft">区分は申し込んだあとに変えられません。どの区分が合うかは、現地調査のあとにご提案します。</p>
+        </fieldset>
+      )}
       {est.kind === "ok" && sum && p.capsBy === "facility" && est.lines.length > 1 ? (
         <div className="mt-2 space-y-2">
           {est.lines.map((l) => (
@@ -125,6 +148,20 @@ function EstimateBox({ p, est, onAskCost, example }: { p: Program; est: Estimate
   );
 }
 
+/** 要点の「いくら」の1行。答えがあればその目安、無ければ例か、補助率と上限 */
+function SummaryAmount({ p, est, example }: { p: Program; est: Estimate; example: boolean }) {
+  const c = COLORS[p.color];
+  const sum = estimateSummary(est);
+  if (est.kind !== "ok" || !sum || (p.capsBy === "facility" && est.lines.length > 1)) return <b>{p.amountShort}</b>;
+  return (
+    <>
+      {example && <span className="block text-[13px] text-ink-soft">例：{p.costBasis === "equipment" ? "機器代600万円" : "工事費1,000万円"}なら</span>}
+      補助の目安 <b className="text-[18px]" style={{ color: c.num }}>{manRange(sum.subsidyMin, sum.subsidyMax)}</b>
+      {sum.selfMin !== null && sum.selfMax !== null ? <span className="block">施設の負担 <b>{manRange(sum.selfMin, sum.selfMax)}</b>＋消費税など</span> : <span className="text-[13px] text-ink-soft">（上限の内側）</span>}
+    </>
+  );
+}
+
 export function ProgramCard({
   program: p,
   today,
@@ -180,6 +217,39 @@ export function ProgramCard({
           </div>
         )}
 
+        <dl className="grid gap-2 rounded-2xl p-4 text-[15px] leading-[1.65]" style={{ background: c.soft }} aria-label="要点">
+          <div className="grid grid-cols-[5.5em_minmax(0,1fr)] gap-2">
+            <dt className="font-bold" style={{ color: c.num }}>何に使える</dt>
+            <dd>{p.useShort}</dd>
+          </div>
+          <div className="grid grid-cols-[5.5em_minmax(0,1fr)] gap-2">
+            <dt className="font-bold" style={{ color: c.num }}>いつ</dt>
+            <dd>
+              {w ? (
+                <>
+                  <b>{w.short}</b>　{windowRangeText(w, today)}
+                  <span className={cn("ml-1 inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[13px] font-bold", next.state === "open" && (next.daysToEnd ?? 99) <= 14 ? "bg-red-700 text-white" : "bg-white text-ink")}>{countdownLabel(next)}</span>
+                  {prep && <span className="mt-1 block text-[14px] font-bold text-amber-900">準備に1か月ほどかかるため、この回は間に合わないことがあります。{prep.later ? `次の回（${prep.later.short}　${windowRangeText(prep.later, today)}）をおすすめします。` : ""}</span>}
+                </>
+              ) : p.noneText}
+            </dd>
+          </div>
+          <div className="grid grid-cols-[5.5em_minmax(0,1fr)] gap-2">
+            <dt className="font-bold" style={{ color: c.num }}>いくら</dt>
+            <dd><SummaryAmount p={p} est={est} example={example} /></dd>
+          </div>
+        </dl>
+        <p className="flex items-start gap-2 rounded-xl border border-red-700/30 bg-red-50 px-3 py-2 text-[14px] font-bold leading-[1.6] text-red-800">
+          <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />{p.flow[p.stopAt]}の前に、契約・発注しないでください。
+        </p>
+
+        {/* ブラッシュアップ1（2026-10-29）：カードが長すぎる、への対応。要点の3行だけを見せ、残りは「くわしく見る」の中へ */}
+        <details className="group rounded-2xl border-2" style={{ borderColor: c.box }} onToggle={(e) => { if ((e.currentTarget as HTMLDetailsElement).open) track("card_detail", { program: p.id }); }}>
+          <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-2 px-4 text-[15px] font-bold" style={{ color: c.num }}>
+            <span>くわしく見る<span className="block text-[12px] font-normal text-ink-soft">対象・補助率と上限・結局いくらの内訳・いつ・お金はいつ入るか・流れ・要件など</span></span>
+            <ChevronDown aria-hidden className="h-5 w-5 shrink-0 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="space-y-5 border-t px-4 py-4" style={{ borderColor: c.box }}>
         <p className="text-[13px] leading-[1.7] text-ink-soft">{p.officialName}<br />（{p.organizer}）</p>
 
         <section>
@@ -258,9 +328,6 @@ export function ProgramCard({
             <p className="text-[13px] font-bold" style={{ color: c.num }}>お金はいつ入るか</p>
             <p className="mt-0.5 text-[14px] leading-[1.7]">{p.money}</p>
           </div>
-          <p className="mt-3 flex items-start gap-2 rounded-xl border border-red-700/30 bg-red-50 px-3 py-2 text-[15px] font-bold leading-[1.6] text-red-800">
-            <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />{p.flow[p.stopAt]}の前に、契約・発注しないでください。
-          </p>
         </section>
 
         <section aria-label="流れ">
@@ -291,12 +358,7 @@ export function ProgramCard({
           </a>
         </section>
 
-        <details className="group rounded-2xl border border-ink-line">
-          <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between px-4 text-[15px] font-bold">
-            要件・重ねて使えるか・落ちやすい所・だれが何をするか
-            <ChevronDown aria-hidden className="h-5 w-5 transition-transform group-open:rotate-180" />
-          </summary>
-          <div className="space-y-4 border-t border-ink-line px-4 py-4 text-[15px] leading-[1.75]">
+        <div className="space-y-4 text-[15px] leading-[1.75]">
             <div>
               <Label color={c.num}>要件</Label>
               <ul className="mt-1 list-disc space-y-1 pl-5">{p.requirements.map((r) => <li key={r}>{r}</li>)}</ul>
@@ -327,6 +389,7 @@ export function ProgramCard({
                 </ul>
               </div>
             ) : null}
+          </div>
           </div>
         </details>
 

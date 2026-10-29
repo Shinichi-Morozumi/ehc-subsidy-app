@@ -24,7 +24,7 @@ import { track } from "@/lib/track";
 import { COMPANY } from "@/lib/company";
 import { currentReferral } from "@/lib/referralClient";
 import { PROGRAMS, type ProgramId } from "@/lib/programs";
-import { CONSULT_FLAGS, CONSULT_NOTE_MAX, type ConsultFlagId } from "@/lib/consultOptions";
+import { CONSULT_FLAGS, CONSULT_MULTI_EVENT, CONSULT_NOTE_MAX, CONSULT_SITES_MAX, type ConsultFlagId } from "@/lib/consultOptions";
 import { ATTACH_ACCEPT, ATTACH_MAX_FILES, ATTACH_MAX_TOTAL_BYTES, ATTACH_PHOTO_MAX_EDGE, fmtBytes } from "@/lib/attachLimits";
 import type { CheckAnswers } from "@/lib/programMatch";
 import type { ProgramLeadSource } from "@/lib/programLead";
@@ -126,6 +126,18 @@ export function ConsultForm({
   const [flags, setFlags] = useState<ConsultFlagId[]>([]);
   const toggleFlag = (f: ConsultFlagId) => setFlags((x) => (x.includes(f) ? x.filter((y) => y !== f) : [...x, f]));
   const [note, setNote] = useState("");
+  const [sites, setSites] = useState("");
+  const sectionRef = useRef<HTMLElement | null>(null);
+  /* 施設が複数：?multi=1 で来たとき・「まとめて相談」のボタンが押されたときに、印を付けて施設の一覧の欄を出す */
+  useEffect(() => {
+    const on = () => {
+      setFlags((x) => (x.includes("multiSite") ? x : [...x, "multiSite"]));
+      sectionRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    };
+    if (new URLSearchParams(window.location.search).get("multi") === "1") on();
+    window.addEventListener(CONSULT_MULTI_EVENT, on);
+    return () => window.removeEventListener(CONSULT_MULTI_EVENT, on);
+  }, []);
   const reachText = reach.trim();
   const reachOk = reachText.includes("@")
     ? /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/.test(reachText)
@@ -173,7 +185,7 @@ export function ConsultForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           company: company.trim(), name: name.trim(), reach: reachText, consent,
-          source, programId: picked[0] ?? null, programIds: picked, flags, note: note.trim(), answers: answers ?? null,
+          source, programId: picked[0] ?? null, programIds: picked, flags, note: note.trim(), sites: flags.includes("multiSite") ? sites.trim() : "", answers: answers ?? null,
           attachments: files.map((f) => ({ name: f.name, data: f.data })),
           referral: currentReferral(), hp, elapsedMs: Date.now() - openedAt.current,
         }),
@@ -203,7 +215,7 @@ export function ConsultForm({
     );
 
   return (
-    <section id={anchorId} aria-labelledby={`${id}-title`} className="scroll-mt-32 rounded-3xl border border-ink-line bg-white p-5 shadow-card sm:p-6">
+    <section ref={sectionRef} id={anchorId} aria-labelledby={`${id}-title`} className="scroll-mt-32 rounded-3xl border border-ink-line bg-white p-5 shadow-card sm:p-6">
       <h2 id={`${id}-title`} className="text-[22px] font-bold leading-[1.4]">相談する</h2>
       <p className="mt-1 text-[15px] leading-[1.8] text-ink-soft">
         必須の入力は3つだけです（ほかは任意）。写真やPDFもそのまま添えて送れます。
@@ -319,6 +331,13 @@ export function ConsultForm({
               })}
             </div>
           </fieldset>
+          {flags.includes("multiSite") && (
+            <div className="rounded-2xl border-2 border-brand-deep/30 bg-paper-tint p-3">
+              <label htmlFor={`${id}-sites`} className="block text-[14px] font-bold text-ink">施設・建物の一覧（任意・1行に1施設）</label>
+              <p className="text-[13px] leading-[1.7] text-ink-soft">施設名・所在地（市区町村まで）・種類（特養・事務所ビルなど）・気になっている設備を、分かる範囲で。まとめて1回の相談として承ります。</p>
+              <textarea id={`${id}-sites`} rows={5} maxLength={CONSULT_SITES_MAX} value={sites} onChange={(e) => setSites(e.target.value)} placeholder={"例：\n特養あおば　世田谷区　広域型特養　空調が20年\nグループホームみどり　川崎市　GH　給湯器\n本社ビル　中野区　事務所　照明"} className={cn(inputCls(false), "min-h-[140px] py-2")} />
+            </div>
+          )}
           <div>
             <label htmlFor={`${id}-note`} className="block text-[14px] font-bold text-ink">ご相談の内容（任意）</label>
             <textarea id={`${id}-note`} rows={3} maxLength={CONSULT_NOTE_MAX} value={note} onChange={(e) => setNote(e.target.value)} placeholder="例：夏に1台止まった／施設が3つあり、まとめて相談したい／図面はある など" className={cn(inputCls(false), "min-h-[96px] py-2")} />

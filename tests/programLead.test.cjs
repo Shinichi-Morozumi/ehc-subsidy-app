@@ -233,3 +233,12 @@ test("ドロップインの専用ページ：相談の入口に dropin・件名�
   const cfg = fs.readFileSync(path.resolve(root, "next.config.mjs"), "utf8");
   assert.match(cfg, /source: "\/", has: \[\{ type: "query", key: "ref", value: "krh01-dropin" \}\], destination: "\/dropin", permanent: false/);
 });
+
+test("ブラッシュアップ4：施設・建物の一覧（1行に1施設・1500字まで）を受けて、担当者宛メールに件数と一緒に載せる", () => {
+  const input = L.readProgramSubmit(form({ flags: ["multiSite"], sites: "特養あおば　世田谷区\r\nGHみどり　川崎市\r\n\r\n\r\n本社ビル　中野区" })).input;
+  assert.equal(input.sites, "特養あおば 世田谷区\nGHみどり 川崎市\n\n本社ビル 中野区");
+  const m = L.programStaffMail(input, "EHC-20261106-100000-ABCD", "2026-11-06");
+  assert.match(m.text, /施設・建物の一覧（3件）:\n特養あおば 世田谷区/);
+  assert.equal(L.cleanNote("あ".repeat(2000), 1500).length, 1500);
+  assert.equal(L.readProgramSubmit(form()).input.sites, null);
+});

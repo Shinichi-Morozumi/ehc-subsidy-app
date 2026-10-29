@@ -299,3 +299,12 @@ test("EHC の回答：準備に1か月ほどかかる。締切まで1か月を�
   assert.equal(P.prepWarning(P.PROGRAMS.kokuKaigo, "2026-10-29"), null, "日付の無い制度には出さない");
   assert.equal(P.prepWarning(P.PROGRAMS.tokyoZeroemi, "2026-12-01"), null, "第6回（1/29）まで59日なら出さない");
 });
+
+test("ブラッシュアップ2・3：お金はいつ入るかは公式で確かめた流れだけ（推測の月数を書かない）。ゼロエミは区分を選べる", () => {
+  for (const id of P.PROGRAM_ORDER) {
+    const m = P.PROGRAMS[id].money;
+    assert.ok(/公式|公募要領/.test(m), `${id}: 期間の根拠（公式に無いこと／公募要領）を書く`);
+    assert.ok(!/[0-9０-９]+か月(後|ほど|程度)/.test(m), `${id}: 推測の月数を書かない`);
+  }
+  assert.equal(P.PROGRAMS.tokyoZeroemi.capsBy, "tier");
+});
