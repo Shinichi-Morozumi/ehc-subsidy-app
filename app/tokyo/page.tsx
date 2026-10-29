@@ -38,12 +38,12 @@ export default function TokyoPage() {
       <main className="mx-auto max-w-6xl px-4 pb-6 pt-5">
         <section className="grid items-center gap-6 lg:grid-cols-[1.05fr_1fr]">
           <div>
-            <p className="inline-block rounded-xl bg-paper-tint px-3 py-1 text-[14px] font-bold text-brand-deep">東京都の事業所・介護施設</p>
+            <p className="inline-block rounded-xl bg-paper-tint px-3 py-1 text-[14px] font-bold text-brand-deep">東京都の補助（事務所・店舗・工場・病院・介護施設など）</p>
             <h1 className="mt-3 text-[28px] font-bold leading-[1.4] sm:text-[36px]">
               東京都の補助で、<span className="whitespace-nowrap">空調を入れ替える</span>
             </h1>
             <p className="mt-3 text-[16px] leading-[1.9] text-ink-soft">
-              都の補助は、国より補助率が高いものがあります。いま受付が近い3つを、締切・対象・要件・流れ・「結局いくら」の目安まで1枚のカードにまとめました。
+              都内の事業所なら業種を問わず使える省エネ設備の入れ替え（通称ゼロエミ）と、介護施設向けの改修の補助が2つ。都の補助は、国より補助率が高いものがあります。締切・対象・要件・流れ・「結局いくら」の目安まで1枚のカードにまとめました。
             </p>
             <ul className="mt-4 grid gap-2 sm:grid-cols-3">
               {IDS.map((id) => {
@@ -59,7 +59,7 @@ export default function TokyoPage() {
               })}
             </ul>
           </div>
-          <Image src="/kaigo/hero.jpg" alt="猛暑の日の介護施設と、涼しい室内で過ごす入居者と職員のイラスト" width={1600} height={900} priority sizes="(max-width: 1024px) 100vw, 560px" className="h-auto w-full rounded-3xl" />
+          <Image src="/v17/hero-scene.webp" alt="事務所と店舗の天井の空調と、室外機の前で確かめる作業員のイラスト" width={1536} height={1024} priority sizes="(max-width: 1024px) 100vw, 560px" className="h-auto w-full rounded-3xl" />
         </section>
 
         <div className="mt-8">

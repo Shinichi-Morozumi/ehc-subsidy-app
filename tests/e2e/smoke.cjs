@@ -73,7 +73,7 @@ async function flow(browser, vp) {
 
   await step("7問に答えられる", async () => {
     /* 2026-10-29 EHC-0102: 7問はトップの「国の省エネ（SII）」の入口から開く */
-    await page.getByRole("button", { name: /設備から計算する（7問）/ }).first().click();
+    await page.getByRole("button", { name: /設備から詳しく計算する/ }).first().click();
     await dialog.waitFor({ timeout: 10000 });
     const restart = dialog.getByRole("button", { name: /最初から答え直す/ });
     if (await restart.count()) await restart.click();

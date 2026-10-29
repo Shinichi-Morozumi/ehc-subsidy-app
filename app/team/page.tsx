@@ -12,7 +12,7 @@ import { SiteFooterSimple, SiteHeader } from "@/components/programs/SiteShell";
 
 const TITLE = "メンバーと実績｜工事も設備も、EHC のチームで";
 const DESCRIPTION =
-  "設計・施工の Leap、空調・給排水・電気の施工のプロジェクトネオ、実測と補助金の段取りの EHC。工事も設備もひとつの窓口でお受けする理由と、施工・冷媒の入れ替えの実績。";
+  "設計・施工の Leap、空調・給排水・電気の施工のプロジェクトネオ、実測と補助金の段取りの EHC。工事も設備もひとつのご相談先でお受けする理由と、施工・冷媒の入れ替えの実績。";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -33,7 +33,7 @@ export default function TeamPage() {
               工事も設備も、<span className="whitespace-nowrap">EHC のチームで</span><span className="whitespace-nowrap">全部お受けします</span>
             </h1>
             <p className="mt-3 text-[16px] leading-[1.9] text-ink-soft">
-              補助金の確認、現地調査、見積・図面・省エネの資料づくり、そして工事まで。空調だけでなく、照明・電気・給排水・防水・内装まで、窓口はひとつです。
+              補助金の確認、現地調査、見積・図面・省エネの資料づくり、そして工事まで。空調だけでなく、照明・電気・給排水・防水・内装まで、ご相談先は EHC ひとつです。
             </p>
           </div>
           <Image src="/v17/hero-scene.webp" alt="事務所と店舗の天井の空調と、室外機の前で確かめる作業員のイラスト" width={1536} height={1024} priority sizes="(max-width: 1024px) 100vw, 520px" className="h-auto w-full rounded-3xl" />
@@ -55,7 +55,7 @@ export default function TeamPage() {
             <ul className="mt-2 flex flex-wrap gap-2">
               {WORKS_WE_DO.map((w) => <li key={w} className="rounded-full bg-paper-tint px-3 py-1.5 text-[14px] font-bold text-brand-deep">{w}</li>)}
             </ul>
-            <p className="mt-2 text-[13px] leading-[1.7] text-ink-soft">契約と施工を担う会社・必要な許可は工事ごとに決まります。お見積りのときにお示しします。</p>
+            <p className="mt-2 text-[13px] leading-[1.7] text-ink-soft">ご契約の相手（EHC か、チームの施工会社か）と必要な許可は、工事の種類で決まります。お見積りの書面でお示しします。</p>
           </div>
         </section>
 
@@ -68,9 +68,9 @@ export default function TeamPage() {
                 <h3 className="mt-0.5 text-[22px] font-bold">{m.name}</h3>
                 <p className="mt-1 text-[15px] font-bold text-ink">担当：{m.handles}</p>
                 <dl className="mt-3 space-y-1.5 text-[14px] leading-[1.7]">
-                  <div className="grid grid-cols-[4.5em_1fr] gap-2"><dt className="font-bold text-ink-soft">本業</dt><dd>{m.company}<span className="block text-ink-soft">{m.companyNote}</span></dd></div>
+                  <div className="grid grid-cols-[7em_1fr] gap-2"><dt className="font-bold text-ink-soft">{m.companyLabel}</dt><dd>{m.company}<span className="block text-ink-soft">{m.companyNote}</span></dd></div>
                   {m.licenses.length > 0 && (
-                    <div className="grid grid-cols-[4.5em_1fr] gap-2"><dt className="font-bold text-ink-soft">許可など</dt><dd><ul className="space-y-0.5">{m.licenses.map((l) => <li key={l}>{l}</li>)}</ul></dd></div>
+                    <div className="grid grid-cols-[7em_1fr] gap-2"><dt className="font-bold text-ink-soft">許可など</dt><dd><ul className="space-y-0.5">{m.licenses.map((l) => <li key={l}>{l}</li>)}</ul></dd></div>
                   )}
                 </dl>
               </article>
@@ -129,7 +129,7 @@ export default function TeamPage() {
         </section>
 
         <section className="mt-10">
-          <ConsultForm source="team" />
+          <ConsultForm source="team" options={["tokyoZeroemi", "tokyoKaishu", "tokyoChiiki", "kokuKaigo", "kokuKaigo30", "sii"]} />
         </section>
 
         <section aria-label="出典" className="mt-8 text-[13px] leading-[1.8] text-ink-soft">

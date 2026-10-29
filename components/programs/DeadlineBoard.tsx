@@ -1,7 +1,9 @@
 "use client";
 
 /* ───────────────────────────────────────────────────────────
-   v1 / 2026-10-29 / EHC-0102 締切ボード（トップ・/tokyo）
+   v2 / 2026-10-29 / EHC-0102 締切ボード（トップ・/tokyo）
+   直し2回目（10名のレビュー）：見出しを「受付中・もうすぐ受付の補助」に。残り日数は「受付開始まで／受付終了まで／締切まで」。
+   日付の決まっていない国の制度も「次の募集待ち」として下に並べる（東京都以外の人が、自分に関係ないと帰らないように）。
 
    ・いちばん近い受付を大きな残り日数（開始まで／終了まで）で出し、その下にこれからの受付を近い順に1行ずつ並べる。
    　どの行にも「何に使える・いつ（いつからいつまで）・いくら」を出す（ご指示 2026-10-29）。
@@ -9,7 +11,7 @@
    ・今日は開いた端末の日本時間（lib/useToday.ts）。日付が決まるまでは数字を出さない。
    ─────────────────────────────────────────────────────────── */
 
-import { COLORS, PROGRAMS, PROGRAM_ORDER, VERIFIED_AT, countdownLabel, jaDate, upcomingWindowItems, windowRangeText, type ProgramId, type WindowItem } from "@/lib/programs";
+import { COLORS, PROGRAMS, PROGRAM_ORDER, VERIFIED_AT, countdownKind, countdownLabel, jaDate, upcomingWindowItems, windowRangeText, type ProgramId, type WindowItem } from "@/lib/programs";
 import { daysBetween } from "@/lib/programClock";
 import { cn } from "@/lib/utils";
 
@@ -83,7 +85,7 @@ export function Timeline({ today, ids = PROGRAM_ORDER }: { today: string; ids?: 
           );
         })}
       </div>
-      <figcaption className="mt-2 text-[12px] text-ink-soft">帯＝受付の期間、赤い点＝締切（区市町村・都への提出期限を含む）</figcaption>
+      <figcaption className="mt-2 text-[12px] text-ink-soft">帯＝受付の期間、赤い点＝締切（区市町村から都への期限を含む。施設の締切はもっと前のことがあります）</figcaption>
     </figure>
   );
 }
@@ -118,13 +120,14 @@ function Pill({ item }: { item: WindowItem }) {
   );
 }
 
-export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "いま近い締切" }: { today: string | null; ids?: ProgramId[]; title?: string }) {
+export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "受付中・もうすぐ受付の補助" }: { today: string | null; ids?: ProgramId[]; title?: string }) {
   if (!today) {
     return <div className="h-[420px] animate-pulse rounded-3xl bg-white/70" aria-hidden />;
   }
   const items = upcomingWindowItems(today, ids);
   const first = items[0];
   const rest = items.slice(1, 6);
+  const waiting = ids.filter((id) => !items.some((i) => i.programId === id));
   return (
     <section aria-labelledby="deadline-board" className="rounded-3xl border border-ink-line bg-white p-5 shadow-card sm:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -148,7 +151,7 @@ export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "いま近�
                 <span className="text-[30px] font-bold text-red-800">{countdownLabel(first)}</span>
               ) : (
                 <>
-                  <span className="text-[15px] font-bold">{first.state === "upcoming" ? "開始まで" : "終了まで"} あと</span>
+                  <span className="text-[15px] font-bold">{countdownKind(first)} あと</span>
                   <span className="mx-1 text-[56px] font-bold tracking-tight" style={{ color: c.num }}>{big}</span>
                   <span className="text-[15px] font-bold">日</span>
                 </>
@@ -182,6 +185,29 @@ export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "いま近�
             );
           })}
         </ul>
+      )}
+
+      {waiting.length > 0 && (
+        <div className="mt-4 rounded-2xl bg-paper-sub p-4">
+          <p className="text-[15px] font-bold">次の募集待ち（日付が出たらここに載せます）</p>
+          <ul className="mt-2 space-y-2">
+            {waiting.map((id) => {
+              const p = PROGRAMS[id];
+              const c = COLORS[p.color];
+              return (
+                <li key={id} className="flex gap-3">
+                  <span className="w-1.5 shrink-0 rounded-full" style={{ background: c.head }} aria-hidden />
+                  <p className="text-[14px] leading-[1.6]">
+                    <span className="block text-[12px] font-bold" style={{ color: c.num }}>{p.tag}</span>
+                    <b className="block text-[15px]">{p.title}</b>
+                    <span className="block">{p.noneText}</span>
+                    <span className="block font-bold">{p.amountShort}</span>
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
 
       <Timeline today={today} ids={ids} />

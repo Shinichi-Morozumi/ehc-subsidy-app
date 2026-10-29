@@ -1,7 +1,10 @@
 "use client";
 
 /* ───────────────────────────────────────────────────────────
-   v1 / 2026-10-29 / EHC-0102 制度カード
+   v2 / 2026-10-29 / EHC-0102 制度カード
+   直し2回目（10名のレビュー）：「結局いくら」を1行に（区分で違えば幅）・「〜」をやめて何が別にかかるかを書く／
+   「いつ」は受付の期間をそのまま大きく／お金はいつ入るかと、確かめる点をカードの外に出す／
+   入札・3社以上の見積りがある制度では、EHC がその中の1社として加わることを書く。
 
    東京都の介護施設向けパンフ（EHC-0099）の「制度02」のカードと同じ形。
    上から：何に使えるか → 対象 → 補助率と上限（大きな数字） → 結局いくら（目安） → いつ（残り日数） →
@@ -14,7 +17,7 @@ import { AlertTriangle, CalendarDays, Check, ChevronDown, ExternalLink, Info } f
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
 import {
-  COLORS, countdownLabel, estimateFor, fmtMan, jaDate, needsRecheck, nextWindow, upcomingWindows, windowRangeText,
+  COLORS, countdownLabel, estimateFor, estimateSummary, fmtMan, jaDate, manRange, needsRecheck, nextWindow, upcomingWindows, windowRangeText,
   type Estimate, type Program, type ProgramId,
 } from "@/lib/programs";
 import type { MatchStatus } from "@/lib/programMatch";
@@ -45,28 +48,59 @@ export const EXAMPLE_COST = { costMan: 1000, equipmentMan: 600 } as const;
 function EstimateBox({ p, est, onAskCost, example }: { p: Program; est: Estimate; onAskCost?: () => void; example: boolean }) {
   const c = COLORS[p.color];
   const exampleLabel = p.costBasis === "equipment" ? "工事費1,000万円・うち機器代600万円" : "工事費1,000万円";
+  const sum = estimateSummary(est);
   return (
     <div className="rounded-2xl p-4" style={{ background: c.soft }}>
       <Label color={c.num}>{example && est.kind === "ok" ? `結局いくら（例：${exampleLabel}の場合）` : "結局いくら（目安）"}</Label>
-      {est.kind === "ok" ? (
-        <div className="mt-2 space-y-3">
+      {est.kind === "ok" && sum && p.capsBy === "facility" && est.lines.length > 1 ? (
+        <div className="mt-2 space-y-2">
           {est.lines.map((l) => (
             <div key={l.label} className="rounded-xl bg-white p-3">
-              {est.lines.length > 1 && <p className="text-[13px] font-bold text-ink-soft">{l.label}</p>}
+              <p className="text-[13px] font-bold text-ink-soft">{l.label}</p>
               <p className="text-[15px] leading-[1.6]">
-                補助の目安 <span className="whitespace-nowrap">最大 <b className="text-[26px] leading-none" style={{ color: c.num }}>{fmtMan(l.subsidyMan)}</b></span>
-                {l.capped && <span className="ml-1 text-[12px] text-ink-soft">（上限まで）</span>}
+                補助の目安 <b className="whitespace-nowrap text-[22px] leading-none" style={{ color: c.num }}>{fmtMan(l.subsidyMan)}</b>
+                {l.capped && <span className="ml-1 text-[12px] text-ink-soft">（上限で頭打ち）</span>}
               </p>
-              <p className="mt-1 text-[15px] leading-[1.6]">
-                {l.selfMan !== null ? (
-                  <>自己負担の目安 <b className="whitespace-nowrap text-[18px]">{fmtMan(l.selfMan)}〜</b></>
-                ) : (
-                  <span className="text-[14px] text-ink-soft">上限の内側の計算です。対象外の経費・消費税などは施設の負担です。</span>
-                )}
+              <p className="mt-1 text-[14px] leading-[1.6]">
+                {l.selfMan !== null ? <>施設の負担の目安 <b className="text-[17px]">{fmtMan(l.selfMan)}</b>（上限を超える分）</> : <span className="text-ink-soft">上限の内側に収まる計算です。</span>}
               </p>
             </div>
           ))}
-          <p className="text-[13px] leading-[1.7] text-ink-soft">{est.basis}。{est.note}</p>
+          <p className="text-[13px] leading-[1.7] text-ink-soft">施設の種類で上限が変わります。このほかに消費税と、補助の対象にならない費用がかかります。{est.basis}。目安です。採択と金額は審査で決まります。</p>
+          {example && onAskCost && (
+            <button type="button" onClick={onAskCost} className="inline-flex min-h-[44px] items-center rounded-xl border bg-white px-3 text-[14px] font-bold" style={{ borderColor: c.head, color: c.num }}>
+              自分の工事費で計算する
+            </button>
+          )}
+        </div>
+      ) : est.kind === "ok" && sum ? (
+        <div className="mt-2 space-y-3">
+          <div className="rounded-xl bg-white p-3">
+            <p className="text-[15px] leading-[1.6]">
+              補助の目安 <b className="whitespace-nowrap text-[26px] leading-none" style={{ color: c.num }}>{manRange(sum.subsidyMin, sum.subsidyMax)}</b>
+              {sum.capped && <span className="ml-1 text-[12px] text-ink-soft">（上限で頭打ち）</span>}
+            </p>
+            <p className="mt-1.5 text-[15px] leading-[1.6]">
+              {sum.selfMin !== null && sum.selfMax !== null ? (
+                <>
+                  施設の負担の目安 <b className="whitespace-nowrap text-[20px]">{manRange(sum.selfMin, sum.selfMax)}</b>
+                  <span className="block text-[13px] text-ink-soft">このほかに消費税と、補助の対象にならない費用がかかります。</span>
+                </>
+              ) : (
+                <span className="text-[14px] text-ink-soft">補助の上限の内側に収まる計算です。消費税と、補助の対象にならない費用は施設の負担です。</span>
+              )}
+            </p>
+            {p.rate.value === "10/10" && sum.capped && (
+              <p className="mt-1.5 text-[13px] leading-[1.6] text-ink">10/10 は上限の額までです。上限を超える分は施設の負担になります。</p>
+            )}
+          </div>
+          {sum.varies && (
+            <ul className="space-y-0.5 text-[13px] leading-[1.6] text-ink-soft">
+              <li className="font-bold">区分ごとの目安（どの区分になるかは{p.id === "tokyoZeroemi" ? "省エネ診断などで決まります" : "要件で決まります"}）</li>
+              {est.lines.map((l) => <li key={l.label}>・{l.label}：補助 {fmtMan(l.subsidyMan)}</li>)}
+            </ul>
+          )}
+          <p className="text-[13px] leading-[1.7] text-ink-soft">{est.basis}。目安です。採択と金額は審査で決まります。</p>
           {example && onAskCost && (
             <button type="button" onClick={onAskCost} className="inline-flex min-h-[44px] items-center rounded-xl border bg-white px-3 text-[14px] font-bold" style={{ borderColor: c.head, color: c.num }}>
               自分の工事費で計算する
@@ -76,9 +110,13 @@ function EstimateBox({ p, est, onAskCost, example }: { p: Program; est: Estimate
       ) : (
         <div className="mt-1">
           <p className="text-[14px] leading-[1.8] text-ink">{est.note}</p>
+          {p.costBasis === "equipment" && (est.kind === "needEquipment" || est.kind === "needCost") && (() => {
+            const ex = estimateSummary(estimateFor(p, EXAMPLE_COST));
+            return ex ? <p className="mt-1 text-[14px] leading-[1.7]">例：機器代 600万円なら、補助の目安 <b style={{ color: c.num }}>{manRange(ex.subsidyMin, ex.subsidyMax)}</b>（工事費は自己負担）</p> : null;
+          })()}
           {onAskCost && est.kind !== "unknownRate" && est.kind !== "belowMin" && (
             <button type="button" onClick={onAskCost} className="mt-2 inline-flex min-h-[44px] items-center rounded-xl border px-3 text-[14px] font-bold" style={{ borderColor: c.head, color: c.num }}>
-              工事費を入れて計算する
+              {p.costBasis === "equipment" ? "機器代を入れて計算する" : "工事費を入れて計算する"}
             </button>
           )}
         </div>
@@ -112,7 +150,7 @@ export function ProgramCard({
   const w = next.window;
 
   return (
-    <article className="overflow-hidden rounded-3xl border-2 bg-white shadow-card" style={{ borderColor: c.head }} aria-labelledby={`card-${p.id}`}>
+    <article id={`program-${p.id}`} className="scroll-mt-32 overflow-hidden rounded-3xl border-2 bg-white shadow-card" style={{ borderColor: c.head }} aria-labelledby={`card-${p.id}`}>
       <header className="relative px-5 pb-5 pt-4 text-white" style={{ background: c.head }}>
         <p className="text-[13px] font-bold opacity-95">{p.tag}</p>
         <h3 id={`card-${p.id}`} className="mt-1 pr-[84px] text-[22px] font-bold leading-[1.4]">{p.title}</h3>
@@ -123,13 +161,21 @@ export function ProgramCard({
 
       <div className="space-y-5 px-5 py-5 text-ink">
         {match && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={cn("rounded-full px-3 py-1 text-[14px] font-bold", STATUS_STYLE[match.status])}>{match.status}</span>
-            {match.reasons.map((r) => (
-              <span key={r} className="inline-flex items-center gap-1 rounded-full bg-paper-sub px-2 py-1 text-[13px] font-bold text-ink">
-                <Check aria-hidden className="h-3.5 w-3.5" style={{ color: c.num }} />{r}
-              </span>
-            ))}
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={cn("rounded-full px-3 py-1 text-[14px] font-bold", STATUS_STYLE[match.status])}>{match.status}</span>
+              {match.reasons.map((r) => (
+                <span key={r} className="inline-flex items-center gap-1 rounded-full bg-paper-sub px-2 py-1 text-[13px] font-bold text-ink">
+                  <Check aria-hidden className="h-3.5 w-3.5" style={{ color: c.num }} />{r}
+                </span>
+              ))}
+            </div>
+            {match.checks.length > 0 && (
+              <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[14px] leading-[1.7] text-amber-950">
+                <p className="font-bold">確かめる点{match.status === "要確認" ? "（ここが分かれば判定できます）" : ""}</p>
+                <ul className="mt-0.5 list-disc pl-5">{match.checks.map((r) => <li key={r}>{r}</li>)}</ul>
+              </div>
+            )}
           </div>
         )}
 
@@ -185,26 +231,26 @@ export function ProgramCard({
           {w ? (
             <div className="mt-1">
               <p className="text-[14px] font-bold">{w.label}</p>
-              <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
-                <p className="leading-tight">
-                  <span className="block text-[13px] font-bold">{w.end.slice(0, 4)}年{w.start && next.state === "upcoming" ? `　${jaDate(w.start, false)}から` : ""}</span>
-                  <span className="text-[30px] font-bold" style={{ color: c.num }}>{jaDate(w.end, false).replace(/（.）$/, "")}</span>
-                  <span className="text-[15px] font-bold">{jaDate(w.end).match(/（.）$/)?.[0]}{w.start ? "まで" : ""}</span>
-                </p>
-                <span className={cn("rounded-full px-3 py-1 text-[14px] font-bold", (next.daysToEnd ?? 99) <= 14 ? "bg-red-700 text-white" : "bg-paper-pill text-ink")}>
-                  {countdownLabel(next)}
-                </span>
-              </div>
+              <p className="mt-1 text-[24px] font-bold leading-[1.35]" style={{ color: c.num }}>
+                {w.start ? <>{jaDate(w.start, w.start.slice(0, 4) !== today.slice(0, 4))}<span className="text-[18px]">〜</span>{jaDate(w.end, w.end.slice(0, 4) !== w.start.slice(0, 4))}</> : <>{jaDate(w.end, w.end.slice(0, 4) !== today.slice(0, 4))}<span className="text-[16px] text-ink">まで</span></>}
+              </p>
+              <span className={cn("mt-1 inline-block rounded-full px-3 py-1 text-[14px] font-bold", next.state === "open" && (next.daysToEnd ?? 99) <= 14 ? "bg-red-700 text-white" : "bg-paper-pill text-ink")}>
+                {countdownLabel(next)}
+              </span>
               {w.time && <p className="mt-1 text-[14px] text-ink-soft">{w.time}</p>}
               {w.note && <p className="mt-1 text-[14px] leading-[1.7] text-ink">{w.note}</p>}
               {upcomingWindows(p, today).slice(1).map((o) => (
-                <p key={o.end} className="mt-2 rounded-xl bg-paper-sub px-3 py-2 text-[14px] leading-[1.6]">次の回：<b>{o.short}</b>　{windowRangeText(o, today)}</p>
+                <p key={o.end} className="mt-2 rounded-xl bg-paper-sub px-3 py-2 text-[14px] leading-[1.6]">次の回：<b>{o.short}</b>　{windowRangeText(o, today)}<span className="block text-[13px] text-ink-soft">見積や書類の準備が間に合わないときは、次の回を目指せます。</span></p>
               ))}
             </div>
           ) : (
             <p className="mt-1 text-[18px] font-bold">次の募集は未発表です</p>
           )}
           <p className="mt-2 text-[14px] leading-[1.7] text-ink-soft">{p.scheduleNote}</p>
+          <div className="mt-3 rounded-xl bg-paper-sub px-3 py-2">
+            <p className="text-[13px] font-bold" style={{ color: c.num }}>お金はいつ入るか</p>
+            <p className="mt-0.5 text-[14px] leading-[1.7]">{p.money}</p>
+          </div>
           <p className="mt-3 flex items-start gap-2 rounded-xl border border-red-700/30 bg-red-50 px-3 py-2 text-[15px] font-bold leading-[1.6] text-red-800">
             <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />{p.flow[p.stopAt]}の前に、契約・発注しないでください。
           </p>
@@ -223,10 +269,16 @@ export function ProgramCard({
         </section>
 
         <section aria-label="EHCにできること" className="rounded-2xl border-2 p-4" style={{ borderColor: c.box, background: "#FFFFFF" }}>
-          <p className="text-[15px] font-bold leading-[1.6]">工事も設備も、EHC のチームでまとめてお受けします</p>
+          <p className="text-[15px] font-bold leading-[1.6]">工事も設備も、EHC のチームでまとめてお受けできます</p>
           <p className="mt-1 text-[14px] leading-[1.75] text-ink">
-            現地調査・見積・図面・省エネの資料づくりから工事まで、窓口は EHC ひとつです。空調だけでなく、建物と設備の工事をまとめて計画できます。
+            現地調査・見積・図面・省エネの計算の資料づくりから工事まで、ご相談先は EHC ひとつです。空調だけでなく、建物と設備の工事をまとめて計画できます。
           </p>
+          {p.selection === "bid" && (
+            <p className="mt-1 text-[14px] leading-[1.75] text-ink">この制度では、施設が入札などで公平に業者を選びます。EHC はその中の1社として、見積り・図面をご用意して加わります。</p>
+          )}
+          {p.selection === "quotes" && (
+            <p className="mt-1 text-[14px] leading-[1.75] text-ink">この制度では3社以上の見積りが要ります。EHC の見積りは、そのうちの1社分です。</p>
+          )}
           <a href="/team" className="mt-2 inline-flex min-h-[44px] items-center text-[14px] font-bold underline underline-offset-4" style={{ color: c.num }}>
             なぜ全部受けられるの？ メンバーと実績を見る →
           </a>
@@ -234,7 +286,7 @@ export function ProgramCard({
 
         <details className="group rounded-2xl border border-ink-line">
           <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between px-4 text-[15px] font-bold">
-            要件・重ねて使えるか・お金の流れ・落ちやすい所
+            要件・重ねて使えるか・落ちやすい所・だれが何をするか
             <ChevronDown aria-hidden className="h-5 w-5 transition-transform group-open:rotate-180" />
           </summary>
           <div className="space-y-4 border-t border-ink-line px-4 py-4 text-[15px] leading-[1.75]">
@@ -247,10 +299,6 @@ export function ProgramCard({
               <p className="mt-1">{p.stack}</p>
             </div>
             <div>
-              <Label color={c.num}>お金の流れ</Label>
-              <p className="mt-1">{p.money}</p>
-            </div>
-            <div>
               <Label color={c.num}>落ちやすい所</Label>
               <ul className="mt-1 list-disc space-y-1 pl-5">{p.pitfalls.map((r) => <li key={r}>{r}</li>)}</ul>
             </div>
@@ -258,18 +306,17 @@ export function ProgramCard({
               <Label color={c.num}>だれが何をするか</Label>
               <dl className="mt-1 divide-y divide-ink-line rounded-xl border border-ink-line">
                 {p.roles.map((r) => (
-                  <div key={r.who} className="grid grid-cols-[7.5em_1fr] gap-2 px-3 py-2 text-[14px]">
+                  <div key={r.who} className="grid grid-cols-[8.5em_1fr] gap-2 px-3 py-2 text-[14px]">
                     <dt className="font-bold">{r.who}</dt><dd>{r.what}</dd>
                   </div>
                 ))}
               </dl>
             </div>
-            {(match?.checks.length || p.pending.length) ? (
+            {p.pending.length ? (
               <div>
-                <Label color={c.num}>確かめる点</Label>
+                <Label color={c.num}>EHC が事務局に確かめている点</Label>
                 <ul className="mt-1 list-disc space-y-1 pl-5">
-                  {match?.checks.map((r) => <li key={r}>{r}</li>)}
-                  {p.pending.map((r) => <li key={r}>{r}（事務局に確認中）</li>)}
+                  {p.pending.map((r) => <li key={r}>{r}（確認中）</li>)}
                 </ul>
               </div>
             ) : null}
@@ -281,7 +328,7 @@ export function ProgramCard({
             <CalendarDays aria-hidden className="h-4 w-4" />公式確認日 {p.verifiedAt.replace(/-/g, "/")}
             {recheck && <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-bold text-amber-900"><Info aria-hidden className="h-3.5 w-3.5" />公式で再確認中</span>}
           </p>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="no-print grid gap-2 sm:grid-cols-2">
             {onConsult && (
               <button
                 type="button"

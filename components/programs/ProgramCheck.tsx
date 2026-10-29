@@ -1,9 +1,11 @@
 "use client";
 
 /* ───────────────────────────────────────────────────────────
-   v1 / 2026-10-29 / EHC-0102 6問の診断（/shindan）
+   v2 / 2026-10-29 / EHC-0102 使える補助金を調べる（/shindan）
 
-   1問ずつ答える（スマホ前提・選ぶと次へ進む）。定員は、制度上29人以下と決まっている施設では聞かない。
+   1問ずつ答える（スマホ前提・選ぶと次へ進む）。質問は5つで固定（10名のレビュー：途中で数が増えると分かりにくい）。
+   施設の種類は入口に合わせて並べ替え（東京都・SII から来たら介護施設以外を先に）、介護施設なら定員も同じ画面で聞く。
+   結果の頭に「可能性あり／要確認／対象外の見込み」の説明と、入口以外で受付が近い制度の知らせ、印刷・PDFで残すボタン。
    最後の「工事費の目安」は飛ばせる。入れると、制度カードに「結局いくら（目安）」を出す。
    結果は制度カード（lib/programMatch.ts の matchPrograms）を締切の近い順に。相談は3項目のフォーム。
    答えは端末に保存しない（相談を送るときだけ、担当者宛メールと Notion に運ぶ）。
@@ -11,25 +13,26 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ChevronLeft, RotateCcw } from "lucide-react";
+import { AlertTriangle, ChevronLeft, Printer, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
 import { useTodayJst } from "@/lib/useToday";
-import { COMMON_CAUTIONS, type ProgramId } from "@/lib/programs";
+import { COMMON_CAUTIONS, countdownLabel, type ProgramId } from "@/lib/programs";
 import {
-  CHECK_CAPACITIES, CHECK_CORPS, CHECK_FACILITIES, CHECK_PREFS, CHECK_STAFF, CHECK_STEPS, CHECK_WORKS,
+  CAPACITY_Q, CHECK_CAPACITIES, CHECK_CORPS, CHECK_FACILITIES, CHECK_PREFS, CHECK_STAFF, CHECK_STEPS, CHECK_WORKS, FACILITY_GROUPS, STAFF_HINT,
   asksCapacity, labelOfOpt, matchPrograms,
   type CheckAnswers, type CheckCapacityId, type CheckCorpId, type CheckFacilityId, type CheckPrefId, type CheckStaffId, type CheckWorkId,
 } from "@/lib/programMatch";
 import { ProgramCard } from "./ProgramCard";
 import { ConsultForm } from "./ConsultForm";
 import { DropinCard } from "./DropinCard";
+import { NotifySignup } from "../NotifySignup";
 
 type Focus = "tokyo" | "sii" | "kaigo";
 const FOCUS: Record<Focus, { label: string; intro: string; ids: ProgramId[] }> = {
-  tokyo: { label: "東京都の補助", intro: "東京都の補助（業種を問わず）を、6つの質問で調べます。事業所の省エネ（ゼロエミ）から介護施設の改修まで、答えに合う制度をカードで出します。", ids: ["tokyoZeroemi", "tokyoChiiki", "tokyoKaishu"] },
-  sii: { label: "国の省エネ補助金（SII）", intro: "国の省エネ補助金（SII・業種を問わず）を、6つの質問で調べます。都や介護施設の補助で、より合うものがあれば一緒に出します。", ids: ["sii"] },
-  kaigo: { label: "介護施設の補助", intro: "介護施設の補助（国の交付金・東京都の改修費など）を、6つの質問で調べます。施設の種類と定員で、使える制度が変わります。", ids: ["kokuKaigo", "kokuKaigo30", "tokyoKaishu", "tokyoChiiki"] },
+  tokyo: { label: "東京都の補助", intro: "東京都の補助（事務所・店舗・飲食店・工場・病院・介護施設など、業種を問わず）を、かんたんな質問（約1分）で調べます。事業所の省エネ設備の入れ替え（通称ゼロエミ）から介護施設の改修まで、答えに合う制度をカードで出します。", ids: ["tokyoZeroemi", "tokyoChiiki", "tokyoKaishu"] },
+  sii: { label: "国の省エネ補助金（SII）", intro: "国の省エネ補助金（全国・業種を問わず。SII は国の事務局の名前です）を、かんたんな質問（約1分）で調べます。都や介護施設の補助で、より合うものがあれば一緒に出します。", ids: ["sii"] },
+  kaigo: { label: "介護施設の補助", intro: "介護施設の補助（国の交付金・東京都の改修費など）を、かんたんな質問（約1分）で調べます。施設の種類と定員で、使える制度が変わります。", ids: ["kokuKaigo", "kokuKaigo30", "tokyoKaishu", "tokyoChiiki"] },
 };
 
 type Draft = {
@@ -74,6 +77,7 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
   /* undefined＝まだ選んでいない（いちばん上のカードを入れておく）／null＝制度を指定しない（ドロップインなど） */
   const [consultProgram, setConsultProgram] = useState<ProgramId | null | undefined>(undefined);
   const headRef = useRef<HTMLHeadingElement | null>(null);
+  const capRef = useRef<HTMLFieldSetElement | null>(null);
   const moved = useRef(false);
 
   /* 入口（ご指示 2026-10-29）：東京都・SII・介護施設のどこから入っても6問で振り分ける。入口の制度を結果の先頭にまとめる */
@@ -86,8 +90,19 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
     track("check_open", { from: f ?? (from && /^[a-z]{1,12}$/.test(from) ? from : "direct") });
   }, []);
 
-  const steps = useMemo(() => CHECK_STEPS.filter((s) => s.key !== "capacity" || asksCapacity(d.facility)), [d.facility]);
+  const steps = CHECK_STEPS;
   const cur = steps[Math.min(step, steps.length - 1)];
+  /* 施設の種類：入口が介護施設なら介護施設を先に、それ以外は介護施設以外を先に */
+  const groups = focus === "kaigo" ? [FACILITY_GROUPS[1], FACILITY_GROUPS[0]] : [FACILITY_GROUPS[0], FACILITY_GROUPS[1]];
+  const pickFacility = (fid: CheckFacilityId) => {
+    if (asksCapacity(fid)) {
+      set({ facility: fid, capacity: undefined });
+      requestAnimationFrame(() => capRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }));
+      return;
+    }
+    set({ facility: fid, capacity: undefined });
+    next();
+  };
 
   useEffect(() => {
     if (!moved.current) return;
@@ -125,6 +140,13 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
     setConsultProgram(pid);
     document.getElementById("consult")?.scrollIntoView({ block: "start", behavior: "smooth" });
   };
+  const printResult = () => {
+    track("check_print", {});
+    const opened: HTMLDetailsElement[] = [];
+    document.querySelectorAll("details").forEach((el) => { if (!el.open) { el.open = true; opened.push(el); } });
+    window.print();
+    opened.forEach((el) => { el.open = false; });
+  };
   const askCost = () => {
     setDone(false);
     go(steps.findIndex((s) => s.key === "cost"));
@@ -136,16 +158,34 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
         <section aria-labelledby={`${id}-res`} className="rounded-3xl border border-ink-line bg-white p-5 shadow-card sm:p-6">
           <h1 id={`${id}-res`} ref={headRef} tabIndex={-1} className="scroll-mt-32 text-[24px] font-bold leading-[1.45] outline-none sm:text-[28px]">
             使えそうな制度 <span className="text-brand-deep">{result.items.length}件</span>
-            <span className="block text-[15px] font-normal text-ink-soft">締切の近い順に並べています</span>
+            <span className="block text-[15px] font-normal text-ink-soft">{focus ? `${FOCUS[focus].label}を先に、それぞれ締切の近い順に並べています` : "締切の近い順に並べています"}</span>
           </h1>
-          <ul className="mt-3 flex flex-wrap gap-2 text-[13px]">
-            {[labelOfOpt(CHECK_PREFS, answers.pref), labelOfOpt(CHECK_FACILITIES, answers.facility), answers.capacity ? labelOfOpt(CHECK_CAPACITIES, answers.capacity) : "", labelOfOpt(CHECK_CORPS, answers.corp), labelOfOpt(CHECK_WORKS, answers.work), answers.costMan !== null ? `工事費 ${answers.costMan.toLocaleString("ja-JP")}万円` : "工事費 未入力"]
+          <p className="mt-3 text-[13px] font-bold text-ink-soft">あなたの答え</p>
+          <ul className="mt-1 flex flex-wrap gap-2 text-[13px]">
+            {[labelOfOpt(CHECK_PREFS, answers.pref), labelOfOpt(CHECK_FACILITIES, answers.facility), answers.capacity ? `定員 ${labelOfOpt(CHECK_CAPACITIES, answers.capacity)}` : "", labelOfOpt(CHECK_CORPS, answers.corp), `従業員 ${labelOfOpt(CHECK_STAFF, answers.staff)}`, labelOfOpt(CHECK_WORKS, answers.work), answers.costMan !== null ? `工事費 ${answers.costMan.toLocaleString("ja-JP")}万円` : "工事費 未入力"]
               .filter(Boolean)
               .map((t) => <li key={t} className="rounded-full bg-paper-sub px-3 py-1 font-bold">{t}</li>)}
           </ul>
-          <button type="button" onClick={() => { setDone(false); go(0); }} className="mt-3 inline-flex min-h-[44px] items-center gap-1 text-[15px] font-bold text-brand-deep underline underline-offset-4">
-            <RotateCcw aria-hidden className="h-4 w-4" />答えを直す
-          </button>
+          <div className="no-print mt-3 flex flex-wrap gap-x-5 gap-y-1">
+            <button type="button" onClick={() => { setDone(false); go(0); }} className="inline-flex min-h-[44px] items-center gap-1 text-[15px] font-bold text-brand-deep underline underline-offset-4">
+              <RotateCcw aria-hidden className="h-4 w-4" />答えを直す
+            </button>
+            <button type="button" onClick={printResult} className="inline-flex min-h-[44px] items-center gap-1 text-[15px] font-bold text-brand-deep underline underline-offset-4">
+              <Printer aria-hidden className="h-4 w-4" />この結果を印刷・PDFで残す
+            </button>
+          </div>
+          <dl className="mt-3 grid gap-1.5 rounded-2xl border border-ink-line p-3 text-[14px] leading-[1.6]">
+            {[
+              ["可能性あり", "答えから見ると、対象になりそうです。", "bg-brand-deep text-white"],
+              ["要確認", "あと少し確かめることがあります（カードの「確かめる点」）。", "bg-amber-100 text-amber-900 ring-1 ring-amber-300"],
+              ...(result.excluded.length ? [["対象外の見込み", "いちばん下にまとめています。", "bg-stone-200 text-stone-700"]] : []),
+            ].map(([k, v, cls]) => (
+              <div key={k} className="flex flex-wrap items-center gap-2">
+                <dt className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-bold", cls)}>{k}</dt>
+                <dd>{v}</dd>
+              </div>
+            ))}
+          </dl>
           <div className="mt-4 space-y-2 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-[14px] leading-[1.75] text-amber-950">
             {COMMON_CAUTIONS.map((c) => (
               <p key={c} className="flex gap-2"><AlertTriangle aria-hidden className="mt-1 h-4 w-4 shrink-0" />{c}</p>
@@ -157,14 +197,29 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
           const fIds = focus ? FOCUS[focus].ids : [];
           const first = result.items.filter((i) => fIds.includes(i.program.id));
           const rest = result.items.filter((i) => !fIds.includes(i.program.id));
+          /* 入口以外の制度で、30日以内に受付が始まる・終わるものは、先に知らせる（並びの下に埋もれないように） */
+          const soon = focus ? rest.filter((i) => (i.next.state === "upcoming" ? i.next.daysToStart ?? 99 : i.next.daysToEnd ?? 99) <= 30) : [];
           const card = (i: (typeof result.items)[number]) => (
             <ProgramCard key={i.program.id} program={i.program} today={today} match={i} estimate={i.estimate} onConsult={consult} onAskCost={askCost} place="shindan" />
           );
           return (
             <>
+              {soon.length > 0 && (
+                <div className="rounded-2xl border-2 border-red-700/30 bg-red-50 p-4 text-[15px] leading-[1.7]">
+                  <p className="font-bold text-red-800">ほかの制度にも、受付が近いものがあります</p>
+                  <ul className="mt-1 space-y-1">
+                    {soon.map((i) => (
+                      <li key={i.program.id}>
+                        <a href={`#program-${i.program.id}`} className="font-bold text-ink underline underline-offset-4">{i.program.tag} {i.program.title}</a>
+                        <span className="ml-1 whitespace-nowrap text-[14px] font-bold text-red-800">{countdownLabel(i.next)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {focus && (
                 <h2 className="text-[20px] font-bold">
-                  {FOCUS[focus].label}で使えそうな制度 {first.length}件
+                  {FOCUS[focus].label}で使えそうな制度 {first.length}件<span className="ml-1 text-[14px] font-normal text-ink-soft">（締切の近い順）</span>
                   {first.length === 0 && <span className="block text-[15px] font-normal text-ink-soft">この条件では見つかりませんでした。下のほかの制度をご覧ください。</span>}
                 </h2>
               )}
@@ -174,7 +229,7 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
               </div>
               {focus && (rest.length > 0 || result.showDropin) && (
                 <>
-                  <h2 className="pt-2 text-[20px] font-bold">ほかに使えそうな制度 {rest.length}件</h2>
+                  <h2 className="pt-2 text-[20px] font-bold">ほかに使えそうな制度 {rest.length}件<span className="ml-1 text-[14px] font-normal text-ink-soft">（締切の近い順）</span></h2>
                   <div className="grid gap-6 lg:grid-cols-2">
                     {rest.map(card)}
                     {result.showDropin && <DropinCard onConsult={() => consult(null)} />}
@@ -187,8 +242,19 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
 
         {result.items.length === 0 && !result.showDropin && (
           <p className="rounded-2xl bg-white p-5 text-[16px] leading-[1.8]">
-            この条件では、3本柱の制度に当てはまるものが見つかりませんでした。区市町村の独自の補助があることもあります。下の相談からお問い合わせください。
+            この条件では、このサイトに載せている制度（国・東京都・介護施設）に当てはまるものが見つかりませんでした。県・市区町村の独自の補助があることもあります。下の相談からお問い合わせください。
           </p>
+        )}
+
+        {result.items.some((i) => i.next.state === "none") && (
+          <div className="no-print">
+            <NotifySignup
+              programNames={result.items.filter((i) => i.next.state === "none").map((i) => `${i.program.tag} ${i.program.title}`)}
+              pref={labelOfOpt(CHECK_PREFS, answers.pref)}
+              building={labelOfOpt(CHECK_FACILITIES, answers.facility)}
+              timing={null}
+            />
+          </div>
         )}
 
         {result.excluded.length > 0 && (
@@ -205,7 +271,15 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
           </details>
         )}
 
-        <ConsultForm source="shindan" programId={consultProgram === undefined ? result.items[0]?.program.id ?? null : consultProgram} answers={answers} />
+        <div className="no-print">
+          <ConsultForm
+            source="shindan"
+            programId={consultProgram ?? null}
+            options={[...result.items.filter((i) => (focus ? FOCUS[focus].ids : []).includes(i.program.id)), ...result.items.filter((i) => !(focus ? FOCUS[focus].ids : []).includes(i.program.id))].map((i) => i.program.id)}
+            preselect={consultProgram === undefined ? result.items.filter((i) => (focus ? FOCUS[focus].ids : []).includes(i.program.id)).slice(0, 1).map((i) => i.program.id) : []}
+            answers={answers}
+          />
+        </div>
       </div>
     );
   }
@@ -233,13 +307,27 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
           </div>
         )}
         {cur.key === "facility" && (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {CHECK_FACILITIES.map((o) => <Chip key={o.id} selected={d.facility === o.id} onClick={() => { set({ facility: o.id, ...(asksCapacity(o.id) ? {} : { capacity: undefined }) }); next(); }}>{o.label}</Chip>)}
-          </div>
-        )}
-        {cur.key === "capacity" && (
-          <div className="grid gap-2 sm:grid-cols-3">
-            {CHECK_CAPACITIES.map((o) => <Chip key={o.id} selected={d.capacity === o.id} onClick={() => { set({ capacity: o.id }); next(); }}>{o.label}</Chip>)}
+          <div className="space-y-4">
+            {groups.map((g) => (
+              <fieldset key={g.id}>
+                <legend className="text-[14px] font-bold text-ink-soft">{g.label}</legend>
+                <div className="mt-1 grid gap-2 sm:grid-cols-2">
+                  {g.ids.map((fid) => {
+                    const o = CHECK_FACILITIES.find((f) => f.id === fid)!;
+                    return <Chip key={o.id} selected={d.facility === o.id} onClick={() => pickFacility(o.id)}>{o.label}</Chip>;
+                  })}
+                </div>
+              </fieldset>
+            ))}
+            {asksCapacity(d.facility) && (
+              <fieldset ref={capRef} className="scroll-mt-40 rounded-2xl border-2 border-brand-deep bg-paper-tint p-4">
+                <legend className="px-1 text-[17px] font-bold">{CAPACITY_Q.q}</legend>
+                <p className="text-[14px] leading-[1.7] text-ink-soft">{labelOfOpt(CHECK_FACILITIES, d.facility)}を選びました。{CAPACITY_Q.hint}</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                  {CHECK_CAPACITIES.map((o) => <Chip key={o.id} selected={d.capacity === o.id} onClick={() => { set({ capacity: o.id }); next(); }}>{o.label}</Chip>)}
+                </div>
+              </fieldset>
+            )}
           </div>
         )}
         {cur.key === "corp" && (
@@ -251,7 +339,8 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
               </div>
             </fieldset>
             <fieldset>
-              <legend className="text-[14px] font-bold">従業員の数（法人全体・常時使用する従業員）</legend>
+              <legend className="text-[14px] font-bold">従業員の数（法人全体）</legend>
+              <p className="text-[13px] leading-[1.7] text-ink-soft">{STAFF_HINT}</p>
               <div className="mt-1 grid gap-2 sm:grid-cols-3">
                 {CHECK_STAFF.map((o) => <Chip key={o.id} selected={d.staff === o.id} onClick={() => set({ staff: o.id })}>{o.label}</Chip>)}
               </div>
@@ -278,7 +367,7 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
                 <span className="shrink-0 text-[16px] font-bold">万円</span>
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
-                {[300, 500, 1000, 3000, 5000].map((v) => (
+                {[100, 300, 500, 1000, 3000, 5000].map((v) => (
                   <button key={v} type="button" onClick={() => set({ costText: String(v) })} className={cn("min-h-[40px] rounded-full border px-3 text-[14px] font-bold", toMan(d.costText) === v ? "border-brand-deep bg-brand-deep text-white" : "border-ink-line bg-white")}>
                     {v.toLocaleString("ja-JP")}万円
                   </button>
@@ -292,7 +381,7 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
                 <input id={`${id}-equip`} type="text" inputMode="numeric" placeholder="例：600" value={d.equipText} onChange={(e) => set({ equipText: e.target.value })} className="min-h-[52px] w-full rounded-xl border border-ink-line bg-white px-3 text-[18px] font-bold" />
                 <span className="shrink-0 text-[16px] font-bold">万円</span>
               </div>
-              <p className="mt-1 text-[13px] text-ink-soft">国の省エネ補助金（SII）は機器代だけが対象のため、分かると目安を出せます。</p>
+              <p className="mt-1 text-[13px] text-ink-soft">国の省エネ補助金（SII）は機器代（設備費）だけが対象のため、分かると目安を出せます。</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
               <button type="button" onClick={finish} disabled={!answers} className="inline-flex min-h-[56px] items-center justify-center rounded-2xl bg-brand-deep px-4 text-[17px] font-bold text-white disabled:opacity-40">使えそうな制度を見る</button>
@@ -310,7 +399,7 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
         ) : <span />}
         <Link href="/" className="text-[14px] text-ink-soft underline underline-offset-4">トップへ</Link>
       </div>
-      <p className="mt-4 text-[13px] leading-[1.7] text-ink-soft">答えはこの端末にも保存しません。相談を送ったときだけ、担当者に届きます。</p>
+      <p className="mt-4 text-[13px] leading-[1.7] text-ink-soft">答えはこの端末にも保存しません。相談を送ったときだけ、担当者に届きます。結果の画面は、印刷・PDFで残せます。</p>
     </section>
   );
 }

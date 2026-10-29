@@ -86,7 +86,7 @@ export async function POST(req: Request) {
   if (!saved && !mailed) {
     return NG(502, `ただいま受け付けできませんでした。お手数ですが、お電話（${COMPANY.tel}・${COMPANY.hours}）かメール（${COMPANY.email}）でご連絡ください。`);
   }
-  console.info(`[program-lead] 受付 ${receiptNo}（添付 ${input.attachments.length}件・制度 ${input.programId ?? "指定なし"}・紹介 ${input.referral?.ref ?? "なし"}・Notion ${saved ? "○" : "×"}・通知メール ${mailed ? `○ ${plan.to.join(",")}` : "×"}）`);
+  console.info(`[program-lead] 受付 ${receiptNo}（添付 ${input.attachments.length}件・制度 ${input.programIds.length ? input.programIds.join(",") : "指定なし"}・印 ${input.flags.join(",") || "なし"}・紹介 ${input.referral?.ref ?? "なし"}・Notion ${saved ? "○" : "×"}・通知メール ${mailed ? `○ ${plan.to.join(",")}` : "×"}）`);
   /* 添付は担当者宛メールでだけ届く。メールが送れなかったときは、画面で「写真はメールで」と案内する */
   return NextResponse.json({ ok: true, receiptNo, attachments: input.attachments.length, attachmentsDelivered: input.attachments.length ? mailed : null });
 }

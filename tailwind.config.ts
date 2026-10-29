@@ -1,6 +1,8 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  /* 2026-10-29 EHC-0102 直し2回目：スマホで押したあとにホバーの色が残り「選んだように見える」のを防ぐ（ホバーはマウスの端末だけ） */
+  future: { hoverOnlyWhenSupported: true },
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",

@@ -373,7 +373,7 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
           <p className="mt-4 inline-block rounded-xl bg-paper-tint px-3 py-1 text-[14px] font-bold text-brand-deep">定員29人以下の介護施設なら</p>
           <h1 className="mt-2 text-[26px] font-bold leading-[1.45] sm:text-[30px]">
             {/* 2026-10-29 ご指示「空調の入れ替えだけじゃない」：建物と設備の大規模修繕に使えることを見出しで伝える */}
-            空調も、建物と設備の修繕も。<br className="sm:hidden" />国の補助 <span className="whitespace-nowrap rounded-lg bg-[#B8913A] px-2 text-white">10/10</span>
+            空調も、建物と設備の修繕も。<br className="sm:hidden" />国の補助 <span className="whitespace-nowrap rounded-lg bg-[#B8913A] px-2 text-white">10/10</span><span className="ml-1 whitespace-nowrap text-[16px] font-bold sm:text-[18px]">（上限の額まで）</span>
           </h1>
           <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="使える工事の例">
             {["空調（冷暖房）", "照明", "電気設備", "給排水・給湯", "ガス設備", "消防用設備", "防水・外壁・浴室", "バリアフリー・避難経路", "非常用自家発電"].map((w) => (
@@ -382,7 +382,11 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
           </ul>
           <p className="mt-3 text-[16px] leading-[1.8] text-ink-soft">
             定員29人以下の介護施設は、建物と設備をまとめて直す大規模修繕に、1施設あたり最大1,660万円まで（施設の種類により833万円）。市区町村を通じた国の交付金です。どの工事も EHC のチームでまとめてお受けします。
-            補助金を工事の前に受け取れる場合もあります（概算払・市区町村が認めた場合）。
+            上限を超える分と消費税は施設の負担です。補助金は工事のあとが基本ですが、市区町村が認めれば工事の前に受け取れる場合もあります（前払い＝概算払）。
+          </p>
+          <p className="mt-3 text-[15px] leading-[1.8]">
+            定員30人以上の施設や、都内の特養・養護老人ホームには、ほかの補助もあります。
+            <Link href="/shindan?for=kaigo" className="ml-1 font-bold text-brand-deep underline underline-offset-4">使える補助金を調べる</Link>
           </p>
           <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             自治体ごとの受付・予算は確認が必要です。以下は2026年10月29日に公表資料で確かめた条件で、受付中や受給額の確定を示すものではありません。
@@ -391,7 +395,7 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
 
         <section id="kaigo-chat" aria-label="事前確認のチャット" className="mt-6 scroll-mt-24 space-y-4" aria-live="polite">
           <Bot>
-            介護施設の補助金を、事前に確認します。<b>7つの質問</b>に答えると、使えそうな補助と次にやることが分かります。チャットでの事前確認に費用はかかりません。
+            介護施設の補助金を、事前に確認します。いくつかの質問に答えると、使えそうな補助と次にやることが分かります。チャットでの事前確認に費用はかかりません。
           </Bot>
 
           {QUESTIONS.map((item, i) => {

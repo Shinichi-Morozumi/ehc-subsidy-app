@@ -1,7 +1,11 @@
 "use client";
 
 /* ───────────────────────────────────────────────────────────
-   v2 / 2026-10-29 / EHC-0102 相談の入口（写真・PDFを添えて送る・電話・3項目のフォーム）
+   v3 / 2026-10-29 / EHC-0102 相談の入口（写真・PDFを添えて送る・電話・3項目のフォーム）
+   直し2回目（10名のレビュー）：
+   ・送ったあとに何が起きるかを先に見せる（4段）。急ぎは電話へ。
+   ・相談したい制度を選べる（いくつでも・任意。カードの「この制度で相談する」から来たらその制度に印）。
+   ・任意で「ご相談の内容」と、印（急ぎ／施設・建物が複数／連絡はメールを希望）を付けられる。必須は3項目のまま。
 
    ・フォームは3項目だけ：法人名・施設名／お名前／ご連絡先（電話かメールのどちらか）。同意は必須。
    ・写真・PDF をそのまま添えて送れる（ご指示 2026-10-29「写真、PDF 送れるように」）。5つ・合計3.2MBまで。
@@ -17,6 +21,7 @@ import { track } from "@/lib/track";
 import { COMPANY } from "@/lib/company";
 import { currentReferral } from "@/lib/referralClient";
 import { PROGRAMS, type ProgramId } from "@/lib/programs";
+import { CONSULT_FLAGS, CONSULT_NOTE_MAX, type ConsultFlagId } from "@/lib/consultOptions";
 import { ATTACH_ACCEPT, ATTACH_MAX_FILES, ATTACH_MAX_TOTAL_BYTES, ATTACH_PHOTO_MAX_EDGE, fmtBytes } from "@/lib/attachLimits";
 import type { CheckAnswers } from "@/lib/programMatch";
 import type { ProgramLeadSource } from "@/lib/programLead";
@@ -24,7 +29,7 @@ import type { ProgramLeadSource } from "@/lib/programLead";
 const PHOTO_SUBJECT = "写真で概算の依頼";
 const photoHref = (receiptNo?: string | null) =>
   `mailto:${COMPANY.email}?subject=${encodeURIComponent(receiptNo ? `${PHOTO_SUBJECT}（受付番号 ${receiptNo}）` : PHOTO_SUBJECT)}&body=${encodeURIComponent(
-    "法人名・施設名：\nお名前：\nご連絡先：\n\n添付する写真（分かる範囲で）：\n・室外機の銘板（型式・製造年の書かれた札）\n・室内機\n・電気料金の明細（直近のもの）\n"
+    "法人名・施設名：\nお名前：\nご連絡先：\n\n添付する写真（分かる範囲で）：\n・室外機の銘板（型番・製造年の書かれた札）\n・室内機\n・電気料金の明細（直近のもの）\n"
   )}`;
 
 type Picked = { id: string; name: string; kind: "photo" | "pdf"; bytes: number; data: string; preview: string | null };
@@ -76,11 +81,18 @@ async function toPicked(file: File): Promise<Picked> {
 export function ConsultForm({
   source,
   programId,
+  options,
+  preselect,
   answers,
   id: anchorId = "consult",
 }: {
   source: ProgramLeadSource;
+  /** カードの「この制度で相談する」で押された制度（変わるたびに印を付ける） */
   programId?: ProgramId | null;
+  /** 選べる制度（並べる順） */
+  options?: ProgramId[];
+  /** 最初から印を付けておく制度 */
+  preselect?: ProgramId[];
   answers?: CheckAnswers | null;
   id?: string;
 }) {
@@ -102,7 +114,15 @@ export function ConsultForm({
   const openedAt = useRef<number>(0);
   useEffect(() => { openedAt.current = Date.now(); }, []);
 
-  const program = programId ? PROGRAMS[programId] : null;
+  const [picked, setPicked] = useState<ProgramId[]>(() => Array.from(new Set([...(preselect ?? []), ...(programId ? [programId] : [])])));
+  useEffect(() => {
+    if (programId) setPicked((x) => (x.includes(programId) ? x : [...x, programId]));
+  }, [programId]);
+  const choices = Array.from(new Set([...(options ?? []), ...picked, ...(programId ? [programId] : [])])).filter((x) => Object.prototype.hasOwnProperty.call(PROGRAMS, x));
+  const togglePick = (pid: ProgramId) => setPicked((x) => (x.includes(pid) ? x.filter((y) => y !== pid) : [...x, pid]));
+  const [flags, setFlags] = useState<ConsultFlagId[]>([]);
+  const toggleFlag = (f: ConsultFlagId) => setFlags((x) => (x.includes(f) ? x.filter((y) => y !== f) : [...x, f]));
+  const [note, setNote] = useState("");
   const reachText = reach.trim();
   const reachOk = reachText.includes("@")
     ? /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/.test(reachText)
@@ -150,7 +170,7 @@ export function ConsultForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           company: company.trim(), name: name.trim(), reach: reachText, consent,
-          source, programId: programId ?? null, answers: answers ?? null,
+          source, programId: picked[0] ?? null, programIds: picked, flags, note: note.trim(), answers: answers ?? null,
           attachments: files.map((f) => ({ name: f.name, data: f.data })),
           referral: currentReferral(), hp, elapsedMs: Date.now() - openedAt.current,
         }),
@@ -183,8 +203,25 @@ export function ConsultForm({
     <section id={anchorId} aria-labelledby={`${id}-title`} className="scroll-mt-32 rounded-3xl border border-ink-line bg-white p-5 shadow-card sm:p-6">
       <h2 id={`${id}-title`} className="text-[22px] font-bold leading-[1.4]">相談する</h2>
       <p className="mt-1 text-[15px] leading-[1.8] text-ink-soft">
-        入力は3つだけです。写真やPDFもそのまま添えて送れます。{COMPANY.replyDays}営業日以内に担当からご連絡します。申請書類の作成は行政書士の業務のため、EHC では作りません。
+        必須の入力は3つだけです（ほかは任意）。写真やPDFもそのまま添えて送れます。
       </p>
+      <div className="mt-3 rounded-2xl bg-paper-sub p-4">
+        <p className="text-[15px] font-bold">送ったあとの流れ</p>
+        <ol className="mt-2 grid gap-1.5 text-[14px] leading-[1.6]">
+          {[
+            `担当からご連絡します（${COMPANY.replyDays}営業日以内。電話かメールの、ご希望の方法で）`,
+            "写真・図面・電気料金の明細から、工事と補助の目安をお伝えします",
+            "現地を見て、お見積りをお出しします（現地調査に費用はかかりません）",
+            "制度の申し込みの準備をします（補助が決まる前に、契約はしません）",
+          ].map((t, i) => (
+            <li key={t} className="flex gap-2">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-deep text-[12px] font-bold text-white">{i + 1}</span>
+              <span>{t}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-2 text-[13px] leading-[1.7] text-ink-soft">お急ぎのとき（空調が止まった・壊れた）は、お電話がいちばん早いです。補助が決まる前に工事を始めると補助は使えないため、待てないときは、補助を使わずに直す方法も含めてご相談ください。</p>
+      </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <button
@@ -194,7 +231,7 @@ export function ConsultForm({
           className="flex min-h-[64px] items-center gap-3 rounded-2xl border-2 border-brand-deep bg-paper-sub px-4 py-3 text-left text-brand-deep disabled:opacity-50"
         >
           <Camera aria-hidden className="h-6 w-6 shrink-0" />
-          <span><b className="block text-[16px]">写真・PDFで概算</b><span className="text-[13px] text-ink">室外機の銘板・電気料金の明細・図面を、この下に添えて送れます</span></span>
+          <span><b className="block text-[16px]">写真・PDFを選ぶ</b><span className="text-[13px] text-ink">押すと、室外機の型番の札（銘板）・電気料金の明細・図面を選べます</span></span>
         </button>
         <a
           href={COMPANY.telHref}
@@ -231,10 +268,23 @@ export function ConsultForm({
         </div>
       ) : (
         <div className="mt-5 space-y-4">
-          {program && (
-            <p className="rounded-xl bg-paper-sub px-3 py-2 text-[14px] leading-[1.7]">
-              相談したい制度：<b>{program.tag} {program.title}</b>
-            </p>
+          {choices.length > 0 && (
+            <fieldset>
+              <legend className="text-[14px] font-bold text-ink">相談したい制度（任意・いくつでも）</legend>
+              <div className="mt-1 grid gap-2">
+                {choices.map((pid) => {
+                  const pr = PROGRAMS[pid];
+                  const on = picked.includes(pid);
+                  return (
+                    <button key={pid} type="button" aria-pressed={on} onClick={() => togglePick(pid)} className={cn("flex min-h-[48px] items-center gap-2 rounded-xl border px-3 py-2 text-left text-[14px] leading-[1.5]", on ? "border-brand-deep bg-paper-tint font-bold text-brand-deep" : "border-ink-line bg-white text-ink")}>
+                      <span aria-hidden className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded border-2", on ? "border-brand-deep bg-brand-deep text-white" : "border-ink-line")}>{on ? "✓" : ""}</span>
+                      <span><span className="block text-[12px] font-bold text-ink-soft">{pr.tag}</span>{pr.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-[13px] text-ink-soft">選ばなくても大丈夫です（担当がご一緒に決めます）。</p>
+            </fieldset>
           )}
           <div>
             <label htmlFor={`${id}-company`} className="block text-[14px] font-bold text-ink">法人名・施設名<span className="ml-1 text-red-800">必須</span></label>
@@ -250,6 +300,24 @@ export function ConsultForm({
             <label htmlFor={`${id}-reach`} className="block text-[14px] font-bold text-ink">ご連絡先（電話かメール）<span className="ml-1 text-red-800">必須</span></label>
             <input id={`${id}-reach`} type="text" inputMode="email" autoComplete="email" placeholder="03-1234-5678 または name@example.co.jp" value={reach} onChange={(e) => setReach(e.target.value)} aria-invalid={!!errs.reach || undefined} className={inputCls(!!errs.reach)} />
             {errs.reach && <p className="mt-1 text-[14px] font-bold text-red-800">{errs.reach}</p>}
+          </div>
+
+          <fieldset>
+            <legend className="text-[14px] font-bold text-ink">当てはまるもの（任意）</legend>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {CONSULT_FLAGS.map((f) => {
+                const on = flags.includes(f.id);
+                return (
+                  <button key={f.id} type="button" aria-pressed={on} onClick={() => toggleFlag(f.id)} className={cn("min-h-[44px] rounded-full border px-3 text-[14px] font-bold", on ? "border-brand-deep bg-brand-deep text-white" : "border-ink-line bg-white text-ink")}>
+                    {on ? "✓ " : ""}{f.label}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+          <div>
+            <label htmlFor={`${id}-note`} className="block text-[14px] font-bold text-ink">ご相談の内容（任意）</label>
+            <textarea id={`${id}-note`} rows={3} maxLength={CONSULT_NOTE_MAX} value={note} onChange={(e) => setNote(e.target.value)} placeholder="例：夏に1台止まった／施設が3つあり、まとめて相談したい／図面はある など" className={cn(inputCls(false), "min-h-[96px] py-2")} />
           </div>
 
           <div>
@@ -271,7 +339,7 @@ export function ConsultForm({
               onChange={(e) => void addFiles(e.target.files)}
             />
             <p className="mt-1 text-[13px] leading-[1.7] text-ink-soft">
-              例：室外機の銘板（型式・製造年の札）、室内機、電気料金の明細、図面。写真は送る前にこの端末で小さくします（合計 {fmtBytes(ATTACH_MAX_TOTAL_BYTES)} まで）。
+              例：室外機の型番の札（銘板）、室内機、電気料金の明細、図面。写真は送る前にこの端末で小さくします（合計 {fmtBytes(ATTACH_MAX_TOTAL_BYTES)} まで）。
             </p>
             {fileMsg && <p className="mt-1 text-[14px] font-bold text-red-800">{fileMsg}</p>}
             {files.length > 0 && (

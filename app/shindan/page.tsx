@@ -11,9 +11,9 @@ import { ReferralCapture } from "@/components/programs/ReferralCapture";
 
 export const revalidate = 3600;
 
-const TITLE = "空調の補助金を6問で調べる（東京都・介護施設・国の省エネ）";
+const TITLE = "使える補助金を調べる（空調・設備の入れ替え／東京都・介護施設・国の省エネ）";
 const DESCRIPTION =
-  "所在地・施設の種類・定員・法人・工事の内容・工事費の目安の6問で、使えそうな補助金を締切の近い順に。補助率・上限・自己負担の目安・流れを1枚のカードで。株式会社EHCソリューションズ。";
+  "所在地・施設の種類・定員・法人・工事の内容・工事費の目安に答えると、使えそうな補助金を締切の近い順に。補助率・上限・自己負担の目安・流れを1枚のカードで。株式会社EHCソリューションズ。";
 
 export const metadata: Metadata = {
   title: TITLE,

@@ -205,7 +205,7 @@ test("入口と締切ボード：受付を1行ずつ、次の節目が近い順�
   const items = P.upcomingWindowItems("2026-11-06");
   assert.deepEqual(items.map((i) => `${i.programId}:${i.window.short}:${i.state}:${i.nextDays}`), [
     "tokyoZeroemi:第5回:upcoming:3",
-    "tokyoChiiki:協議の最終期限（区市町村→都）:open:21",
+    "tokyoChiiki:都の締切（区市町村→都）:open:21",
     "tokyoKaishu:第2回 協議書:open:63",
     "tokyoZeroemi:第6回（最終回）:upcoming:73",
   ]);
@@ -215,14 +215,69 @@ test("入口と締切ボード：受付を1行ずつ、次の節目が近い順�
   assert.equal(P.windowRangeText(P.PROGRAMS.tokyoKaishu.windows[0], "2027-01-02"), "1月8日（金）まで");
 });
 
-test("残り日数の書き方は「開始まで」「終了まで」（ご指示 2026-10-29）", () => {
+test("残り日数の書き方は「受付開始まで」「受付終了まで」、締切だけのものは「締切まで」（ご指示 2026-10-29＋10名のレビュー）", () => {
   const [z5] = P.upcomingWindowItems("2026-11-06", ["tokyoZeroemi"]);
-  assert.equal(P.countdownLabel(z5), "開始まであと3日");
+  assert.equal(P.countdownLabel(z5), "受付開始まであと3日");
+  assert.equal(P.countdownKind(z5), "受付開始まで");
   const [open] = P.upcomingWindowItems("2026-11-10", ["tokyoZeroemi"]);
-  assert.equal(P.countdownLabel(open), "終了まであと10日");
-  assert.equal(P.countdownLabel(P.upcomingWindowItems("2026-11-19", ["tokyoZeroemi"])[0]), "明日で終了");
-  assert.equal(P.countdownLabel(P.upcomingWindowItems("2026-11-20", ["tokyoZeroemi"])[0]), "今日で終了");
-  assert.equal(P.countdownLabel(P.nextWindow(P.PROGRAMS.tokyoKaishu, "2026-11-06")), "終了まであと63日");
+  assert.equal(P.countdownLabel(open), "受付終了まであと10日");
+  assert.equal(P.countdownLabel(P.upcomingWindowItems("2026-11-19", ["tokyoZeroemi"])[0]), "明日で受付終了");
+  assert.equal(P.countdownLabel(P.upcomingWindowItems("2026-11-20", ["tokyoZeroemi"])[0]), "今日で受付終了");
+  const kaishu = P.nextWindow(P.PROGRAMS.tokyoKaishu, "2026-11-06");
+  assert.equal(P.countdownLabel(kaishu), "締切まであと63日");
+  assert.equal(P.countdownKind(kaishu), "締切まで");
+});
+
+test("直し2回目: 結局いくらは1行（区分で違えば幅）。上限で頭打ちなら印。0円とは出さない", () => {
+  const z = P.estimateSummary(P.estimateFor(P.PROGRAMS.tokyoZeroemi, { costMan: 1000 }));
+  assert.deepEqual([z.subsidyMin, z.subsidyMax, z.selfMin, z.selfMax, z.varies, z.capped], [666, 750, 250, 334, true, false]);
+  assert.equal(P.manRange(z.subsidyMin, z.subsidyMax), "666万〜750万円");
+  assert.equal(P.manRange(750, 750), "750万円");
+  const k = P.estimateSummary(P.estimateFor(P.PROGRAMS.kokuKaigo, { costMan: 1000, kaigoGroup: "B" }));
+  assert.deepEqual([k.subsidyMin, k.selfMin, k.capped, k.varies], [833, 167, true, false]);
+  assert.equal(P.PROGRAMS.kokuKaigo.capsBy, "facility", "施設の種類で上限が違う制度は、幅ではなく施設ごとに出す");
+  const both = P.estimateFor(P.PROGRAMS.kokuKaigo, { costMan: 1000 });
+  assert.deepEqual(both.lines.map((l) => [l.subsidyMan, l.selfMan]), [[1000, null], [833, 167]]);
+  const inside = P.estimateSummary(P.estimateFor(P.PROGRAMS.kokuKaigo, { costMan: 500, kaigoGroup: "A" }));
+  assert.equal(inside.selfMin, null);
+  assert.equal(P.estimateSummary(P.estimateFor(P.PROGRAMS.sii, { costMan: 1000 })), null);
+  const kaishu = P.estimateSummary(P.estimateFor(P.PROGRAMS.tokyoKaishu, { costMan: 3000 }));
+  assert.equal(kaishu.varies, false, "どちらの枠でも上限の内側なら1つの数字");
+  assert.equal(P.manRange(kaishu.subsidyMin, kaishu.subsidyMax), "2,250万円");
+});
+
+test("直し2回目: 質問は5つで固定（定員は施設の画面で聞く）。施設はどれか1つの見出しの下に必ずある", () => {
+  assert.deepEqual(M.CHECK_STEPS.map((s) => s.key), ["pref", "facility", "corp", "work", "cost"]);
+  const grouped = M.FACILITY_GROUPS.flatMap((g) => g.ids);
+  assert.deepEqual([...grouped].sort(), M.CHECK_FACILITIES.map((f) => f.id).sort());
+  assert.equal(new Set(grouped).size, grouped.length);
+  assert.equal(M.FACILITY_GROUPS[0].ids[0], "office");
+  assert.match(M.labelOfOpt(M.CHECK_FACILITIES, "office"), /飲食店/);
+});
+
+test("直し2回目: 工事「空調以外の設備・建物だけ」でも判定できる（介護の交付金は可能性あり・都の省エネとSIIは要確認・ドロップインは出さない）", () => {
+  const r = M.matchPrograms(ans({ facility: "gh", capacity: null, work: "other", costMan: 500 }), "2026-11-06");
+  const by = Object.fromEntries([...r.items, ...r.excluded].map((i) => [i.program.id, i]));
+  assert.equal(by.kokuKaigo.status, "可能性あり");
+  assert.equal(by.tokyoZeroemi.status, "要確認");
+  assert.ok(by.tokyoZeroemi.checks.some((c) => /LED照明/.test(c)));
+  assert.equal(by.sii.status, "要確認");
+  assert.equal(r.showDropin, false);
+  const t = M.matchPrograms(ans({ work: "other" }), "2026-11-06");
+  assert.ok(t.items.find((i) => i.program.id === "tokyoKaishu").reasons.includes("建物・設備の改修"));
+  const big = M.matchPrograms(ans({ pref: "saitama", facility: "hospital", capacity: null, corp: "iryou", staff: "gt300" }), "2026-11-06");
+  assert.ok(big.items.find((i) => i.program.id === "sii").checks.some((c) => /301人以上/.test(c)));
+});
+
+test("直し2回目: 言葉の言い換え（和暦だけの年・「本業」・「無料」を画面の文に残さない）", () => {
+  const strip = (f) => fs2.readFileSync(path.resolve(root, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  for (const f of ["lib/programs.ts", "lib/programMatch.ts", "components/home/HomeV18.tsx", "components/programs/ProgramCard.tsx", "components/programs/ProgramCheck.tsx", "components/programs/ConsultForm.tsx", "components/programs/DeadlineBoard.tsx", "app/team/page.tsx", "lib/team.ts", "app/layout.tsx", "app/not-found.tsx", "app/company/page.tsx"]) {
+    const body = strip(f);
+    assert.ok(!/令和\d+年度(?!）)/.test(body.replace(/（令和\d+年度）|（平成\d+〜令和\d+年度）/g, "")), `${f} に和暦だけの年`);
+    assert.ok(!body.includes("無料"), `${f} に「無料」`);
+    assert.ok(!/[67]問/.test(body), `${f} に質問の数`);
+  }
+  assert.ok(!strip("app/team/page.tsx").includes("本業"));
 });
 
 test("入口カードの一言：どの制度にも 何に使える・いくら・受付が無いときの一言 がある", () => {

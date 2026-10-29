@@ -77,7 +77,7 @@ test("Notion の行: 未着手・希望制度（都＝自治体／SII＝省エ�
   assert.equal(lead.address, "東京都（23区）");
   assert.match(lead.memo, /相談したい制度: 東京都｜省エネ/);
   assert.match(lead.memo, /工事費の目安: 3,000万円（税抜）/);
-  assert.match(lead.memo, /\[可能性あり\] 東京都｜省エネ .*最大2,250万円/);
+  assert.match(lead.memo, /\[可能性あり\] 東京都｜省エネ（通称ゼロエミ） .*最大2,250万円/);
   assert.match(lead.memo, /紹介元 KRH01/);
   assert.match(lead.nextAction, /紹介 KRH01・介護/);
   assert.equal(L.wishOf("sii"), "省エネ補助金");
@@ -87,7 +87,7 @@ test("Notion の行: 未着手・希望制度（都＝自治体／SII＝省エ�
 test("担当者宛メール: 件名に受付番号・制度・紹介。本文に行政書士の注意", () => {
   const input = L.readProgramSubmit(form()).input;
   const m = L.programStaffMail(input, "EHC-20261106-100000-ABCD", "2026-11-06");
-  assert.match(m.subject, /^【補助金サイトの相談 EHC-20261106-100000-ABCD】社会福祉法人テスト会 特養あおば（東京都｜省エネ）［紹介 KRH01・介護］$/);
+  assert.match(m.subject, /^【補助金サイトの相談 EHC-20261106-100000-ABCD】社会福祉法人テスト会 特養あおば（東京都｜省エネ（通称ゼロエミ））［紹介 KRH01・介護］$/);
   assert.match(m.text, /行政書士/);
   assert.ok(!/申請代行/.test(m.text));
 });
@@ -199,4 +199,26 @@ test("メンバーと実績: 名前と役割だけ。確かめられない数字
   const all = JSON.stringify(T);
   assert.ok(!/10,000台|1万台|東京大学|キーエンス/.test(all));
   assert.ok(T.TEAM_SOURCES.every((s) => s.url.startsWith("https://")));
+});
+
+test("直し2回目: 相談したい制度を複数・任意の印・ご相談の内容を受ける（古い画面の programId だけでも受ける）", () => {
+  const multi = L.readProgramSubmit(form({ programId: "tokyoKaishu", programIds: ["tokyoKaishu", "kokuKaigo", "evil", "tokyoKaishu"], flags: ["urgent", "mailOnly", "nope"], note: "夏に1台止まった\r\n\r\n\r\n施設は3つ\u0007" })).input;
+  assert.deepEqual(multi.programIds, ["tokyoKaishu", "kokuKaigo"]);
+  assert.equal(multi.programId, "tokyoKaishu");
+  assert.deepEqual(multi.flags, ["urgent", "mailOnly"]);
+  assert.equal(multi.note, "夏に1台止まった\n\n施設は3つ");
+  const legacy = L.readProgramSubmit(form()).input;
+  assert.deepEqual(legacy.programIds, ["tokyoZeroemi"]);
+  assert.deepEqual(legacy.flags, []);
+  assert.equal(legacy.note, null);
+  assert.equal(L.cleanNote("あ".repeat(900)).length, 600);
+  const m = L.programStaffMail(multi, "EHC-20261106-100000-ABCD", "2026-11-06");
+  assert.match(m.subject, /^【急ぎ】【補助金サイトの相談 EHC-20261106-100000-ABCD】.*（東京都｜介護施設 ほか1件）/);
+  assert.match(m.text, /ご希望の連絡方法: メール（お電話は控えてください）/);
+  assert.match(m.text, /相談したい制度: 東京都｜介護施設 特養・養護の空調・建物の改修.*／国｜介護施設/);
+  assert.match(m.text, /印: 急ぎ（空調が止まった・壊れた）・連絡はメールを希望/);
+  assert.match(m.text, /ご相談の内容: 夏に1台止まった/);
+  const lead = L.programLead(multi, "EHC-20261106-100000-ABCD", "2026-11-06");
+  assert.match(lead.nextAction, /^【急ぎ】メールで折り返し/);
+  assert.match(lead.memo, /ご相談の内容: 夏に1台止まった/);
 });

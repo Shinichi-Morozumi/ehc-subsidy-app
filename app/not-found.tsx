@@ -26,8 +26,8 @@ export default function NotFound() {
         <li>
           <Link href="/" className={linkClass}>
             <span>
-              トップ：空調更新と補助金の無料診断
-              <span className="mt-0.5 block text-[14px] font-normal text-ink-soft">7問で、使える可能性のある制度と期限がわかります</span>
+              トップ：空調の入れ替えに使える補助金
+              <span className="mt-0.5 block text-[14px] font-normal text-ink-soft">かんたんな質問に答えると、使えそうな制度と締切が分かります</span>
             </span>
             <span aria-hidden="true">→</span>
           </Link>

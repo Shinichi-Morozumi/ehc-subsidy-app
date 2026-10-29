@@ -85,14 +85,14 @@ export default function CompanyPage() {
       <section aria-labelledby="company-start" className="mt-10 rounded-2xl border border-brand/35 bg-[#f3f8ea] p-5">
         <h2 id="company-start" className="text-[20px] font-bold leading-[1.6]">空調を発注する前に、補助金の確認を</h2>
         <p className="mt-2 text-[16px] leading-[1.9]">
-          7問の無料診断で、使える可能性のある制度・受付期限・費用の目安がわかります。お名前やメールアドレスは不要です。
+          かんたんな質問に答えると、使えそうな制度・締切・「結局いくら」の目安が分かります。お名前やメールアドレスは要りません。
         </p>
         <p className="mt-4">
           <Link
-            href="/?start=1"
+            href="/shindan?from=company"
             className="inline-flex min-h-[48px] items-center justify-center rounded-full bg-brand-deep px-6 text-[16px] font-bold text-white hover:bg-brand focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep"
           >
-            無料で診断を始める →
+            使える補助金を調べる →
           </Link>
         </p>
       </section>

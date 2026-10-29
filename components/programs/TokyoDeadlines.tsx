@@ -7,5 +7,5 @@ import { DeadlineBoard } from "./DeadlineBoard";
 
 export function TokyoDeadlines({ initialToday }: { initialToday: string }) {
   const today = useTodayJst(initialToday);
-  return <DeadlineBoard today={today} ids={["tokyoZeroemi", "tokyoChiiki", "tokyoKaishu"]} title="東京都の締切" />;
+  return <DeadlineBoard today={today} ids={["tokyoZeroemi", "tokyoChiiki", "tokyoKaishu"]} title="東京都の補助：受付中・もうすぐ受付" />;
 }

@@ -1,5 +1,7 @@
 /* ───────────────────────────────────────────────────────────
-   v1 / 2026-10-29 / EHC-0102 制度カードからの相談（3項目のフォーム）の受け口の決め事
+   v2 / 2026-10-29 / EHC-0102 制度カードからの相談（3項目のフォーム）の受け口の決め事
+   直し2回目：相談したい制度を複数（programIds）・任意の印（急ぎ／施設が複数／連絡はメールを希望）・ご相談の内容（600字まで）を受ける。
+   　　　　　 programId（1つ）だけを送る古い画面からの送信も、そのまま受ける。
 
    ・入力は3項目だけ：法人名・施設名／お名前／ご連絡先（電話かメールのどちらか1つ）。同意のチェックは必須。
    ・6問の答え（あれば）と、画面に出したカードの判定を、そのまま担当者宛メールと Notion のメモに運ぶ。
@@ -16,13 +18,14 @@ import { ATTACH_MAX_FILES, ATTACH_MAX_TOTAL_BYTES, fmtBytes } from "./attachLimi
 import { readReferralClaim, referralLines, referralTag, type ResolvedReferral } from "./referral";
 import { PROGRAMS, type ProgramId } from "./programs";
 import { CHECK_PREFS, checkAnswerLines, labelOfOpt, matchLines, matchPrograms, readCheckAnswers, type CheckAnswers } from "./programMatch";
+import { CONSULT_NOTE_MAX, consultFlagLabels, readConsultFlags, type ConsultFlagId } from "./consultOptions";
 
 export const PROGRAM_LEAD_SOURCES = ["top", "shindan", "tokyo", "kaigo", "team"] as const;
 export type ProgramLeadSource = (typeof PROGRAM_LEAD_SOURCES)[number];
 
 const SOURCE_JA: Record<ProgramLeadSource, string> = {
   top: "トップ（/）",
-  shindan: "6問の診断（/shindan）",
+  shindan: "使える補助金を調べる（/shindan）",
   tokyo: "東京都の制度（/tokyo）",
   kaigo: "介護施設の制度（/kaigo）",
   team: "メンバーと実績（/team）",
@@ -34,8 +37,14 @@ export interface ProgramLeadInput {
   phone: string | null;
   email: string | null;
   source: ProgramLeadSource;
-  /** どのカードの「この制度で相談する」から来たか */
+  /** 相談したい制度の1つ目（Notion の希望制度に使う） */
   programId: ProgramId | null;
+  /** 相談したい制度（いくつでも） */
+  programIds: ProgramId[];
+  /** 任意の印 */
+  flags: ConsultFlagId[];
+  /** ご相談の内容（任意） */
+  note: string | null;
   answers: CheckAnswers | null;
   referral: ResolvedReferral | null;
   /** 添付（写真・PDF）。担当者宛のメールに付ける */
@@ -104,6 +113,20 @@ const clean = (v: unknown, max: number): string | null => {
   return t ? t.slice(0, max) : null;
 };
 
+/** ご相談の内容：制御文字を落とし、改行は2つまで、600字まで */
+export function cleanNote(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ")
+    .replace(/[ \t\u3000]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return t ? t.slice(0, CONSULT_NOTE_MAX) : null;
+}
+
+const isProgramId = (v: unknown): v is ProgramId => typeof v === "string" && Object.prototype.hasOwnProperty.call(PROGRAMS, v);
+
 /** 「ご連絡先」の1欄を、メールか電話に振り分ける */
 export function splitReach(raw: string | null): { phone: string | null; email: string | null; error: string | null } {
   if (!raw) return { phone: null, email: null, error: "お電話番号かメールアドレスをご入力ください。" };
@@ -124,7 +147,9 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
   const att = readAttachments(body.attachments);
   if (!att.ok) return { ok: false, error: att.error };
   const source = (PROGRAM_LEAD_SOURCES as readonly string[]).includes(body.source as string) ? (body.source as ProgramLeadSource) : "top";
-  const programId = typeof body.programId === "string" && Object.prototype.hasOwnProperty.call(PROGRAMS, body.programId) ? (body.programId as ProgramId) : null;
+  const fromList = Array.isArray(body.programIds) ? Array.from(new Set(body.programIds.filter(isProgramId))).slice(0, 6) : [];
+  const single = isProgramId(body.programId) ? body.programId : null;
+  const programIds = fromList.length ? fromList : single ? [single] : [];
   return {
     ok: true,
     input: {
@@ -133,7 +158,10 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
       phone: reach.phone,
       email: reach.email,
       source,
-      programId,
+      programId: programIds[0] ?? null,
+      programIds,
+      flags: readConsultFlags(body.flags),
+      note: cleanNote(body.note),
       answers: body.answers === undefined || body.answers === null ? null : readCheckAnswers(body.answers),
       referral: readReferralClaim(body.referral),
       attachments: att.files,
@@ -147,15 +175,23 @@ export function wishOf(programId: ProgramId | null): LeadWish {
   return programId === "sii" ? "省エネ補助金" : "自治体";
 }
 
+const idsOf = (input: Pick<ProgramLeadInput, "programId" | "programIds">): ProgramId[] =>
+  input.programIds?.length ? input.programIds : input.programId ? [input.programId] : [];
+
 function bodyLines(input: ProgramLeadInput, receiptNo: string, todayYmd: string): string[] {
-  const p = input.programId ? PROGRAMS[input.programId] : null;
+  const ids = idsOf(input);
   const result = input.answers ? matchPrograms(input.answers, todayYmd) : null;
+  const flags = consultFlagLabels(input.flags ?? []);
   return [
     `入口: ${SOURCE_JA[input.source]}`,
-    `相談したい制度: ${p ? `${p.tag} ${p.title}（${p.officialName}）` : "指定なし"}`,
+    ids.length
+      ? `相談したい制度: ${ids.map((id) => `${PROGRAMS[id].tag} ${PROGRAMS[id].title}（${PROGRAMS[id].officialName}）`).join("／")}`
+      : "相談したい制度: 指定なし",
+    `印: ${flags.length ? flags.join("・") : "なし"}`,
+    `ご相談の内容: ${input.note ? input.note : "（未入力）"}`,
     attachmentLine(input.attachments, null),
     ...referralLines(input.referral, receiptNo),
-    ...(input.answers ? ["6問の答え:", ...checkAnswerLines(input.answers)] : ["6問の答え: なし（カードから直接の相談）"]),
+    ...(input.answers ? ["質問の答え:", ...checkAnswerLines(input.answers)] : ["質問の答え: なし（カードから直接の相談）"]),
     ...(result ? ["画面に出した判定（断定はしていない）:", ...matchLines(result)] : []),
   ];
 }
@@ -173,7 +209,7 @@ export function programLead(input: ProgramLeadInput, receiptNo: string, todayYmd
     proposalNo: receiptNo,
     sentDate: todayYmd,
     memo: [`【補助金サイトの相談（制度カード）】`, ...bodyLines(input, receiptNo, todayYmd)].join("\n"),
-    nextAction: `電話かメールで折り返し、写真（室外機の銘板・電気料金の明細）をお願いして概算。現地調査の日程を調整${tag ? `（${tag}）` : ""}`,
+    nextAction: `${input.flags?.includes("urgent") ? "【急ぎ】" : ""}${input.flags?.includes("mailOnly") || !input.phone ? "メールで" : "電話で"}折り返し、写真（室外機の銘板・電気料金の明細）をお願いして概算。現地調査の日程を調整${tag ? `（${tag}）` : ""}`,
   };
 }
 
@@ -183,10 +219,13 @@ export function programStaffMail(
   todayYmd: string,
   opts: { notionSaved?: boolean } = {}
 ): { subject: string; text: string } {
-  const p = input.programId ? PROGRAMS[input.programId] : null;
+  const ids = idsOf(input);
+  const p = ids.length ? PROGRAMS[ids[0]] : null;
   const tag = referralTag(input.referral);
+  const urgent = input.flags?.includes("urgent");
+  const mailOnly = input.flags?.includes("mailOnly");
   return {
-    subject: `【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}）` : ""}${tag ? `［${tag}］` : ""}`,
+    subject: `${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : ""}${tag ? `［${tag}］` : ""}`,
     text: [
       "補助金サイト（ehcjpn.com）の制度カードから、相談がありました。",
       opts.notionSaved === false
@@ -200,12 +239,13 @@ export function programStaffMail(
       `お名前: ${input.name}`,
       `電話: ${input.phone || "（未入力）"}`,
       `メール: ${input.email || "（未入力）"}`,
+      ...(mailOnly ? ["ご希望の連絡方法: メール（お電話は控えてください）"] : []),
       "",
       "■ 内容",
       ...bodyLines(input, receiptNo, todayYmd),
       "",
       "■ 次にやること",
-      `1. ${COMPANY.hours}に折り返す（連絡の目安${COMPANY.replyDays}営業日以内）。写真（室外機の銘板・電気料金の明細）をお願いすると概算が早い。`,
+      `1. ${urgent ? "急ぎの印あり。できるだけ早く" : `${COMPANY.hours}に`}${mailOnly ? "メールで" : ""}折り返す（連絡の目安${COMPANY.replyDays}営業日以内）。写真（室外機の銘板・電気料金の明細）をお願いすると概算が早い。`,
       "2. 制度の締切と、交付決定の前に契約しないことを先に伝える。",
       "3. 申請書類の作成は行政書士の業務です（EHC では作らない）。業者は補助のルールに沿って施設が公平に決めます。",
     ].join("\n"),

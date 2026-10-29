@@ -1,7 +1,7 @@
 "use client";
 
 /* v1 / 2026-10-29 / EHC-0102 /kaigo のチャットの下に置く「国の交付金」の制度カード。
-   相談の入口は上のチャット（7つの質問）のまま。カードの「この制度で相談する」はチャットへ戻す。
+   相談の入口は上のチャットのまま。カードの「この制度で相談する」はチャットへ戻す。
    東京都の施設には、都の補助（/tokyo）も案内する。 */
 
 import Link from "next/link";
@@ -13,7 +13,7 @@ export function KaigoPrograms({ initialToday }: { initialToday: string }) {
     <section aria-labelledby="kaigo-programs" className="mt-12">
       <h2 id="kaigo-programs" className="text-[22px] font-bold leading-[1.45]">国の交付金の中身（制度カード）</h2>
       <p className="mt-1 text-[15px] leading-[1.8] text-ink-soft">
-        何に使えるか・対象・要件・いつ・流れ・結局いくらを1枚にまとめました。「結局いくら」は工事費1,000万円の場合の例です。施設ごとの目安は、上のチャットのあとに担当からお伝えします。
+        何に使えるか・対象・要件・いつ・流れ・結局いくらを1枚にまとめました。「結局いくら」は工事費1,000万円の場合の例です。カードの「自分の工事費で計算する」で、施設の工事費の目安を出せます。
       </p>
       <div className="mt-4">
         <ProgramsBoard
@@ -24,6 +24,7 @@ export function KaigoPrograms({ initialToday }: { initialToday: string }) {
           showCheckCta={false}
           columns={1}
           onConsultInstead={() => document.getElementById("kaigo-chat")?.scrollIntoView({ block: "start", behavior: "smooth" })}
+          askCostHref="/shindan?for=kaigo"
         />
       </div>
       <Link href="/tokyo?from=kaigo" className="mt-6 flex min-h-[64px] items-center justify-between gap-3 rounded-2xl border-2 border-[#2E7D52] bg-white px-4 py-3 text-[16px] font-bold text-[#22603F]">

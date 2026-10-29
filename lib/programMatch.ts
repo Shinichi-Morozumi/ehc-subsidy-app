@@ -1,7 +1,9 @@
 /* ───────────────────────────────────────────────────────────
-   v1 / 2026-10-29 / EHC-0102 補助金の6問の診断（/shindan）の判定
+   v2 / 2026-10-29 / EHC-0102 使える補助金を調べる（/shindan）の判定
 
-   6問：所在地／施設の種類／定員／法人の種類と従業員数／工事の内容／工事費の目安（分かれば）
+   質問：所在地／施設の種類（介護施設なら定員も同じ画面で）／法人の種類と従業員数／工事の内容／工事費の目安（分かれば）
+   直し2回目（10名のレビュー）：施設の種類を入口に合わせて並べ替え、定員は施設の画面の中で聞く（質問の数が途中で増えない）。
+   　　　　　　　　　　　　　　 工事に「空調以外の設備・建物だけ」を足す。
    結果：制度ごとに「可能性あり／要確認／対象外の見込み」と、合った理由・確かめる点・目安の金額。
    　　　並べ方は締切の近い順（受付の予定が無いものは後ろ）。対象外の見込みは最後にまとめる。
    　　　工事が「冷媒だけの入れ替え（ドロップイン）」なら、補助を使わない選択肢のカードも出す。
@@ -37,10 +39,16 @@ export const CHECK_FACILITIES = [
   { id: "gh", label: "グループホーム", care: "B", askCapacity: false },
   { id: "shotaki", label: "小規模多機能・看護小規模多機能", care: "B", askCapacity: false },
   { id: "ninchiday", label: "認知症デイサービス", care: "B", askCapacity: false },
-  { id: "otherCare", label: "そのほかの介護事業所（デイ・訪問など）", care: null, askCapacity: false },
+  { id: "otherCare", label: "デイサービス（通所介護）・訪問など、そのほかの介護事業所", care: null, askCapacity: false },
   { id: "hospital", label: "病院・クリニック", care: null, askCapacity: false },
-  { id: "office", label: "事務所・店舗・倉庫・工場など", care: null, askCapacity: false },
+  { id: "office", label: "事務所・店舗・飲食店・倉庫・工場など", care: null, askCapacity: false },
 ] as const satisfies readonly { id: string; label: string; care: "A" | "B" | null; askCapacity: boolean }[];
+
+/** 施設の種類の画面で、どの見出しの下に並べるか（介護施設以外／介護施設） */
+export const FACILITY_GROUPS = [
+  { id: "general", label: "介護施設以外", ids: ["office", "hospital"] },
+  { id: "care", label: "介護施設・介護事業所", ids: ["tokuyou", "chiikitoku", "yougo", "rouken", "carehouse", "toshigata", "gh", "shotaki", "ninchiday", "otherCare"] },
+] as const;
 
 export const CHECK_CAPACITIES = [
   { id: "le29", label: "29人以下" },
@@ -67,7 +75,8 @@ export const CHECK_STAFF = [
 export const CHECK_WORKS = [
   { id: "renew", label: "空調機を、新しい機種に入れ替える（更新）", hint: "室外機・室内機ごと交換します" },
   { id: "building", label: "空調の入れ替えと一緒に、建物も直す", hint: "屋上の防水・給排水・浴室・外壁など" },
-  { id: "dropin", label: "空調機はそのまま、冷媒（ガス）だけ入れ替える", hint: "ドロップイン。機器は交換しません" },
+  { id: "other", label: "空調以外の設備・建物だけ直す", hint: "照明・給湯・電気設備・防水・外壁・浴室など" },
+  { id: "dropin", label: "空調機はそのまま、冷媒（ガス）だけ入れ替える", hint: "ドロップイン。機器は交換しません（補助は使えないことが多い方法です）" },
   { id: "undecided", label: "まだ決めていない（相談して決めたい）", hint: "現地で機器の状態を見てご提案します" },
 ] as const;
 
@@ -93,13 +102,18 @@ export interface CheckAnswers {
 }
 
 export const CHECK_STEPS = [
-  { key: "pref", q: "施設・事業所の所在地は？", hint: "東京都は、区市町村で使える制度が分かれます。" },
-  { key: "facility", q: "施設の種類は？", hint: "介護施設の種類で、国と都の補助の対象が変わります。" },
-  { key: "capacity", q: "定員は何人ですか？", hint: "国の交付金は、29人以下か30人以上かで窓口と対象が変わります。" },
-  { key: "corp", q: "法人の種類と、従業員の数は？", hint: "国の省エネ補助金は、従業員300人以下なら中小企業者等として扱われます（社会福祉法人・医療法人）。" },
-  { key: "work", q: "どんな工事を考えていますか？", hint: "補助の多くは、空調機を新しい機種に入れ替える工事が対象です。冷媒だけの入れ替え（ドロップイン）は、多くの補助の対象外の見込みです。" },
+  { key: "pref", q: "施設・事業所の所在地は？", hint: "国の制度は全国、東京都の制度は都内が対象です。東京都は、区市町村で使える制度が分かれます（八王子市は、都の特養等の改修費の対象外のため分けています）。" },
+  { key: "facility", q: "施設の種類は？", hint: "施設の種類で、使える制度が変わります。" },
+  { key: "corp", q: "法人の種類と、従業員の数は？", hint: "申し込むのは、工事を頼んで代金を払う法人です（ふつうは建物・設備の持ち主）。その法人について選んでください。建物を借りている・管理会社として動いている場合は、だれが申し込むかも含めてご相談ください。" },
+  { key: "work", q: "どんな工事を考えていますか？", hint: "補助の多くは、機器を新しい機種に入れ替える工事か、建物・設備の大規模な修繕が対象です。冷媒（ガス）だけの入れ替え（ドロップイン）は、多くの補助の対象外の見込みです。" },
   { key: "cost", q: "工事費の目安は？（分かれば）", hint: "税抜の金額で。分からなければ飛ばせます。入れると「結局いくら」の目安を出します。" },
 ] as const;
+
+/** 定員の質問（施設の種類の画面の中で、介護施設を選んだときだけ出す） */
+export const CAPACITY_Q = { q: "定員は何人ですか？", hint: "国の交付金は、29人以下か30人以上かで窓口と対象が変わります。" } as const;
+
+/** 従業員の数の説明 */
+export const STAFF_HINT = "法人全体の、ふだん働いている人の数です。パート・アルバイトを数に入れるかは雇い方で変わります。迷ったら「わからない」で進めます。国の省エネ補助金（SII）は、社会福祉法人・医療法人なら300人以下で中小企業者等として扱われます。301人以上でも申請できる場合がありますが、条件は公募のルールで確かめます。";
 
 export const labelOfOpt = <T extends readonly Opt[]>(list: T, id: string | null | undefined): string => list.find((o) => o.id === id)?.label ?? "";
 
@@ -155,11 +169,12 @@ function judge(id: ProgramId, a: CheckAnswers): Judge | null {
       if (pubCorp) return out("対象外の見込み", [], ["公立の施設は対象外の見込みです。"]);
       if (dropin) return out("対象外の見込み", [], ["冷媒だけの入れ替えは対象外の見込みです（事務局に確認中）。"]);
       const reasons = ["都内", ...(a.corp !== "unknown" ? [corpLabel] : []), ...(a.work === "renew" || a.work === "building" ? ["空調機の入れ替え（更新）"] : [])];
-      const checks: string[] = ["中小規模の事業所か（年間の光熱費がおおむね1億円未満が目安）", "CO2の削減量の区分（省エネ診断で分かります）"];
+      const checks: string[] = ["中小規模の事業所か（建物ごとの年間の光熱費がおおむね1億円未満が目安）", "CO2の削減量の区分（省エネ診断で分かります）"];
+      if (a.work === "other") checks.unshift("入れ替える設備が対象に入るか（LED照明・断熱窓・給湯など。建物の修繕は対象外）");
       if (a.corp === "company" && a.staff !== "le300") checks.unshift("中小企業に当たるか（資本金・従業員の数）");
       if (a.corp === "npo" || a.corp === "unknown") checks.unshift("法人の種類が対象に入るか");
       if (a.work === "undecided") checks.push("空調機を新しい機種に入れ替える工事であること");
-      const sure = (a.corp === "shafuku" || a.corp === "iryou" || (a.corp === "company" && a.staff === "le300")) && a.work !== "undecided";
+      const sure = (a.corp === "shafuku" || a.corp === "iryou" || (a.corp === "company" && a.staff === "le300")) && a.work !== "undecided" && a.work !== "other";
       return out(sure ? "可能性あり" : "要確認", reasons, checks);
     }
     case "tokyoKaishu": {
@@ -168,9 +183,9 @@ function judge(id: ProgramId, a: CheckAnswers): Judge | null {
       if (a.pref === "hachioji") return out("対象外の見込み", [], ["八王子市内の施設は対象外です。"]);
       if (pubCorp) return out("対象外の見込み", [], ["公立の施設は対象外です。"]);
       const reasons = ["都内", f.label];
-      const checks = ["建物の所有者が民間の法人であること", "創設・前回の大規模改修から10年を過ぎているか", "財務の審査", "空調の特別枠に当たるか（平成28〜令和7年度に都の大規模改修の補助を受けたか）"];
+      const checks = ["建物の所有者が民間の法人であること", "創設・前回の大規模改修から10年を過ぎているか", "財務の審査", "空調の特別枠に当たるか（2016〜2025年度に都の大規模改修の補助を受けたか）"];
       if (dropin) return out("要確認", reasons, ["冷媒だけの入れ替えが大規模改修に当たるか", ...checks]);
-      return out(a.work === "undecided" ? "要確認" : "可能性あり", [...reasons, ...(a.work === "undecided" ? [] : ["空調・建物の改修"])], checks);
+      return out(a.work === "undecided" ? "要確認" : "可能性あり", [...reasons, ...(a.work === "undecided" ? [] : [a.work === "other" ? "建物・設備の改修" : "空調・建物の改修"])], checks);
     }
     case "tokyoChiiki": {
       if (a.facility !== "chiikitoku" && a.facility !== "shotaki") return null;
@@ -181,7 +196,7 @@ function judge(id: ProgramId, a: CheckAnswers): Judge | null {
       if (!f.care) return null;
       if (a.capacity === "ge30") return null;
       const reasons = [f.label, a.capacity === "le29" ? "定員29人以下" : a.capacity === null ? "定員29人以下の施設" : ""].filter(Boolean);
-      const checks = ["所在地の市区町村が募集しているか（次の募集は未発表）", "令和9年度分から中長期の修繕計画が必要"];
+      const checks = ["所在地の市区町村が募集しているか（次の募集は未発表）", "2027年度分から中長期の修繕計画が必要"];
       if (a.capacity === "unknown") checks.unshift("定員が29人以下か");
       if (pubCorp) checks.unshift("公立の施設の扱い");
       if (dropin) checks.unshift("冷媒だけの入れ替えが大規模修繕に当たるか");
@@ -203,7 +218,8 @@ function judge(id: ProgramId, a: CheckAnswers): Judge | null {
       if ((a.corp === "shafuku" || a.corp === "iryou") && a.staff === "le300") reasons.push("従業員300人以下（中小企業者等）");
       const checks = ["次の公募の時期（未発表）", "更新する機種が指定の設備に入っているか"];
       if (pubCorp) checks.unshift("公立の施設の扱い");
-      if (a.staff === "gt300") checks.push("大企業として扱われる場合の条件");
+      if (a.work === "other") checks.unshift("入れ替える設備が指定の設備か（業務用給湯器・LED照明など。建物の修繕は対象外）");
+      if (a.staff === "gt300") checks.push("301人以上で大企業として扱われる場合の条件（公募のルールで確かめます）");
       return out("要確認", reasons, checks);
     }
   }
