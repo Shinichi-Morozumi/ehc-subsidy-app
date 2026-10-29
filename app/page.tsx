@@ -15,7 +15,8 @@ import { OPEN_HEARING_EVENT } from "@/components/HowItWorks";
 import { SubsidyMatcher } from "@/components/SubsidyMatcher";
 import { DiagnosisFlow } from "@/components/DiagnosisFlow";
 import { ProjectProvider } from "@/components/ProjectContext";
-import { HomeV17 } from "@/components/home/HomeV17";
+/* 2026-10-29 EHC-0102: トップを締切ボード＋3つの入口（HomeV18）に替えた。旧トップ（HomeV17）のファイルは残してある。 */
+import { HomeV18 } from "@/components/home/HomeV18";
 import { SiteFooter } from "@/components/SiteFooter";
 import { legacyAccessFromSearch } from "@/lib/legacyAccess";
 import { DRAFT_RESTORE_EVENT } from "@/lib/diagnosisDraft";
@@ -78,7 +79,7 @@ export default function Page() {
 
   return (
     <>
-      {!started && <HomeV17 />}
+      {!started && <HomeV18 />}
 
       {/* 2026-09-25 UXレビュー No.29: 診断画面を main で囲み、読み上げソフトで本文へ直接移動できるようにする。
           ホーム（HomeV17）も main を持つ。隠れている側には hidden を付け、

@@ -280,8 +280,8 @@ export function kaigoEstimate(a: KaigoAnswers): KaigoEstimate {
 
 /* ───────── 送信の確かめ（サーバ） ───────── */
 
-const EMAIL_RE = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
-const PHONE_RE = /^[0-9０-９+＋()（）\-－ー‐\s]{10,20}$/;
+export const EMAIL_RE = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/;
+export const PHONE_RE = /^[0-9０-９+＋()（）\-－ー‐\s]{10,20}$/;
 
 const clean = (v: unknown, max: number): string | null => {
   if (typeof v !== "string") return null;

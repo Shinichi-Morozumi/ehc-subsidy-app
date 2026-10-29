@@ -122,7 +122,8 @@ function NextButton({ disabled, onClick, label = "次へ" }: { disabled?: boolea
   );
 }
 
-export function KaigoChat() {
+/* 2026-10-29 EHC-0102: children に制度カード（国の交付金）を受け取り、チャットの下・会社情報の上に置く（/kaigo のページから渡す） */
+export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
   const id = useId();
   const [ref, setRef] = useState<string | null>(null);
   const [step, setStep] = useState(0);
@@ -382,7 +383,7 @@ export function KaigoChat() {
           </p>
         </section>
 
-        <section aria-label="事前確認のチャット" className="mt-6 space-y-4" aria-live="polite">
+        <section id="kaigo-chat" aria-label="事前確認のチャット" className="mt-6 scroll-mt-24 space-y-4" aria-live="polite">
           <Bot>
             介護施設の補助金を、事前に確認します。<b>7つの質問</b>に答えると、使えそうな補助と次にやることが分かります。チャットでの事前確認に費用はかかりません。
           </Bot>
@@ -528,6 +529,8 @@ export function KaigoChat() {
             </button>
           </p>
         )}
+
+        {children}
 
         <footer className="mt-10 border-t border-ink-line pt-4 text-[13px] leading-[1.8] text-ink-soft">
           <p className="font-bold text-ink">{COMPANY.name}</p>

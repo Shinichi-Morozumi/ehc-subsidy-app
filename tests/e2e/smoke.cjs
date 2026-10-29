@@ -60,7 +60,9 @@ async function flow(browser, vp) {
   const go = await step("トップが開く（題名・見出し）", async () => {
     const res = await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded", timeout: 45000 });
     if (!res || res.status() !== 200) throw new Error(`HTTP ${res ? res.status() : "なし"}`);
-    await page.getByText("空調を発注する前に").first().waitFor({ timeout: 20000 });
+    /* 2026-10-29 EHC-0102: トップを締切ボード＋3つの入口（HomeV18）に替えた */
+    await page.getByRole("heading", { name: /締切の近い順に/ }).first().waitFor({ timeout: 20000 });
+    await page.getByRole("heading", { name: "いま近い締切" }).first().waitFor({ timeout: 20000 });
     const title = await page.title();
     if (!title.includes("EHCソリューションズ")) throw new Error(`題名に会社名が無い: ${title}`);
     const robots = await page.locator('meta[name="robots"]').getAttribute("content").catch(() => null);
@@ -70,7 +72,8 @@ async function flow(browser, vp) {
   if (!go) { await ctx.close(); return errors; }
 
   await step("7問に答えられる", async () => {
-    await page.getByText("無料で今すぐ診断").first().click();
+    /* 2026-10-29 EHC-0102: 7問はトップの「国の省エネ（SII）」の入口から開く */
+    await page.getByRole("button", { name: /設備から計算する（7問）/ }).first().click();
     await dialog.waitFor({ timeout: 10000 });
     const restart = dialog.getByRole("button", { name: /最初から答え直す/ });
     if (await restart.count()) await restart.click();
@@ -127,6 +130,16 @@ async function pages(browser) {
   console.log("■ ページとURL");
   const ctx = await browser.newContext({ locale: "ja-JP" });
   const page = await ctx.newPage();
+  await step("東京都の制度と6問の診断が開く（/tokyo・/shindan）", async () => {
+    const t = await page.goto(`${BASE}/tokyo`, { waitUntil: "domcontentloaded" });
+    if (!t || t.status() !== 200) throw new Error(`/tokyo HTTP ${t ? t.status() : "なし"}`);
+    await page.getByRole("heading", { name: "制度カード（締切の近い順）" }).waitFor({ timeout: 10000 });
+    const s = await page.goto(`${BASE}/shindan`, { waitUntil: "domcontentloaded" });
+    if (!s || s.status() !== 200) throw new Error(`/shindan HTTP ${s ? s.status() : "なし"}`);
+    await page.getByRole("heading", { name: "施設・事業所の所在地は？" }).waitFor({ timeout: 10000 });
+    await shot("06_shindan");
+  });
+
   await step("会社概要が開く", async () => {
     const res = await page.goto(`${BASE}/company`, { waitUntil: "domcontentloaded" });
     if (!res || res.status() !== 200) throw new Error(`HTTP ${res ? res.status() : "なし"}`);

@@ -345,7 +345,7 @@ test("U01 お客様の画面のソースに、紹介コードの表示・入力�
   const kaigo = fs.readFileSync(path.join(root, "components/kaigo/KaigoChat.tsx"), "utf8");
   assert.doesNotMatch(kaigo, /ref\.toUpperCase\(\)|<p[^>]*>\s*紹介コード/, "介護の画面の下に紹介コードを出さない（コメントは除く）");
   assert.match(kaigo, /紹介リンクからのご相談として受け付けます/);
-  for (const f of ["app/page.tsx", "components/ContactStage.tsx", "components/home/HomeV17.tsx"]) {
+  for (const f of ["app/page.tsx", "components/ContactStage.tsx", "components/home/HomeV17.tsx", "components/home/HomeV18.tsx", "components/programs/ConsultForm.tsx", "components/programs/ProgramCheck.tsx"]) {
     const src = fs.readFileSync(path.join(root, f), "utf8");
     assert.doesNotMatch(src, /紹介コードを入力|紹介コード：|ID: KRH01/, `${f} に紹介コードの表示・入力が無い`);
   }

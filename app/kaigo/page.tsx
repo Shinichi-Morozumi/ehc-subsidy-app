@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { KaigoChat } from "@/components/kaigo/KaigoChat";
+import { KaigoPrograms } from "@/components/programs/KaigoPrograms";
+import { todayJst } from "@/lib/programClock";
 
 /* ───────────────────────────────────────────────────────────
    介護施設向け 補助金の事前確認（2026-10-01 EHC-0056）
@@ -27,6 +29,13 @@ export const metadata: Metadata = {
   },
 };
 
+/* 2026-10-29 EHC-0102: チャットの下に国の交付金の制度カードを足した。残り日数などに今日を使うので1時間ごとに作り直す。 */
+export const revalidate = 3600;
+
 export default function KaigoPage() {
-  return <KaigoChat />;
+  return (
+    <KaigoChat>
+      <KaigoPrograms initialToday={todayJst()} />
+    </KaigoChat>
+  );
 }

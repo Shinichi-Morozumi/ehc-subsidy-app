@@ -43,7 +43,16 @@ export type TrackEvent =
   | "kaigo_call" // 電話のリンクを押した（place）
   /* 2026-10-14 PJ-20261013-EHC-0070: 紹介代理店の専用リンク（?ref=）。訪問と相談の送信を数える（成約・紹介料は数えない） */
   | "ref_open" // 表にある紹介リンクでトップを開いた（ref, material）
-  | "ref_submit"; // 紹介リンク付きで相談を送った（ref, ok）
+  | "ref_submit" // 紹介リンク付きで相談を送った（ref, ok）
+  /* 2026-10-29 EHC-0102: 3本柱のサイト（トップの締切ボード・/shindan の6問・/tokyo・/kaigo の制度カード） */
+  | "pillar_open" // トップの3つの入口のどれを押したか（pillar）
+  | "check_open" // 6問の診断を始めた（from）
+  | "check_step" // 6問の何問目を出したか（step）
+  | "check_done" // 6問を答えて制度カードを出した（items, cost）
+  | "card_consult" // 制度カードの「この制度で相談する」を押した（program, place）
+  | "official_open" // 制度カードの「公式の情報」を開いた（program）
+  | "consult_submit" // 3項目のフォームを送った（ok, source）
+  | "consult_call"; // 電話・写真のリンクを押した（kind, place）
 
 type VaFunction = (command: "event", payload: { name: string; data?: Record<string, TrackValue> }) => void;
 
