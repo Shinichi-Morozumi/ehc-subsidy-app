@@ -327,7 +327,7 @@ test("検索: robots.txt と sitemap.xml", () => {
   assert.equal(robots.sitemap, "https://ehcjpn.com/sitemap.xml");
   assert.ok(robots.rules[0].disallow.includes("/kanri"));
   const map = loadTs("app/sitemap.ts").default().map((e) => e.url);
-  assert.deepEqual(map, ["https://ehcjpn.com/", "https://ehcjpn.com/kaigo", "https://ehcjpn.com/tokyo", "https://ehcjpn.com/shindan", "https://ehcjpn.com/team", "https://ehcjpn.com/company", "https://ehcjpn.com/privacy"]); // 2026-10-01: /kaigo を足した。2026-10-29 EHC-0102: /tokyo・/shindan を足した
+  assert.deepEqual(map, ["https://ehcjpn.com/", "https://ehcjpn.com/kaigo", "https://ehcjpn.com/tokyo", "https://ehcjpn.com/shindan", "https://ehcjpn.com/team", "https://ehcjpn.com/dropin", "https://ehcjpn.com/company", "https://ehcjpn.com/privacy"]); // 2026-10-01: /kaigo を足した。2026-10-29 EHC-0102: /tokyo・/shindan を足した
 });
 
 test("検索: 旧URLは検索に出さず、/privacy-policy は /privacy へ転送する", async () => {

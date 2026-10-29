@@ -149,6 +149,10 @@ export function HomeV18() {
           <div className="mt-4 grid gap-5 lg:grid-cols-3 lg:items-start">
             {PILLARS.map((def) => <PillarCard key={def.pillar} def={def} today={today} onSii={openSii} />)}
           </div>
+          <Link href="/dropin" className="mt-5 flex min-h-[64px] items-center justify-between gap-3 rounded-2xl border-2 border-ink-line bg-white px-4 py-3 text-[16px] font-bold text-brand-deep">
+            <span>買い替えの前に：空調機はそのまま、冷媒だけ入れ替える方法（ドロップイン）<span className="block text-[13px] font-normal text-ink-soft">実測の例・費用の目安・すすめ方</span></span>
+            <ArrowRight aria-hidden className="h-5 w-5 shrink-0" />
+          </Link>
         </section>
 
         <section aria-labelledby="team-why" className="mt-10 rounded-3xl bg-brand-deep p-5 text-white sm:p-7">

@@ -42,6 +42,8 @@ const nextConfig = {
     return [
       { source: "/privacy-policy", destination: "/privacy", permanent: true },
       { source: "/privacy-policy/", destination: "/privacy", permanent: true },
+      /* 2026-10-29 EHC-0102: ドロップインのチラシの QR（/?ref=krh01-dropin）は、刷り直さずに専用ページへ送る。?ref= はそのまま付いていく */
+      { source: "/", has: [{ type: "query", key: "ref", value: "krh01-dropin" }], destination: "/dropin", permanent: false },
     ];
   },
   /* 2026-09-26 改善1: 旧URL（ehc-subsidy-app.vercel.app）は検索に出さない。

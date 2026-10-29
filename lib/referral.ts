@@ -47,7 +47,8 @@ export const REFERRAL_DAYS = 30;
 const DAY_MS = 86400000;
 /** 着いたページとして受け付けるパス（それ以外は "/" として扱う） */
 /* 2026-10-29 EHC-0102: 東京都の制度のページ（/tokyo）と6問の診断（/shindan）を足した */
-const LANDINGS = ["/", "/kaigo", "/tokyo", "/shindan"] as const;
+/* 2026-10-29: ドロップインのチラシ（/?ref=krh01-dropin）は next.config.mjs で /dropin へ送るので、/dropin も着地ページに足す */
+const LANDINGS = ["/", "/kaigo", "/tokyo", "/shindan", "/dropin"] as const;
 export type ReferralLanding = (typeof LANDINGS)[number];
 
 /** URL の ?ref= の値を整える。英数字・ハイフン・下線の20字まで、小文字にそろえる。使えない値は null（紹介なし）。 */

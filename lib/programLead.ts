@@ -20,7 +20,7 @@ import { PROGRAMS, type ProgramId } from "./programs";
 import { CHECK_PREFS, checkAnswerLines, labelOfOpt, matchLines, matchPrograms, readCheckAnswers, type CheckAnswers } from "./programMatch";
 import { CONSULT_NOTE_MAX, consultFlagLabels, readConsultFlags, type ConsultFlagId } from "./consultOptions";
 
-export const PROGRAM_LEAD_SOURCES = ["top", "shindan", "tokyo", "kaigo", "team"] as const;
+export const PROGRAM_LEAD_SOURCES = ["top", "shindan", "tokyo", "kaigo", "team", "dropin"] as const;
 export type ProgramLeadSource = (typeof PROGRAM_LEAD_SOURCES)[number];
 
 const SOURCE_JA: Record<ProgramLeadSource, string> = {
@@ -29,6 +29,7 @@ const SOURCE_JA: Record<ProgramLeadSource, string> = {
   tokyo: "東京都の制度（/tokyo）",
   kaigo: "介護施設の制度（/kaigo）",
   team: "メンバーと実績（/team）",
+  dropin: "ドロップイン（/dropin）",
 };
 
 export interface ProgramLeadInput {
@@ -225,7 +226,7 @@ export function programStaffMail(
   const urgent = input.flags?.includes("urgent");
   const mailOnly = input.flags?.includes("mailOnly");
   return {
-    subject: `${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : ""}${tag ? `［${tag}］` : ""}`,
+    subject: `${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : input.source === "dropin" ? "（ドロップイン）" : ""}${tag ? `［${tag}］` : ""}`,
     text: [
       "補助金サイト（ehcjpn.com）の制度カードから、相談がありました。",
       opts.notionSaved === false

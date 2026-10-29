@@ -5,6 +5,7 @@
    ドロップインを補助の対象のように見せない。効果の数字（削減率など）はここに書かない（根拠の出し方が決まるまで）。 */
 
 import Image from "next/image";
+import Link from "next/link";
 import { track } from "@/lib/track";
 
 export function DropinCard({ onConsult }: { onConsult: () => void }) {
@@ -31,6 +32,7 @@ export function DropinCard({ onConsult }: { onConsult: () => void }) {
         >
           入れ替えと比べて相談する
         </button>
+        <Link href="/dropin" className="flex min-h-[44px] items-center justify-center text-[15px] font-bold text-brand-deep underline underline-offset-4">ドロップインの実測の例・費用の目安を見る</Link>
       </div>
     </article>
   );

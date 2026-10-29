@@ -222,3 +222,14 @@ test("直し2回目: 相談したい制度を複数・任意の印・ご相談�
   assert.match(lead.nextAction, /^【急ぎ】メールで折り返し/);
   assert.match(lead.memo, /ご相談の内容: 夏に1台止まった/);
 });
+
+test("ドロップインの専用ページ：相談の入口に dropin・件名に（ドロップイン）。チラシの QR は /dropin へ送り、着地ページとして覚える", () => {
+  const input = L.readProgramSubmit(form({ source: "dropin", programId: null, programIds: [], answers: null, referral: { ref: "krh01-dropin", landedAt: new Date(Date.now() - 60000).toISOString(), landing: "/dropin" } })).input;
+  assert.equal(input.source, "dropin");
+  const m = L.programStaffMail(input, "EHC-20261106-100000-ABCD", "2026-11-06");
+  assert.match(m.subject, /（ドロップイン）［紹介 KRH01・ドロップイン］$/);
+  assert.match(m.text, /入口: ドロップイン（\/dropin）/);
+  assert.equal(input.referral.landing, "/dropin");
+  const cfg = fs.readFileSync(path.resolve(root, "next.config.mjs"), "utf8");
+  assert.match(cfg, /source: "\/", has: \[\{ type: "query", key: "ref", value: "krh01-dropin" \}\], destination: "\/dropin", permanent: false/);
+});

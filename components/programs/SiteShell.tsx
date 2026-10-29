@@ -12,7 +12,7 @@ import { COMPANY } from "@/lib/company";
 import { track } from "@/lib/track";
 import { cn } from "@/lib/utils";
 
-export type ShellPage = "top" | "tokyo" | "kaigo" | "shindan" | "team";
+export type ShellPage = "top" | "tokyo" | "kaigo" | "shindan" | "team" | "dropin";
 
 const NAV: { href: string; label: string; sub?: string; short: string; page: ShellPage | "sii" }[] = [
   { href: "/shindan?for=tokyo", label: "東京都の補助", sub: "全業種", short: "東京都の補助", page: "tokyo" },

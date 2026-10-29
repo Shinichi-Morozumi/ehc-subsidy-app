@@ -8,7 +8,7 @@ import { captureReferral } from "@/lib/referralClient";
 import { referralLinkOf } from "@/lib/referral";
 import { track } from "@/lib/track";
 
-export function ReferralCapture({ pathname }: { pathname: "/tokyo" | "/shindan" }) {
+export function ReferralCapture({ pathname }: { pathname: "/tokyo" | "/shindan" | "/dropin" }) {
   useEffect(() => {
     const params = window.location.search;
     const claim = captureReferral(params, pathname);

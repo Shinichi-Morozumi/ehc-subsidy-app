@@ -271,7 +271,7 @@ test("直し2回目: 工事「空調以外の設備・建物だけ」でも判�
 
 test("直し2回目: 言葉の言い換え（和暦だけの年・「本業」・「無料」を画面の文に残さない）", () => {
   const strip = (f) => fs2.readFileSync(path.resolve(root, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-  for (const f of ["lib/programs.ts", "lib/programMatch.ts", "components/home/HomeV18.tsx", "components/programs/ProgramCard.tsx", "components/programs/ProgramCheck.tsx", "components/programs/ConsultForm.tsx", "components/programs/DeadlineBoard.tsx", "app/team/page.tsx", "lib/team.ts", "app/layout.tsx", "app/not-found.tsx", "app/company/page.tsx"]) {
+  for (const f of ["lib/programs.ts", "lib/programMatch.ts", "components/home/HomeV18.tsx", "components/programs/ProgramCard.tsx", "components/programs/ProgramCheck.tsx", "components/programs/ConsultForm.tsx", "components/programs/DeadlineBoard.tsx", "app/team/page.tsx", "app/dropin/page.tsx", "lib/team.ts", "app/layout.tsx", "app/not-found.tsx", "app/company/page.tsx"]) {
     const body = strip(f);
     assert.ok(!/令和\d+年度(?!）)/.test(body.replace(/（令和\d+年度）|（平成\d+〜令和\d+年度）/g, "")), `${f} に和暦だけの年`);
     assert.ok(!body.includes("無料"), `${f} に「無料」`);
