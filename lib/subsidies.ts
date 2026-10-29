@@ -1,8 +1,9 @@
 import { Subsidy } from "./types";
 import { todayJst } from "./programClock";
+import { SUBSIDY_UPDATES } from "./subsidyUpdates";
 
 // 補助金データの確認日（注記・鮮度表示に使用）。データ更新時はここも更新。
-export const SUBSIDY_DATA_ASOF = "2026年8月27日";
+export const SUBSIDY_DATA_ASOF = "2026年10月26日（未確認制度は個別表示）";
 
 const RAW_SUBSIDIES: Subsidy[] = [
   {
@@ -372,9 +373,11 @@ const OFFICIAL_CHECKED_AT = "2026-08-27T09:00:00+09:00";
    以前は STATUS_REFERENCE_DATE = "2026-08-18" という固定リテラルで受付状態を判定していたため、
    ビルド後に時間が経つほど「締切を過ぎた制度を受付中と表示する」事故が起きていた。
    判定基準日は実行時のJSTの今日（lib/programClock.ts）に統一する。 */
-function inferStatus(s: Subsidy, today: string): Subsidy["status"] {
+function inferStatus(s: Subsidy, today: string, now: Date): Subsidy["status"] {
   if (s.status) return s.status;
   if (s.closed) return "closed";
+  if (s.applyCloseAt && Date.parse(s.applyCloseAt) <= now.getTime()) return "closed";
+  if (s.applyOpenAt && Date.parse(s.applyOpenAt) > now.getTime()) return "upcoming";
   if (s.applyOpen && s.applyOpen > today) return "upcoming";
   if (s.applyClose && s.applyClose < today) return "closed";
   if (s.applyClose && s.applyClose >= today) return "open";
@@ -391,15 +394,16 @@ function inferStatus(s: Subsidy, today: string): Subsidy["status"] {
 //   ブラウザなら1セッションで済むが、Vercelのlambdaはプロセスが生き続けるため、
 //   日付をまたぐと「昨日の判定」を返し続ける＝直したはずの時間停止バグが再発する。
 //   そこで「JSTの今日」をキーにしたキャッシュ付き関数にして、日付が変われば必ず再計算させる。
-let _subsidyCacheKey = "";
-let _subsidyCache: Subsidy[] = [];
-
-function normalize(s: Subsidy, today: string): Subsidy {
+function normalize(s: Subsidy, today: string, now: Date): Subsidy {
+  s = { ...s, ...SUBSIDY_UPDATES[s.id] };
+  const checkedAt = s.officialCheckedAt ?? OFFICIAL_CHECKED_AT;
+  const age = (Date.parse(`${today}T23:59:59+09:00`) - Date.parse(checkedAt)) / 86400000;
   return {
     ...s,
+    verificationState: s.verificationState === "verified" && age > 7 ? "stale" : s.verificationState,
     programKind: s.programKind ?? "subsidy",
     programCategory: s.programCategory ?? "equipment",
-    status: inferStatus(s, today),
+    status: inferStatus(s, today, now),
     // verificationState は types.ts で必須にした。
     // 「未記入なら verified」という既定値は、制度を追加した人が確認を忘れただけで
     // 補助額の計算対象に入ってしまう設計だったので廃止した。
@@ -412,13 +416,11 @@ function normalize(s: Subsidy, today: string): Subsidy {
   };
 }
 
-/** 正規化済みの制度一覧。受付状態は「呼んだ時点のJSTの今日」で判定される。 */
+/** 正規化済みの制度一覧。日付に加え、公式に判明している締切時刻も毎回判定。 */
 export function getSubsidies(now: Date = new Date()): Subsidy[] {
   const today = todayJst(now);
-  if (today === _subsidyCacheKey) return _subsidyCache;
-  _subsidyCacheKey = today;
-  _subsidyCache = RAW_SUBSIDIES.map((s) => normalize(s, today));
-  return _subsidyCache;
+  // 11件の軽量処理。日単位キャッシュでは同日17時の締切を越えて受付中が残る。
+  return RAW_SUBSIDIES.map((s) => normalize(s, today, now));
 }
 
 /* 見積シミュレーター用の代表補助率プリセット。

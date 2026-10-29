@@ -26,7 +26,7 @@ export async function GET() {
     );
   } catch (e) {
     return NextResponse.json(
-      { fetchedAt: new Date().toISOString(), count: 0, verificationState: "unavailable", items: [], error: "fetch_failed" },
+      { fetchedAt: new Date().toISOString(), count: null, verificationState: "unavailable", items: [], error: "fetch_failed" },
       { status: 200 }
     );
   }

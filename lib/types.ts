@@ -62,6 +62,8 @@ export interface Subsidy {
   closed?: boolean;   // true=今年度の受付終了（マッチング対象外・DBには表示）
   applyOpen?: string;   // 公募開始日(ISO yyyy-mm-dd)。判明している回のみ
   applyClose?: string;  // 申請締切日(ISO)。判明している回のみ
+  applyOpenAt?: string; // 時刻も公式確認済みの場合だけ、タイムゾーン付きISO
+  applyCloseAt?: string;
   scheduleNote?: string; // 次回公募の見込み等の注記
   useOfFunds?: string; // この制度で想定する主な使い道（対象経費は公募要領で最終確認）
   nextCheck?: string; // 申請前に次に確認する事項

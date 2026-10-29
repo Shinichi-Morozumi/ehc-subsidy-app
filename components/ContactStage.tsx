@@ -47,6 +47,8 @@ import { COMPANY } from "@/lib/company";
 import { track } from "@/lib/track";
 import { consultationLines, readConsultation } from "@/lib/consultation";
 import ConsultationFields from "@/components/ConsultationFields";
+import { currentReferral } from "@/lib/referralClient";
+import { referralLinkOf, type ReferralClaim } from "@/lib/referral";
 
 /* ───────────────────────────────────────────────────────────
    E段「診断書を受け取って相談」（EHC-0039 第7片 / 2026-09-14 v1）
@@ -211,6 +213,10 @@ export function ContactStage({
      state ではなく ref にしているのは、この値でレンダーを起こす必要がなく、
      PDF化のeffectの依存（frozen 1本）を増やしたくないため。 */
   const fingerprintRef = useRef<string>("");
+  /* 2026-10-14 PJ-20261013-EHC-0070: 紹介リンク（lib/referralClient.ts）。
+     受付番号ごとに、最初に固めた時点のものを使い続ける。送り直し・再試行で帰属が入れ替わらないように。
+     画面には出さない（担当者宛メールと Notion にだけ残る）。 */
+  const referralRef = useRef<{ receiptNo: string; claim: ReferralClaim | null } | null>(null);
 
   const sheetRef = useRef<HTMLDivElement | null>(null);
 
@@ -336,6 +342,9 @@ export function ContactStage({
       energyBill: normalizeEnergyBill(energyBill ?? null),
     });
     fingerprintRef.current = record.fingerprint;
+    if (!referralRef.current || referralRef.current.receiptNo !== record.id) {
+      referralRef.current = { receiptNo: record.id, claim: currentReferral() };
+    }
     setFrozen(snapshot);
     setPhase("rendering");
   }, [
@@ -490,6 +499,8 @@ export function ContactStage({
             energyBill: frozen.energyBill ?? null,
             pdfBase64,
             filename,
+            /* 2026-10-14 紹介リンク（コード・着いた時刻・着いたページだけ）。サーバが表で確かめる */
+            referral: referralRef.current?.receiptNo === frozen.receiptNo ? referralRef.current.claim : null,
             /* 2026-09-26 改善13 */
             hp: hpRef.current,
             elapsedMs: Date.now() - openedAtRef.current,
@@ -514,6 +525,8 @@ export function ContactStage({
         }
         setResult(json);
         setPhase("done");
+        const sentReferral = referralRef.current?.receiptNo === frozen.receiptNo ? referralRef.current.claim : null;
+        if (sentReferral && referralLinkOf(sentReferral.ref)) track("ref_submit", { ref: sentReferral.ref, ok: !!json.ok });
         if (json.ok) {
           track("submit_ok", { customer: json.customer });
           onSubmittedRef.current?.();

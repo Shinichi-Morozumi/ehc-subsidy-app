@@ -1,0 +1,38 @@
+// ID: EHC-0095 / v1 / 2026-10-26. 全通信をモックし、外部保存・送信なし。
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const ts=require('typescript'),{createRequire}=require('node:module'); const root=path.resolve(__dirname,'..'),cache=new Map();
+function load(file){const p=path.resolve(root,file);if(cache.has(p))return cache.get(p).exports;const m={exports:{}};cache.set(p,m);const native=createRequire(p);const req=s=>s.startsWith('.')?load(path.resolve(path.dirname(p),s+'.ts')):native(s);const code=ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;vm.runInThisContext(`(function(exports,require,module){${code}\n})`,{filename:p})(m.exports,req,m);return m.exports;}
+const M=load('lib/agencyMonthly.ts'),S=load('lib/subsidies.ts'),F=load('lib/sourceFingerprint.ts');
+const lead={receiptNo:'TEST-LOCAL',ref:'krh01-dropin',submittedAt:'2026-10-31T23:59:59+09:00',isTest:false,crmUrl:'https://example.invalid/mock'};
+const line={lineId:'LOCAL-1',orderId:'ORDER-1',receiptNo:lead.receiptNo,orderedOn:'2026-10-31',category:'gas',netYen:1000000,agreedRateBps:null,contractEvidence:'ローカル試験根拠',isTest:false,cancelled:false};
+const base={month:'2026-10',leads:[lead],orders:[line],analytics:['care','dropin','clinic'].map(x=>({ref:'krh01-'+x,opens:0,complete:true,source:'mock only'})),leadsComplete:true,ordersComplete:true,checkedBy:'ローカル試験'};
+test('月境界はJST・翌月1日09時まで確定版にしない',()=>{assert.equal(new Date(M.monthBounds('2026-10').end).toISOString(),'2026-10-31T15:00:00.000Z');assert.equal(M.closeAgencyMonth(base,new Date('2026-11-01T08:59:59+09:00')).status,'blocked');assert.equal(M.closeAgencyMonth(base,new Date('2026-11-01T09:00:00+09:00')).status,'final');assert.throws(()=>M.monthBounds('2026-13'));});
+test('税抜ガス代10％、機器代3％、内装は個別3〜5％。他代理店へ流用しない',()=>{assert.equal(M.rewardEstimate(line,'KRH01'),100000);assert.equal(M.rewardEstimate({...line,category:'ac_equipment'},'KRH01'),30000);assert.equal(M.rewardEstimate({...line,category:'interior_other'},'KRH01'),null);assert.equal(M.rewardEstimate({...line,category:'interior_other',agreedRateBps:500},'KRH01'),50000);assert.equal(M.rewardEstimate(line,'OTHER'),null);assert.equal(M.rewardEstimate({...line,contractEvidence:''},'KRH01'),null);});
+test('未取得の計測・受注・問合せを0にしない',()=>{const r=M.closeAgencyMonth({...base,leadsComplete:false,ordersComplete:false,analytics:[]},new Date('2026-11-02'));assert.equal(r.status,'blocked');for(const row of r.rows)for(const k of ['opens','enquiries','orders','netYen','rewardYen'])assert.equal(row[k],null);});
+test('同じ受付を重複計上しない。不一致重複と明細重複は締めを止める',()=>{const when=new Date('2026-11-02');let r=M.closeAgencyMonth({...base,leads:[lead,lead]},when);assert.equal(r.rows.find(x=>x.ref==='krh01-dropin').enquiries,1);assert.equal(r.status,'final');r=M.closeAgencyMonth({...base,orders:[line,line]},when);assert.equal(r.status,'blocked');assert.equal(r.rows.find(x=>x.ref==='krh01-dropin').netYen,1000000);r=M.closeAgencyMonth({...base,leads:[lead,{...lead,ref:'krh01-clinic'}]},when);assert.equal(r.status,'blocked');});
+test('営業対象外・取消を除外、11月1日00時の問い合わせは翌月へ',()=>{const r=M.closeAgencyMonth({...base,leads:[{...lead,isTest:true},{...lead,receiptNo:'NOV',submittedAt:'2026-11-01T00:00:00+09:00'}],orders:[{...line,isTest:true}]},new Date('2026-11-02'));assert.equal(r.rows.reduce((n,x)=>n+x.enquiries,0),0);assert.equal(r.rows.reduce((n,x)=>n+x.netYen,0),0);});
+test('日付補正・未確定率・負値・計測重複を確定扱いにしない',()=>{for(const bad of [{...line,orderedOn:'2026-10-32'},{...line,category:'interior_other'},{...line,netYen:-1}])assert.equal(M.closeAgencyMonth({...base,orders:[bad]},new Date('2026-11-02')).status,'blocked');assert.equal(M.closeAgencyMonth({...base,analytics:[...base.analytics,base.analytics[0]]},new Date('2026-11-02')).status,'blocked');});
+test('公式10/26差分。埼玉の空調除外と未取得制度を維持',()=>{const all=S.getSubsidies(new Date('2026-10-26T04:00Z'));const by=id=>all.find(x=>x.id===id);assert.equal(by('sii_iv').applyClose,'2026-10-30');assert.equal(by('sii_iv').status,'open');assert.deepEqual(by('saitama').target,[]);assert.equal(by('saitama').status,'open');assert.equal(by('chiba').closed,true);assert.equal(by('tokyo_zeroemi').verificationState,'unavailable');assert.equal(by('jizokuka').verificationState,'needs_review');assert.equal(by('sii_iv').programFiscalYear,2025);});
+test('更新ヘッダーがなくても本文とリンクの変更を検出',()=>{assert.equal(F.sourceFingerprint('<main>A <script>random</script>B</main>'),F.sourceFingerprint('<main>A B</main>'));assert.notEqual(F.sourceFingerprint('<main><a href="overview4.html">公募</a></main>'),F.sourceFingerprint('<main><a href="overview5.html">公募</a></main>'));});
+test('7日経過した確認済み制度を、サーバ側でも再確認へ落とす',()=>{assert.equal(S.getSubsidies(new Date('2026-11-05')).find(x=>x.id==='sii_iv').verificationState,'stale');});
+test('同じ日の17時締切を跨いでも受付中がキャッシュに残らない',()=>{const state=t=>S.getSubsidies(new Date(t)).find(x=>x.id==='sii_iv').status;assert.equal(state('2026-10-30T16:59:59+09:00'),'open');assert.equal(state('2026-10-30T17:00:00+09:00'),'closed');});
+test('介護も同じ流入日時と紹介URLを社内メール・CRMへ運ぶ',()=>{
+ const K=load('lib/kaigo.ts');const R=load('lib/referral.ts');
+ const referral=R.readReferralClaim({ref:'krh01-care',landedAt:new Date(Date.now()-1000).toISOString(),landing:'/kaigo'});
+ const input={answers:{facility:K.FACILITIES[0].id,capacity:K.CAPACITIES[0].id,pref:K.PREFS[0].id,buildingAge:K.BUILDING_AGES[0].id,acType:K.AC_TYPES[0].id,acAge:K.AC_AGES[0].id,city:null,troubles:[],wants:[]},contact:{company:'ローカル架空・営業対象外',name:'テスト',email:'mock@example.invalid',phone:null,scope:null,callTime:null},ref:'krh01-care',referral};
+ for(const text of [K.kaigoLead(input,'LOCAL-ONLY','2026-10-26').memo,K.kaigoStaffMail(input,'LOCAL-ONLY').text]){assert.match(text,/紹介元 KRH01/);assert.match(text,/https:\/\/ehcjpn.com\/kaigo\?ref=krh01-care/);assert.match(text,/日本時間/);assert.match(text,/LOCAL-ONLY/);}
+});
+test('公式本文差分・回次一覧・取得失敗を再確認へ。J-Grants失敗を0件にしない',async()=>{
+ const P=load('lib/program-monitor.ts');const baseline=load('lib/officialSourceBaselines.ts');
+ const original={...baseline.OFFICIAL_SOURCE_BASELINES};const byUrl=new Map(Object.keys(original).map(url=>[url,`<main>ローカル公式本文 ${url}</main>`]));
+ for(const [url,html] of byUrl)baseline.OFFICIAL_SOURCE_BASELINES[url]=F.sourceFingerprint(html);
+ const watches=baseline.OFFICIAL_DISCOVERY_SOURCES.map(w=>({...w}));
+ for(const w of baseline.OFFICIAL_DISCOVERY_SOURCES){const html='<main>公募一覧 overview4.html</main>';byUrl.set(w.url,html);w.sha256=F.sourceFingerprint(html);}
+ const previous=global.fetch;
+ try {
+  global.fetch=async url=>{if(String(url).includes('jgrants'))return new Response('{}',{status:503});return new Response(byUrl.get(String(url))??'not found',{status:byUrl.has(String(url))?200:404});};
+  let result=await P.monitorOfficialSources(new Date('2026-10-26T04:00Z'));assert.equal(result.sources.find(x=>x.id==='sii_iv').state,'unchanged');assert.equal(result.jgrantsDiscovery.count,null);assert.equal(result.jgrantsDiscovery.verificationState,'unavailable');
+  byUrl.set('https://sii.or.jp/setsubi07r/',byUrl.get('https://sii.or.jp/setsubi07r/').replace('</main>',' 新しい5次公募</main>'));
+  result=await P.monitorOfficialSources(new Date('2026-10-26T04:00Z'));assert.equal(result.sources.find(x=>x.id==='sii_iv').state,'needs_review');assert.ok(result.needsReview.includes('sii_gx'));
+ } finally {global.fetch=previous;Object.assign(baseline.OFFICIAL_SOURCE_BASELINES,original);baseline.OFFICIAL_DISCOVERY_SOURCES.forEach((w,i)=>Object.assign(w,watches[i]));}
+});

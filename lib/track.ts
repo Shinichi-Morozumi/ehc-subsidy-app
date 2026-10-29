@@ -40,7 +40,10 @@ export type TrackEvent =
   | "kaigo_step" // 質問の何問目を出したか（step）
   | "kaigo_result" // 目安の結果を出した（ref）
   | "kaigo_submit" // 相談を送った（ok, ref）
-  | "kaigo_call"; // 電話のリンクを押した（place）
+  | "kaigo_call" // 電話のリンクを押した（place）
+  /* 2026-10-14 PJ-20261013-EHC-0070: 紹介代理店の専用リンク（?ref=）。訪問と相談の送信を数える（成約・紹介料は数えない） */
+  | "ref_open" // 表にある紹介リンクでトップを開いた（ref, material）
+  | "ref_submit"; // 紹介リンク付きで相談を送った（ref, ok）
 
 type VaFunction = (command: "event", payload: { name: string; data?: Record<string, TrackValue> }) => void;
 

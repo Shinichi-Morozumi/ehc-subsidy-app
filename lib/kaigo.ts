@@ -33,6 +33,7 @@
 
 import type { LeadPayload } from "./notionLead";
 import type { MailConfig } from "./mailConfig";
+import { referralLines, resolveRefOnly, sanitizeRef as sanitizeReferralRef, readReferralClaim, type ResolvedReferral } from "./referral";
 
 /* ───────── 選択肢 ───────── */
 
@@ -158,6 +159,7 @@ export interface KaigoSubmitInput {
   answers: KaigoAnswers;
   contact: KaigoContact;
   ref: string | null;
+  referral?: ResolvedReferral | null;
 }
 
 export function labelOf<T extends readonly Opt[]>(list: T, id: string | null | undefined): string {
@@ -166,12 +168,14 @@ export function labelOf<T extends readonly Opt[]>(list: T, id: string | null | u
 
 /* ───────── 紹介コード ───────── */
 
-/** URL の ?ref= の値を整える。使えない値は null（紹介なし）。 */
+/** URL の ?ref= の値を整える。使えない値は null（紹介なし）。
+ *  2026-10-14 PJ-20261013-EHC-0070: 決め方はトップの紹介リンクと共通（lib/referral.ts）。中身は変えていない。 */
 export function sanitizeRef(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const v = raw.trim().toLowerCase();
-  return /^[a-z0-9_-]{1,20}$/.test(v) ? v : null;
+  return sanitizeReferralRef(raw);
 }
+
+/** 紹介の表（lib/referral.ts）で確かめた行。表にあれば紹介元・資料・専用URLまで出す（社内向け） */
+const partnerLines = (ref: string | null, receiptNo?: string) => (ref ? referralLines(resolveRefOnly(ref), receiptNo) : []);
 
 /* ───────── 目安の判定 ───────── */
 
@@ -326,7 +330,8 @@ export function readKaigoSubmit(body: Record<string, unknown>): KaigoReadResult 
         wants: pickMany(WANTS, a.wants, WANTS.length),
       },
       contact: { company, name, phone, email, scope: pick(SCOPES, c.scope), callTime: pick(CALL_TIMES, c.callTime), ...(consultation.value ? { consultation: consultation.value } : {}) },
-      ref: sanitizeRef(body.ref),
+      ref: body.referral !== undefined ? readReferralClaim(body.referral)?.ref ?? null : sanitizeRef(body.ref),
+      ...(body.referral !== undefined ? { referral: readReferralClaim(body.referral) } : {}),
     },
   };
 }
@@ -393,6 +398,7 @@ export function kaigoLead(input: KaigoSubmitInput, receiptNo: string, todayYmd: 
     memo: [
       `【介護施設パンフ（QR）の事前確認】紹介コード: ${refLabel(input.ref)}`,
       ...consultationLines(c.consultation),
+      ...(input.referral !== undefined ? referralLines(input.referral, receiptNo) : partnerLines(input.ref, receiptNo)),
       `ご担当: ${c.name}${c.callTime ? `／連絡の希望: ${labelOf(CALL_TIMES, c.callTime)}` : ""}${c.scope ? `／相談の範囲: ${labelOf(SCOPES, c.scope)}` : ""}`,
       ...answerLines(a),
       "画面に出した目安:",
@@ -419,6 +425,7 @@ export function kaigoStaffMail(
       "",
       `受付番号: ${receiptNo}`,
       `紹介コード: ${refLabel(input.ref)}`,
+      ...(input.referral !== undefined ? referralLines(input.referral, receiptNo) : partnerLines(input.ref, receiptNo)),
       "",
       "■ ご連絡先",
       `法人名・施設名: ${c.company}`,

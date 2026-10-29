@@ -58,6 +58,7 @@ import { customerSafeContact } from "@/lib/customerSafe";
 import { spamMessage, spamReasonOf } from "@/lib/spamGuard";
 import { readConsultation } from "@/lib/consultation";
 import type { DiagnosisSnapshot } from "@/lib/diagnosisSnapshot";
+import { readReferralClaim, referralLines, referralTag } from "@/lib/referral";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -699,12 +700,20 @@ export async function POST(req: Request) {
   const customerText = customerMailText(customerSnapshot);
   /* 確認主体・出典・確認日は社内の照合記録なので、担当者宛にだけ載せる。
      customerMailText には渡さない。 */
-  const staffText = staffMailText(
+  /* 2026-10-14 PJ-20261013-EHC-0070: 紹介代理店の専用リンク（?ref=）で来た相談。
+     コードはサーバ側の表（lib/referral.ts）で確かめ、担当者宛の件名・本文と Notion の行にだけ載せる。
+     お客様宛の本文・転送用の文面・診断書PDFには載せない。表に無いコードは「未登録」として残し、紹介元に割り当てない。 */
+  const referral = readReferralClaim(body.referral);
+  const referralMark = referralTag(referral);
+  const staffTextBase = staffMailText(
     snapshot,
     targetProduct ? targetProductStaffLines(targetProduct) : undefined
   );
+  const staffText = referral
+    ? ["■ 紹介リンク（社内向け。お客様には出していません）", ...referralLines(referral, receiptNo), "", staffTextBase].join("\n")
+    : staffTextBase;
   const subjectCustomer = customerMailSubject(snapshot);
-  const subjectStaff = `【Web診断 ${receiptNo}】${contact.company || contact.name} 様からのご相談`;
+  const subjectStaff = `【Web診断 ${receiptNo}】${contact.company || contact.name} 様からのご相談${referralMark ? `（${referralMark}）` : ""}`;
   const serverPdfReason = serverPdfForStaff && pdfStatus !== "ok" ? PDF_STATUS_JA[pdfStatus] : "";
 
   /* 2026-09-25: お客様宛を自動で送らない運用では、添付の診断書PDFを担当者が確認して
@@ -1025,7 +1034,7 @@ export async function POST(req: Request) {
      ・応答を返す前に待つ。応答のあとに回すと、Vercel では処理が止められて行が入らないことがある。
      お客様への応答には Notion の結果を載せない（社内の都合なので）。 */
   if (staffMailNow.state) {
-    const lead = buildDiagnosisLead(snapshot, { staffMail: staffMailNow.state });
+    const lead = buildDiagnosisLead(snapshot, { staffMail: staffMailNow.state, referral });
     try {
       const notion = await appendLeadToNotionOnce(lead);
       if (notion.skipped) {

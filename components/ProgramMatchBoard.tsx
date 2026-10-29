@@ -110,14 +110,21 @@ interface MonitorSourceState { id: string; fetchedAt: string; state: MonitorStat
 interface MonitorPayload { checkedAt: string; sources: MonitorSourceState[] }
 
 function monitorVerification(state: MonitorState | undefined): "needs_review" | "unavailable" | null {
-  if (state === "needs_review" || state === "stale") return "needs_review";
+  if (state === "needs_review" || state === "stale" || state === "coverage_gap") return "needs_review";
   if (state === "unavailable") return "unavailable";
   return null;
 }
 let monitorPromise: Promise<MonitorPayload | null> | null = null;
+let monitorExpiresAt = 0;
 
 function loadMonitor() {
-  if (!monitorPromise) monitorPromise = fetch("/api/subsidies/monitor").then((r) => r.ok ? r.json() as Promise<MonitorPayload> : null).catch(() => null);
+  if (!monitorPromise || Date.now() >= monitorExpiresAt) {
+    monitorExpiresAt = Date.now() + 5 * 60 * 1000;
+    monitorPromise = fetch("/api/subsidies/monitor").then((r) => {
+      if (!r.ok) throw new Error("monitor unavailable");
+      return r.json() as Promise<MonitorPayload>;
+    }).catch(() => ({ checkedAt: new Date().toISOString(), sources: getSubsidies().map(s => ({ id: s.id, fetchedAt: new Date().toISOString(), state: "unavailable" as const, note: "更新監視に接続できません。公式の現行情報を個別確認してください。" })) }));
+  }
   return monitorPromise;
 }
 

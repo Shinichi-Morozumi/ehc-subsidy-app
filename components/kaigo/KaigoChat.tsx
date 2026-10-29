@@ -9,6 +9,8 @@ import { track } from "@/lib/track";
 import { COMPANY } from "@/lib/company";
 import { readConsultation } from "@/lib/consultation";
 import ConsultationFields from "@/components/ConsultationFields";
+import { captureReferral, currentReferral } from "@/lib/referralClient";
+import { referralLinkOf, type ReferralClaim } from "@/lib/referral";
 import {
   AC_AGES, AC_TYPES, BUILDING_AGES, CALL_TIMES, CAPACITIES, FACILITIES, PREFS, SCOPES, TROUBLES, WANTS,
   kaigoEstimate, labelOf, sanitizeRef,
@@ -25,6 +27,9 @@ import {
    ・紹介コード（URL の ?ref=）は、この端末に30日だけ覚えておく（あとで ref なしで開き直しても数えられるように）。
    　覚えるのは紹介コードだけで、答えや連絡先は端末に残さない。
    ・計測（lib/track.ts）に送るのは段の番号と紹介コードだけ。お名前・連絡先は送らない。
+   ・2026-10-14 PJ-20261013-EHC-0070: トップ（/）の紹介リンクと同じ所（lib/referralClient.ts）にも覚える。
+   　トップの紹介リンクで来てから /kaigo に移っても、紹介元が切れないようにする。
+   　お客様の画面には紹介コードを出さない（「紹介リンクからのご相談」とだけ出す）。
    ─────────────────────────────────────────────────────────── */
 
 const REF_KEY = "ehc_kaigo_ref";
@@ -136,6 +141,7 @@ export function KaigoChat() {
   const [receiptNo, setReceiptNo] = useState<string | null>(null);
   const openedAt = useRef(Date.now());
   const moved = useRef(false);
+  const submittedReferral = useRef<{ claim: ReferralClaim | null } | null>(null);
   const [preferredDates, setPreferredDates] = useState<string[]>(["", "", ""]);
   const consultation = readConsultation({ mode: "zoom", timezone: "Asia/Tokyo", preferredDates });
 
@@ -148,9 +154,13 @@ export function KaigoChat() {
     } catch {
       /* 端末に保存できなくても進める */
     }
-    const use = r ?? readStoredRef();
+    /* トップと共通の覚え方（保存を断られても、このタブの中では覚える） */
+    const shared = captureReferral(window.location.search, "/kaigo");
+    const use = shared?.ref ?? r ?? readStoredRef();
     setRef(use);
     track("kaigo_open", { ref: use ?? "none" });
+    const link = shared && referralLinkOf(shared.ref);
+    if (r && shared && link) track("ref_open", { ref: shared.ref, material: link.material });
   }, []);
 
   /* 質問が進んだら、いまの質問まで画面を送る（最初の表示では動かさない） */
@@ -208,6 +218,7 @@ export function KaigoChat() {
     const reachOk = (phone.trim() || email.trim()) && (!phone.trim() || phoneOk) && (!email.trim() || emailOk);
     if (!answers || !company.trim() || !name.trim() || !reachOk || !consent || busy || consultation.error) return;
     setBusy(true);
+    if (!submittedReferral.current) submittedReferral.current = { claim: currentReferral() };
     try {
       const res = await fetch("/api/kaigo-lead", {
         method: "POST",
@@ -217,6 +228,7 @@ export function KaigoChat() {
           contact: { company: company.trim(), name: name.trim(), phone: phone.trim() || null, email: email.trim() || null, scope, callTime, consultation: consultation.value },
           consent,
           ref,
+          referral: submittedReferral.current.claim,
           hp,
           elapsedMs: Date.now() - openedAt.current,
         }),
@@ -228,6 +240,8 @@ export function KaigoChat() {
         return;
       }
       track("kaigo_submit", { ok: true, ref: ref ?? "none" });
+      const sentRef = submittedReferral.current.claim?.ref;
+      if (sentRef && referralLinkOf(sentRef)) track("ref_submit", { ref: sentRef, ok: true });
       moved.current = true;
       setReceiptNo(json.receiptNo);
     } catch {
@@ -362,6 +376,9 @@ export function KaigoChat() {
           <p className="mt-2 text-[16px] leading-[1.8] text-ink-soft">
             1施設あたり最大1,660万円まで（施設の種類により833万円）。市区町村を通じた国の交付金です。
             補助金を工事の前に受け取れる場合もあります（概算払・市区町村が認めた場合）。
+          </p>
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            自治体ごとの受付・予算は確認が必要です。以下は10月1日時点の公表条件で、受付中や受給額の確定を示すものではありません。
           </p>
         </section>
 
@@ -521,7 +538,7 @@ export function KaigoChat() {
           <p className="mt-2">
             制度の内容は2026年10月1日時点の公表資料によります。採択と金額は審査と自治体の要綱で決まり、お約束するものではありません。
           </p>
-          {ref && <p className="mt-2">紹介コード：{ref.toUpperCase()}</p>}
+          {ref && <p className="mt-2">紹介リンクからのご相談として受け付けます。</p>}
         </footer>
       </div>
     </main>

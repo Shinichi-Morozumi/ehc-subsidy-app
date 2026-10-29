@@ -1,5 +1,11 @@
 import { getSubsidies } from "./subsidies";
 import { fetchLiveSubsidies } from "./jgrants";
+import { OFFICIAL_SOURCE_BASELINES, OFFICIAL_DISCOVERY_SOURCES } from "./officialSourceBaselines";
+import { sourceFingerprint } from "./sourceFingerprint";
+
+// EHC-0095 / 2026-10-26: 以下の旧版履歴に優先。
+// 現行はGET本文・リンクSHA256、SII公募一覧の新回次、7日経過を監視。
+// HEADやLast-Modifiedだけで「変更なし」とせず、確認基準なしは要再確認。
 
 /* 2026-08-27 監査での修正 ─ 制度改定監視が実質機能していなかった件
  *
@@ -37,7 +43,7 @@ import { fetchLiveSubsidies } from "./jgrants";
 export type MonitorState = "unchanged" | "needs_review" | "stale" | "coverage_gap" | "unavailable";
 
 /** 公式確認から何日経ったら「要再確認」に落とすか。制度の年度替わりに追随できる長さにしている。 */
-export const OFFICIAL_CHECK_STALE_DAYS = 90;
+export const OFFICIAL_CHECK_STALE_DAYS = 7;
 
 /** ページ取得のタイムアウト(ms)。route.ts の maxDuration=60 を1URLで食い潰さないため。 */
 const FETCH_TIMEOUT_MS = 8000;
@@ -55,6 +61,7 @@ export interface SourceMonitorResult {
   coverageGap: boolean;
   /** 最終確認からの経過日数（officialCheckedAt が無ければ null） */
   daysSinceOfficialCheck: number | null;
+  contentSha256?: string;
 }
 
 /* URLが「その制度のページ」を指しているかの判定。
@@ -103,7 +110,7 @@ function samePath(a: string, b: string): boolean {
 
 /** HEAD → 拒否されたら GET で取り直す。どちらもタイムアウト付き。 */
 async function probe(sourceUrl: string): Promise<{ response: Response | null; error: boolean }> {
-  for (const method of ["HEAD", "GET"] as const) {
+  for (const method of ["GET"] as const) {
     try {
       const response = await fetch(sourceUrl, {
         method,
@@ -112,7 +119,6 @@ async function probe(sourceUrl: string): Promise<{ response: Response | null; er
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       // HEAD を受け付けないサーバ（405/403/501）は GET で取り直す
-      if (method === "HEAD" && [403, 405, 501].includes(response.status)) continue;
       return { response, error: false };
     } catch {
       if (method === "GET") return { response: null, error: true };
@@ -142,6 +148,15 @@ async function inspectSource(
 
   if (!response.ok) {
     return { ...head, state: "unavailable", note: `公式ページを取得できませんでした（HTTP ${response.status}）。ページの移設・公開終了の可能性があります。` };
+  }
+
+  // Last-Modified が無いページも、本文とリンクを照合する。取得だけで確認日を進めない。
+  let hash: string;
+  try { hash = sourceFingerprint(await response.text()); }
+  catch { return { ...head, state: "unavailable", note: "公式本文を読み取れませんでした。" }; }
+  const baseline = OFFICIAL_SOURCE_BASELINES[sourceUrl];
+  if (!baseline || baseline !== hash) {
+    return { ...head, contentSha256: hash, state: "needs_review", note: baseline ? "公式本文またはリンクが確認済みの版から変わりました。内容の再確認が必要です。" : "確認済み本文の比較基準がありません。取得成功だけで確認済みにはしません。" };
   }
 
   // 転送先のパスが変わっている＝ページの移設や年度切替の疑い
@@ -210,7 +225,7 @@ export async function monitorOfficialSources(now: Date = new Date()) {
         return [url, result] as const;
       })
     ),
-    fetchLiveSubsidies().catch(() => []),
+    fetchLiveSubsidies().then(items => ({ items, available: true })).catch(() => ({ items: [], available: false })),
   ]);
   const resultByUrl = new Map(byUrl);
   const sources: SourceMonitorResult[] = all.map((s) => {
@@ -222,7 +237,21 @@ export async function monitorOfficialSources(now: Date = new Date()) {
      coverage_gap は“監視できていない”という体制側の欠落であって、
      制度そのものが変わった証拠ではないため、ここには含めない（画面には注記として出す）。
      混ぜてしまうと主要制度が恒久的にA判定から消え、営業上使えない道具になる。 */
-  const needsReview = sources.filter((s) => s.state === "needs_review" || s.state === "stale" || s.state === "unavailable").map((s) => s.id);
+  // 回次ページが不変でも、事業トップの新公募リンク追加を検出する。
+  const discovery = await Promise.all(OFFICIAL_DISCOVERY_SOURCES.map(async (watch) => {
+    try {
+      const { response } = await probe(watch.url);
+      const unchanged = response?.ok && sourceFingerprint(await response.text()) === watch.sha256;
+      return { url: watch.url, ids: watch.ids, state: unchanged ? "unchanged" : "needs_review" };
+    } catch { return { url: watch.url, ids: watch.ids, state: "unavailable" }; }
+  }));
+  for (const watch of discovery.filter((d) => d.state !== "unchanged")) {
+    for (const s of sources.filter((s) => watch.ids.includes(s.id))) {
+      s.state = "needs_review";
+      s.note = "公募一覧の変更または取得失敗。新しい回次がないか公式で再確認してください。";
+    }
+  }
+  const needsReview = sources.filter((s) => s.state !== "unchanged").map((s) => s.id);
   const coverageGaps = sources.filter((s) => s.state === "coverage_gap").map((s) => s.id);
 
   return {
@@ -230,11 +259,12 @@ export async function monitorOfficialSources(now: Date = new Date()) {
     sources,
     needsReview,
     coverageGaps,
+    discovery,
     staleAfterDays: OFFICIAL_CHECK_STALE_DAYS,
     jgrantsDiscovery: {
-      count: jgrants.length,
-      items: jgrants,
-      verificationState: "needs_review" as const,
+      count: jgrants.available ? jgrants.items.length : null,
+      items: jgrants.items,
+      verificationState: jgrants.available ? "needs_review" as const : "unavailable" as const,
       note: "J-Grants一覧APIの検索結果です。詳細API・公募要領・実施主体の公式ページを確認するまでA判定には使用しません。",
     },
   };

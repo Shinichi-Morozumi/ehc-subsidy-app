@@ -17,6 +17,7 @@ import { todayJst } from "./programClock";
 import { COMPANY } from "./company";
 import type { LeadPayload, LeadWish } from "./notionLead";
 import { consultationLines } from "./consultation";
+import { referralLines, referralTag, type ResolvedReferral } from "./referral";
 
 /** 「最大 約166.3万円」→ 1,663,000（円）。読めなければ null */
 export function parseManYenToYen(text: string | null | undefined): number | null {
@@ -57,6 +58,8 @@ export type DiagnosisLeadOptions = {
   now?: Date;
   /** 担当者宛メールの結果。"unknown"（届いたか分からない）のときはメモの先頭に書く */
   staffMail?: "sent" | "unknown";
+  /** 2026-10-14 紹介代理店の専用リンク（サーバで表と照らした結果）。無ければ null／省略 */
+  referral?: ResolvedReferral | null;
 };
 
 export function buildDiagnosisLead(s: DiagnosisSnapshot, opts: DiagnosisLeadOptions = {}): LeadPayload {
@@ -78,6 +81,7 @@ export function buildDiagnosisLead(s: DiagnosisSnapshot, opts: DiagnosisLeadOpti
       ? "【要確認】担当者宛メールの送信結果が不明です（届いていない可能性）。受信箱に無ければ、この行から対応してください。"
       : "",
     `Web診断（5段）から。受付番号 ${s.receiptNo}（${s.issuedAtJst}）`,
+    ...(opts.referral ? referralLines(opts.referral, s.receiptNo) : []),
     `お名前: ${s.contact.name}${s.contact.company ? `／会社: ${s.contact.company}` : ""}`,
     ...consultationLines(s.contact.consultation),
     `設備: ${equip}`,
@@ -105,6 +109,6 @@ export function buildDiagnosisLead(s: DiagnosisSnapshot, opts: DiagnosisLeadOpti
     sentDate: todayJst(now),
     memo,
     status: "未着手",
-    nextAction: `${COMPANY.replyDays}営業日以内にご連絡（目安 ${due}）。候補日時3件を確認しZoomの日時・URLを折り返し案内。現地確認の日程調整・診断書PDFの転送`,
+    nextAction: `${COMPANY.replyDays}営業日以内にご連絡（目安 ${due}）。候補日時3件を確認しZoomの日時・URLを折り返し案内。現地確認の日程調整・診断書PDFの転送${referralTag(opts.referral ?? null) ? `（${referralTag(opts.referral ?? null)}）` : ""}`,
   };
 }

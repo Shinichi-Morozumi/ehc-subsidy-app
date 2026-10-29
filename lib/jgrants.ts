@@ -7,7 +7,7 @@ const JGRANTS_BASE = "https://api.jgrants-portal.go.jp/exp/v1/public";
 // 業務用空調・省エネ・脱炭素まわりで拾いたいキーワード群。
 // keyword は2文字以上必須。複数叩いて id で重複排除する。
 // 空調に直接関係する語のみに限定（「高効率」等は水力発電・レーザー加工など無関係公募を拾うため不使用）。
-export const JGRANTS_KEYWORDS = ["空調", "エアコン"];
+export const JGRANTS_KEYWORDS = ["空調", "エアコン", "省エネ", "設備導入"];
 
 // 万一混入した場合の保険。タイトルにこれらを含む公募は空調と無関係とみなし除外する。
 export const JGRANTS_NG_KEYWORDS = ["レーザー", "変圧器", "水素ステーション"];
@@ -63,14 +63,14 @@ async function searchOne(keyword: string): Promise<JGrantsSearchRaw[]> {
     // Vercel/Next側でキャッシュ。個別キーワードの一時失敗は握りつぶす。
     next: { revalidate: 21600 }, // 6時間
   });
-  if (!res.ok) return [];
+  if (!res.ok) throw new Error(`J-Grants取得失敗: ${res.status}`);
   const json = (await res.json()) as { result?: JGrantsSearchRaw[] };
   return Array.isArray(json.result) ? json.result : [];
 }
 
 // 全キーワードを叩いて id で重複排除し、締切昇順で返す
 export async function fetchLiveSubsidies(): Promise<JGrantsSubsidy[]> {
-  const batches = await Promise.all(JGRANTS_KEYWORDS.map((k) => searchOne(k).catch(() => [])));
+  const batches = await Promise.all(JGRANTS_KEYWORDS.map((k) => searchOne(k)));
   const byId = new Map<string, JGrantsSearchRaw>();
   for (const batch of batches) {
     for (const raw of batch) {
@@ -107,7 +107,7 @@ export function assessPrep(acceptanceEnd: string | null, now: Date = new Date())
     return {
       daysLeft: null,
       verdict: "ample",
-      label: "通年・随時",
+      label: "締切未確認",
       note: "締切が公表されていません。着手のタイミングは個別にご相談ください。",
     };
   }

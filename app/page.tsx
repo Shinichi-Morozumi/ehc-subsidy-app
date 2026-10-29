@@ -19,6 +19,9 @@ import { HomeV17 } from "@/components/home/HomeV17";
 import { SiteFooter } from "@/components/SiteFooter";
 import { legacyAccessFromSearch } from "@/lib/legacyAccess";
 import { DRAFT_RESTORE_EVENT } from "@/lib/diagnosisDraft";
+import { captureReferral } from "@/lib/referralClient";
+import { referralLinkOf } from "@/lib/referral";
+import { track } from "@/lib/track";
 import { ArrowLeft, ClipboardList, ShieldCheck } from "lucide-react";
 import "./diagnosis-ui.css";
 
@@ -33,6 +36,17 @@ export default function Page() {
     const access = legacyAccessFromSearch(window.location.search);
     if (access.showLegacy) setStarted(true);
     setStaffMode(access.staff);
+  }, []);
+
+  /* 2026-10-14 PJ-20261013-EHC-0070: 紹介代理店の専用リンク（/?ref=…）で来たら、端末に覚える（lib/referralClient.ts）。
+     画面には何も出さない。相談を送るときに、受付番号と一緒に担当者宛メールと Notion へ運ぶ。
+     計測は「表にある紹介リンクで開いた」ことだけ（コードと資料の種類。個人の情報は送らない）。 */
+  useEffect(() => {
+    const params = window.location.search;
+    const claim = captureReferral(params, "/");
+    const fromUrl = new URLSearchParams(params).get("ref");
+    const link = claim ? referralLinkOf(claim.ref) : null;
+    if (fromUrl && claim && link) track("ref_open", { ref: claim.ref, material: link.material });
   }, []);
 
   useEffect(() => {
