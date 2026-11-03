@@ -69,7 +69,11 @@ export function TokyoAdFlow({ variant, today }: { variant: AdVariant; today: str
     // 成功後の再読込でも、連絡先を端末に保存せず受付番号だけを表示する。
     try {
       const last = sessionStorage.getItem(`ehc_ad_receipt:${variant}`);
-      if (last && /^EHCAD-[0-9a-f-]{36}$/i.test(last)) { setReceipt(last); setPhase("form"); }
+      if (last && /^EHCAD-[0-9a-f-]{36}$/i.test(last)) {
+        setReceipt(last); setPhase("form");
+        // 通信途中で再読込しても、同じ成功受付の計測だけ再開できる（問い合わせは再送しない）。
+        recordAdConversion(last);
+      }
     } catch { /* 保存不可でも入力・送信できる */ }
   }, [variant]);
 

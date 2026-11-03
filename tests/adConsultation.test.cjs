@@ -102,6 +102,7 @@ test("CV：無同意・不正IDは送らず、成功受付IDだけ一度。Googl
   try {
     assert.equal(M.recordAdConversion(`EHCAD-${uuid}`),false);assert.equal(appended,0);
     M.chooseAdMeasurement("granted");assert.equal(appended,1);
+    assert.equal(Object.prototype.toString.call(window.dataLayer[0]),"[object Arguments]","gtag標準形式でGoogleがコマンドを処理できること");
     assert.equal(M.recordAdConversion(`EHCAD-${uuid}`),true);assert.equal(M.recordAdConversion(`EHCAD-${uuid}`),false);
     assert.equal(M.recordAdConversion("not-a-receipt"),false);
     const events=window.dataLayer.filter(x=>x[0]==="event");assert.equal(events.length,1);

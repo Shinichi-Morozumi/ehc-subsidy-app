@@ -27,7 +27,8 @@ export function enableAdMeasurement(): void {
   initialized = true;
   const w = window as AdsWindow;
   w.dataLayer = w.dataLayer || [];
-  w.gtag = w.gtag || function (...args: unknown[]) { w.dataLayer!.push(args); };
+  // Googleの標準スニペットと同じArgumentsを積む。通常のArrayはコマンドとして処理されない。
+  w.gtag = w.gtag || function () { w.dataLayer!.push(arguments); };
   w.gtag("consent", "default", { ad_storage: "denied", analytics_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
   w.gtag("consent", "update", { ad_storage: "granted", ad_user_data: "granted", ad_personalization: "denied" });
   w.gtag("js", new Date());
@@ -50,7 +51,7 @@ export function chooseAdMeasurement(choice: "granted" | "denied"): void {
 /** サーバの正常受付後だけ呼ぶ。同一受付の再描画や戻る操作では再発火しない。 */
 export function recordAdConversion(receiptNo: string): boolean {
   if (measurementChoice() !== "granted" || !/^EHCAD-[0-9a-f-]{36}$/i.test(receiptNo)) return false;
-  const key = `ehc_ad_cv:${receiptNo}`;
+  const key = `ehc_ad_cv_v2:${receiptNo}`;
   try { if (sessionStorage.getItem(key)) return false; } catch { /* メモリでも防ぐ */ }
   if (fired.has(key)) return false;
   enableAdMeasurement();
