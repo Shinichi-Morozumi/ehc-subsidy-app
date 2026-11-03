@@ -33,6 +33,14 @@ test('SMTP結果不明：同じ受付を再送せず、記録済み・通知未�
  const opts={receiptNo:'EHC-uncertain',identityData:{a:1},lead:{company:'test',proposalNo:'EHC-uncertain'},buildMail:()=>({subject:'test',text:'test'}),test:false,hasConsultation:true};
  try{for(let i=0;i<2;i++){const r=await D.deliverStableLead(opts);assert.equal(r.body.notified,false);assert.equal(r.body.cvEligible,false);assert.match(r.body.warning,/再送|受付番号/);}assert.equal(h.sent.length,1);}finally{global.fetch=old;process.env=env;}
 });
+test('Notion書込の応答が途切れた場合は同じメモを読戻し、実記録が一致した場合だけCVを許可する',async()=>{
+ const old=global.fetch,env={...process.env};Object.assign(process.env,{NOTION_TOKEN:'mock',SMTP_USER:'info@neneweb.com',SMTP_PASS:'mock',DIAGNOSIS_MAIL_MODE:'staff',VERCEL_ENV:'production'});
+ try{for(const committed of [true,false]){const h=harness(),D=h.load('lib/leadDelivery.ts');let page=null,reads=0;
+  global.fetch=async(url,init)=>{if(String(url).endsWith('/query'))return Response.json({results:[]});if(!init.method){reads++;return Response.json(page);}const b=JSON.parse(init.body);if(init.method==='PATCH'){if(committed)page={id:'mock',properties:b.properties};throw Error('response lost');}page={id:'mock',properties:b.properties};return Response.json({id:'mock'});};
+  const r=await D.deliverStableLead({receiptNo:'EHC-readback-'+committed,identityData:{committed},lead:{company:'営業対象外',proposalNo:'EHC-readback-'+committed,memo:'保持する本文'},buildMail:()=>({subject:'test',text:'test'}),test:true,hasConsultation:true});
+  assert.equal(r.body.notified,true);assert.equal(r.body.qaCvEligible,committed);assert.equal(r.body.cvEligible,false);assert.equal(reads,1);assert.equal(h.sent.length,1);
+ }}finally{global.fetch=old;process.env=env;}
+});
 test('Zoom予約：別ページ・メール不一致・取消・Zoom以外のURL・過去予約を拒否。画面申告の日時とURLは使わない',async()=>{
  const h=harness(),Z=h.load('lib/zoomBookingServer.ts'),B=h.load('lib/zoomBooking.ts');const old=global.fetch,env={...process.env};Object.assign(process.env,{ZOOM_ACCOUNT_ID:'a',ZOOM_CLIENT_ID:'b',ZOOM_CLIENT_SECRET:'c',ZOOM_EHC_SCHEDULE_ID:'EHC_PAGE'});
  const base={schedule_id:'EHC_PAGE',summary:B.ZOOM_BOOKING_TITLE,status:'confirmed',start_date_time:'2027-01-04T13:00:00+09:00',end_date_time:'2027-01-04T13:30:00+09:00',attendees:[{attendee_id:'attendee123',booker:true,email:'info@ehcjpn.com'}],external_location:{kind:'zoom',meeting_join_url:'https://zoom.us/j/12345'}};let event=base;

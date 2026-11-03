@@ -30,12 +30,20 @@ export async function findLeadReceipt(receiptNo: string): Promise<ReceiptRecord 
 }
 
 async function saveDeliveryState(pageId: string, memo: string): Promise<boolean> {
+  const url = `https://api.notion.com/v1/pages/${encodeURIComponent(pageId)}`;
   try {
-    const r = await fetch(`https://api.notion.com/v1/pages/${encodeURIComponent(pageId)}`, {
-      method: "PATCH", headers: notionHeaders(process.env.NOTION_TOKEN!), signal: AbortSignal.timeout(5000),
+    const r = await fetch(url, {
+      method: "PATCH", headers: notionHeaders(process.env.NOTION_TOKEN!), signal: AbortSignal.timeout(12000),
       body: JSON.stringify({ properties: { メモ: { rich_text: leadRichText(memo) } } }),
     });
-    return r.ok;
+    if (r.ok) return true;
+  } catch { /* 応答が途切れても書込み済みの場合がある。メールは再送しない。 */ }
+  try {
+    const r = await fetch(url, { headers: notionHeaders(process.env.NOTION_TOKEN!), signal: AbortSignal.timeout(8000), cache: "no-store" });
+    if (!r.ok) return false;
+    const page = await r.json();
+    const actual = (page.properties?.["メモ"]?.rich_text ?? []).map((t: { plain_text?: string; text?: { content?: string } }) => t.plain_text ?? t.text?.content ?? "").join("");
+    return actual === memo;
   } catch { return false; }
 }
 
