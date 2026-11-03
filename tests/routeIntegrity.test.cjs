@@ -49,6 +49,16 @@ test('Zoom予約：別ページ・メール不一致・取消・Zoom以外のURL
  for(const change of [{schedule_id:'OTHER'},{status:'cancelled'},{summary:'another meeting'},{attendees:[{attendee_id:'attendee123',booker:true,email:'other@example.com'}]},{external_location:{meeting_join_url:'https://evil.example/j/123'}},{start_date_time:'2025-01-01T13:00:00+09:00'}]){event={...base,...change};await assert.rejects(Z.verifyZoomBooking(b,'info@ehcjpn.com'));}}
  finally{global.fetch=old;process.env=env;}
 });
+test('Zoom戻り通知の欠落：管理URL・予約者メール・専用ページが一致する1件だけを読取復旧する',async()=>{
+ const h=harness(),Z=h.load('lib/zoomBookingServer.ts'),B=h.load('lib/zoomBooking.ts');const old=global.fetch,env={...process.env};Object.assign(process.env,{ZOOM_ACCOUNT_ID:'a',ZOOM_CLIENT_ID:'b',ZOOM_CLIENT_SECRET:'c',ZOOM_EHC_SCHEDULE_ID:'EHC_PAGE'});
+ const event={event_id:'event12345',schedule_id:'EHC_PAGE',summary:B.ZOOM_BOOKING_TITLE,status:'confirmed',start_date_time:'2027-01-04T13:00:00+09:00',end_date_time:'2027-01-04T13:30:00+09:00',attendees:[{attendee_id:'attendee123',booker:true,email:'info@ehcjpn.com'}],external_location:{kind:'zoom',meeting_join_url:'https://zoom.us/j/12345'}};let items=[{...event,schedule_id:'OTHER'},event],requests=0;
+ global.fetch=async url=>{requests++;return Response.json(String(url).includes('/oauth/token')?{access_token:'mock',expires_in:3600}:String(url).includes('/events?')?{items}:event)};
+ try{for(const u of ['https://evil.example/manage/attendee123','https://scheduler.zoom.us@evil.example/manage/attendee123','http://scheduler.zoom.us/manage/attendee123'])await assert.rejects(Z.recoverZoomBooking(u,'info@ehcjpn.com'));assert.equal(requests,0);
+ const result=await Z.recoverZoomBooking('https://scheduler.zoom.us/manage/attendee123','info@ehcjpn.com');assert.equal(result.eventId,event.event_id);assert.equal(result.attendeeId,'attendee123');
+ await assert.rejects(Z.recoverZoomBooking('https://scheduler.zoom.us/manage/attendee123','other@example.com'));
+ items=[event,event];await assert.rejects(Z.recoverZoomBooking('https://scheduler.zoom.us/manage/attendee123','info@ehcjpn.com'));
+ }finally{global.fetch=old;process.env=env;}
+});
 test('東京受付：第5回の締切17時で次の第6回へ切り替わる。期限後は終了、確認は日程と別に古くなる',()=>{const S=harness().load('lib/subsidies.ts');const at=t=>S.getSubsidies(new Date(t)).find(x=>x.id==='tokyo_zeroemi');assert.equal(at('2026-11-20T16:59:59+09:00').applyClose,'2026-11-20');assert.equal(at('2026-11-20T17:00:00+09:00').applyOpen,'2027-01-18');assert.equal(at('2027-01-29T17:00:00+09:00').status,'closed');assert.equal(at('2026-11-12T12:00:00+09:00').verificationState,'stale');});
 test('CVと紹介計測：QAはページ移動しても広告成果にしない。通常の相談3形式は同意後に一度だけ、氏名・連絡先を渡さない',()=>{
  const h=harness(),C=h.load('lib/leadContextClient.ts'),M=h.load('lib/adMeasurement.ts'),T=h.load('lib/track.ts');const data=new Map();const storage={getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v)};let appended=0,tracked=0;

@@ -41,7 +41,8 @@
     ".next-neo-release/types/**/*.ts",
     ".next-ehc0124/types/**/*.ts",
     ".next-ehc0124-final/types/**/*.ts",
-    ".next-ehc0124-release/types/**/*.ts"
+    ".next-ehc0124-release/types/**/*.ts",
+    ".next-ehc0124-recovery/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

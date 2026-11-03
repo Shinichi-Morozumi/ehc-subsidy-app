@@ -33,6 +33,33 @@ export async function verifyZoomBooking(raw: unknown, email: string | null | und
   }
   return { ...b, start: d.start_date_time, end: d.end_date_time, joinUrl };
 }
+/** Zoomからの戻り通知を失った場合も、確認メールの管理URLから同じ予約だけ復旧する。 */
+export async function recoverZoomBooking(manageUrl: unknown, email: string | null | undefined): Promise<ZoomBooking> {
+  let attendeeId = "";
+  try {
+    const u = new URL(String(manageUrl));
+    if (u.protocol !== "https:" || u.hostname !== "scheduler.zoom.us" || u.username || u.password || u.search || u.hash) throw new Error();
+    attendeeId = u.pathname.match(/^\/manage\/([a-zA-Z0-9_-]{8,160})\/?$/)?.[1] || "";
+  } catch { /* 定型URL以外へ通信しない。 */ }
+  if (!attendeeId || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) throw new Error("Zoomの確認メールにある予約管理URLと、予約時のメールアドレスを入力してください。");
+  const token = await zoomToken();
+  const query = new URLSearchParams({ from: new Date().toISOString(), to: new Date(Date.now() + 90 * 86400000).toISOString(), search: ZOOM_BOOKING_TITLE, page_size: "100", show_deleted: "false" });
+  const matches: string[] = [];
+  for (let page = 0; page < 3; page++) {
+    const r = await fetch(`https://api.zoom.us/v2/scheduler/events?${query}`, { cache: "no-store", signal: AbortSignal.timeout(8000), headers: { Authorization: `Bearer ${token}` } });
+    if (!r.ok) throw new Error("予約一覧との照合を確認できません。予約は作り直さず、担当へご連絡ください。");
+    const d = await r.json();
+    if (!Array.isArray(d.items)) throw new Error("予約の確認に失敗しました。");
+    for (const item of d.items) {
+      if (item.schedule_id === process.env.ZOOM_EHC_SCHEDULE_ID && item.summary === ZOOM_BOOKING_TITLE && item.status === "confirmed" && Array.isArray(item.attendees) && item.attendees.some((a: { attendee_id?: string; email?: string; booker?: boolean }) => a.attendee_id === attendeeId && a.booker === true && a.email?.toLowerCase() === email.trim().toLowerCase())) matches.push(item.event_id);
+    }
+    if (!d.next_page_token) break;
+    if (page === 2) throw new Error("予約件数が多いため照合を完了できません。担当へご連絡ください。");
+    query.set("next_page_token", d.next_page_token);
+  }
+  if (matches.length !== 1) throw new Error("EHCの有効な予約とメールアドレスの一致を確認できません。予約は作り直さず、担当へご確認ください。");
+  return verifyZoomBooking({ eventId: matches[0], attendeeId }, email);
+}
 export async function resolveConsultation(c: ConsultationRequest | null | undefined, email: string | null | undefined): Promise<ConsultationRequest | null> {
   return c?.booking ? { mode: "zoom", timezone: "Asia/Tokyo", booking: await verifyZoomBooking(c.booking, email) } : c ?? null;
 }
