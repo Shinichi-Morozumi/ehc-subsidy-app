@@ -6,6 +6,7 @@ import { ProgramsBoard } from "@/components/programs/ProgramsBoard";
 import { TokyoDeadlines } from "@/components/programs/TokyoDeadlines";
 import { SiteFooterSimple, SiteHeader } from "@/components/programs/SiteShell";
 import { ReferralCapture } from "@/components/programs/ReferralCapture";
+import { TokyoAdFlow } from "@/components/ads/TokyoAdFlow";
 
 /* ───────────────────────────────────────────────────────────
    v1 / 2026-10-29 / EHC-0102 東京都限定の補助金（第1段階で最初に出すページ）
@@ -31,8 +32,9 @@ export const metadata: Metadata = {
 
 const IDS = ["tokyoZeroemi", "tokyoChiiki", "tokyoKaishu"] as const;
 
-export default function TokyoPage() {
+export default function TokyoPage({ searchParams }: { searchParams?: { adflow?: string } }) {
   const today = todayJst();
+  if (searchParams?.adflow === "lp" || searchParams?.adflow === "diagnosis") return <TokyoAdFlow variant={searchParams.adflow} today={today} />;
   return (
     <div className="min-h-screen bg-paper text-ink">
       <ReferralCapture pathname="/tokyo" />

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { clientKeyFromHeaders, overSubmitRateLimit } from "@/lib/submitRateLimit";
 import { MIN_ELAPSED_MS_SHORT_FORM, spamMessage, spamReasonOf } from "@/lib/spamGuard";
-import { appendLeadToNotionOnce } from "@/lib/notionLead";
+import { appendLeadToNotionOnce, leadExistsInNotion } from "@/lib/notionLead";
+import { withSubmitLock } from "@/lib/submitLedger";
 import { mailConfig } from "@/lib/mailConfig";
 import { kaigoMailPlan } from "@/lib/kaigo";
 import { programLead, programStaffMail, readProgramSubmit } from "@/lib/programLead";
@@ -46,7 +47,15 @@ export async function POST(req: Request) {
   }
 
   const input = read.input;
-  const receiptNo = issueDocumentNumber();
+  // 広告フォームは通信再試行でも同じ受付番号。既存の通常フォームは変更しない。
+  const receiptNo = input.ad ? `EHCAD-${input.ad.requestId}` : issueDocumentNumber();
+  return withSubmitLock(receiptNo, async () => {
+  if (input.ad) {
+    const exists = await leadExistsInNotion(receiptNo);
+    if (exists === true) return NextResponse.json({ ok: true, receiptNo, duplicate: true, attachmentsDelivered: null });
+    // 受付済みか分からない状態では、二重の通知を作らず確認を案内する。
+    if (exists === null) return NG(503, `受付の確認ができません。再送せず、お電話（${COMPANY.tel}）で受付番号 ${receiptNo} をお知らせください。`);
+  }
   const today = todayJst(new Date());
   const lead = programLead(input, receiptNo, today);
 
@@ -54,11 +63,13 @@ export async function POST(req: Request) {
   try {
     const notion = await appendLeadToNotionOnce(lead);
     saved = notion.ok;
-    if (!notion.ok) console.error("[program-lead] Notion への追加に失敗:", notion.error, JSON.stringify(lead));
+    if (input.ad && notion.duplicate) return NextResponse.json({ ok: true, receiptNo, duplicate: true, attachmentsDelivered: null });
+    if (!notion.ok) console.error("[program-lead] Notion への追加に失敗:", receiptNo, notion.error);
   } catch (e) {
-    console.error("[program-lead] Notion への追加で例外:", e instanceof Error ? e.message : String(e), JSON.stringify(lead));
+    console.error("[program-lead] Notion への追加で例外:", receiptNo, e instanceof Error ? e.message : String(e));
   }
 
+  if (input.ad && !saved) return NG(502, `受付の保存を確認できません。再送せず、お電話（${COMPANY.tel}）で受付番号 ${receiptNo} をお知らせください。`);
   let mailed = false;
   const cfg = mailConfig();
   const plan = kaigoMailPlan(cfg);
@@ -88,5 +99,6 @@ export async function POST(req: Request) {
   }
   console.info(`[program-lead] 受付 ${receiptNo}（添付 ${input.attachments.length}件・制度 ${input.programIds.length ? input.programIds.join(",") : "指定なし"}・印 ${input.flags.join(",") || "なし"}・紹介 ${input.referral?.ref ?? "なし"}・Notion ${saved ? "○" : "×"}・通知メール ${mailed ? `○ ${plan.to.join(",")}` : "×"}）`);
   /* 添付は担当者宛メールでだけ届く。メールが送れなかったときは、画面で「写真はメールで」と案内する */
-  return NextResponse.json({ ok: true, receiptNo, attachments: input.attachments.length, attachmentsDelivered: input.attachments.length ? mailed : null });
+  return NextResponse.json({ ok: true, receiptNo, saved, notified: mailed, attachments: input.attachments.length, attachmentsDelivered: input.attachments.length ? mailed : null });
+  });
 }

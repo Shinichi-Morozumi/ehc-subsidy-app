@@ -22,6 +22,11 @@ export type TrackValue = string | number | boolean | null;
 
 /** 記録するイベントの名前。ここに無い名前は使わない（ダッシュボードで読み違えないため）。 */
 export type TrackEvent =
+  | "ad_open"
+  | "ad_step"
+  | "ad_result"
+  | "ad_form"
+  | "ad_submit"
   | "diagnosis_open" // 7問のダイアログを開いた
   | "diagnosis_answered" // 7問を最後まで答えた（候補を見る）
   | "stage_view" // 5段のどれかを開いた（stage）

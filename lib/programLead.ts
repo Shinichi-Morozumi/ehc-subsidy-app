@@ -19,6 +19,7 @@ import { readReferralClaim, referralLines, referralTag, type ResolvedReferral } 
 import { PROGRAMS, type ProgramId } from "./programs";
 import { CHECK_PREFS, checkAnswerLines, labelOfOpt, matchLines, matchPrograms, readCheckAnswers, type CheckAnswers } from "./programMatch";
 import { CONSULT_NOTE_MAX, CONSULT_SITES_MAX, consultFlagLabels, readConsultFlags, type ConsultFlagId } from "./consultOptions";
+import { readAdConsultation, adConsultationLines, type AdConsultation } from "./adConsultation";
 
 export const PROGRAM_LEAD_SOURCES = ["top", "shindan", "tokyo", "kaigo", "team", "dropin"] as const;
 export type ProgramLeadSource = (typeof PROGRAM_LEAD_SOURCES)[number];
@@ -33,6 +34,7 @@ const SOURCE_JA: Record<ProgramLeadSource, string> = {
 };
 
 export interface ProgramLeadInput {
+  ad?: AdConsultation | null;
   company: string;
   name: string;
   phone: string | null;
@@ -149,6 +151,8 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
   if (reach.error) return { ok: false, error: reach.error };
   const att = readAttachments(body.attachments);
   if (!att.ok) return { ok: false, error: att.error };
+  const ad = readAdConsultation(body.ad);
+  if (ad.error) return { ok: false, error: ad.error };
   const source = (PROGRAM_LEAD_SOURCES as readonly string[]).includes(body.source as string) ? (body.source as ProgramLeadSource) : "top";
   const fromList = Array.isArray(body.programIds) ? Array.from(new Set(body.programIds.filter(isProgramId))).slice(0, 6) : [];
   const single = isProgramId(body.programId) ? body.programId : null;
@@ -156,6 +160,7 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
   return {
     ok: true,
     input: {
+      ad: ad.value,
       company,
       name,
       phone: reach.phone,
@@ -187,6 +192,7 @@ function bodyLines(input: ProgramLeadInput, receiptNo: string, todayYmd: string)
   const result = input.answers ? matchPrograms(input.answers, todayYmd) : null;
   const flags = consultFlagLabels(input.flags ?? []);
   return [
+    ...(input.ad ? adConsultationLines(input.ad) : []),
     `入口: ${SOURCE_JA[input.source]}`,
     ids.length
       ? `相談したい制度: ${ids.map((id) => `${PROGRAMS[id].tag} ${PROGRAMS[id].title}（${PROGRAMS[id].officialName}）`).join("／")}`
@@ -208,13 +214,13 @@ export function programLead(input: ProgramLeadInput, receiptNo: string, todayYmd
     contact: input.name,
     email: input.email ?? undefined,
     phone: input.phone ?? undefined,
-    address: input.answers ? labelOfOpt(CHECK_PREFS, input.answers.pref) : undefined,
+    address: input.ad ? `${input.ad.pref} ${input.ad.city}` : input.answers ? labelOfOpt(CHECK_PREFS, input.answers.pref) : undefined,
     status: "未着手",
     wishSubsidy: wishOf(input.programId),
     proposalNo: receiptNo,
     sentDate: todayYmd,
     memo: [`【補助金サイトの相談（制度カード）】`, ...bodyLines(input, receiptNo, todayYmd)].join("\n"),
-    nextAction: `${input.flags?.includes("urgent") ? "【急ぎ】" : ""}${input.flags?.includes("mailOnly") || !input.phone ? "メールで" : "電話で"}折り返し、写真（室外機の銘板・電気料金の明細）をお願いして概算。現地調査の日程を調整${tag ? `（${tag}）` : ""}`,
+    nextAction: input.ad ? `${input.ad.test ? "【営業対象外・テスト】" : ""}Zoom候補日時3つを確認し、日時と参加URLを折り返す（予約未確定）。法人規模・実機・省エネ量・助成対象を確認。` : `${input.flags?.includes("urgent") ? "【急ぎ】" : ""}${input.flags?.includes("mailOnly") || !input.phone ? "メールで" : "電話で"}折り返し、写真（室外機の銘板・電気料金の明細）をお願いして概算。現地調査の日程を調整${tag ? `（${tag}）` : ""}`,
   };
 }
 
@@ -230,7 +236,7 @@ export function programStaffMail(
   const urgent = input.flags?.includes("urgent");
   const mailOnly = input.flags?.includes("mailOnly");
   return {
-    subject: `${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : input.source === "dropin" ? "（ドロップイン）" : ""}${tag ? `［${tag}］` : ""}`,
+    subject: `${input.ad?.test ? "【営業対象外・公開確認】" : ""}${input.ad ? "【Zoom候補日時】" : ""}${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : input.source === "dropin" ? "（ドロップイン）" : ""}${tag ? `［${tag}］` : ""}`,
     text: [
       "補助金サイト（ehcjpn.com）の制度カードから、相談がありました。",
       opts.notionSaved === false
@@ -250,6 +256,7 @@ export function programStaffMail(
       ...bodyLines(input, receiptNo, todayYmd),
       "",
       "■ 次にやること",
+      ...(input.ad ? ["候補日時3件を確認し、Zoomの日時と参加URLを折り返す（予約未確定）。3問の回答だけで補助対象・金額を確定しない。"] : []),
       `1. ${urgent ? "急ぎの印あり。できるだけ早く" : `${COMPANY.hours}に`}${mailOnly ? "メールで" : ""}折り返す（連絡の目安${COMPANY.replyDays}営業日以内）。写真（室外機の銘板・電気料金の明細）をお願いすると概算が早い。`,
       "2. 制度の締切と、交付決定の前に契約しないことを先に伝える。",
       "3. 申請書類の作成は行政書士の業務です（EHC では作らない）。業者は補助のルールに沿って施設が公平に決めます。",
