@@ -109,5 +109,6 @@ test("CV：無同意・不正IDは送らず、成功受付IDだけ一度。Googl
     assert.equal(events[0][2].transaction_id,`EHCAD-${uuid}`);
     assert.ok(!JSON.stringify(window.dataLayer).includes("secret"));
     M.chooseAdMeasurement("denied");assert.equal(M.recordAdConversion("EHCAD-b1b2c3d4-1234-4567-8901-123456789abc"),false);
+    M.chooseAdMeasurement("granted");assert.equal(window.dataLayer.at(-1)[2].ad_user_data,"granted");assert.equal(window.dataLayer.at(-1)[2].ad_personalization,"denied");
   } finally {delete global.window;delete global.document;delete global.localStorage;delete global.sessionStorage;}
 });

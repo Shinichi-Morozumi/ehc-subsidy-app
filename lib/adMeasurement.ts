@@ -29,7 +29,7 @@ export function enableAdMeasurement(): void {
   w.dataLayer = w.dataLayer || [];
   w.gtag = w.gtag || function (...args: unknown[]) { w.dataLayer!.push(args); };
   w.gtag("consent", "default", { ad_storage: "denied", analytics_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
-  w.gtag("consent", "update", { ad_storage: "granted" });
+  w.gtag("consent", "update", { ad_storage: "granted", ad_user_data: "granted", ad_personalization: "denied" });
   w.gtag("js", new Date());
   w.gtag("set", "ads_data_redaction", true);
   w.gtag("config", GOOGLE_ADS_ID, { send_page_view: false, allow_enhanced_conversions: false, allow_ad_personalization_signals: false, page_location: safePage(), page_referrer: "" });
@@ -41,7 +41,10 @@ export function enableAdMeasurement(): void {
 export function chooseAdMeasurement(choice: "granted" | "denied"): void {
   memoryChoice = choice;
   try { localStorage.setItem(CONSENT_KEY, choice); } catch { /* ブラウザ内保存不可でも相談はできる */ }
-  if (choice === "granted") enableAdMeasurement();
+  if (choice === "granted") {
+    enableAdMeasurement();
+    (window as AdsWindow).gtag?.("consent", "update", { ad_storage: "granted", ad_user_data: "granted", ad_personalization: "denied" });
+  }
   else (window as AdsWindow).gtag?.("consent", "update", { ad_storage: "denied", analytics_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
 }
 /** サーバの正常受付後だけ呼ぶ。同一受付の再描画や戻る操作では再発火しない。 */
