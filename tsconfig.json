@@ -38,7 +38,10 @@
     ".next-neo-final/types/**/*.ts",
     ".next-neo-ui/types/**/*.ts",
     ".next-neo-matte/types/**/*.ts",
-    ".next-neo-release/types/**/*.ts"
+    ".next-neo-release/types/**/*.ts",
+    ".next-ehc0124/types/**/*.ts",
+    ".next-ehc0124-final/types/**/*.ts",
+    ".next-ehc0124-release/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

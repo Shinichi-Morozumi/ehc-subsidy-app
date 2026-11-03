@@ -8,6 +8,8 @@ import { kaigoLead, kaigoMailPlan, kaigoStaffMail, readKaigoSubmit } from "@/lib
 import { issueDocumentNumber } from "@/lib/docNumber";
 import { todayJst } from "@/lib/programClock";
 import { COMPANY } from "@/lib/company";
+import { deliverStableLead } from "@/lib/leadDelivery";
+import { resolveConsultation } from "@/lib/zoomBookingServer";
 
 /* ───────────────────────────────────────────────────────────
    介護施設向け 補助金の事前確認の受け口（2026-10-01 EHC-0056）。決め事は lib/kaigo.ts。
@@ -46,6 +48,15 @@ export async function POST(req: Request) {
   }
 
   const input = read.input;
+  try { const c = await resolveConsultation(input.contact.consultation, input.contact.email); if (c) input.contact.consultation = c; }
+  catch (e) { return NG(400, e instanceof Error ? e.message : "Zoom予約を確認できません。"); }
+  if (input.requestId) {
+    const receiptNo = `EHC-${input.requestId}`;
+    const result = await deliverStableLead({ receiptNo, identityData: input, lead: kaigoLead(input, receiptNo, todayJst(new Date())),
+      buildMail: saved => kaigoStaffMail(input, receiptNo, { notionSaved: saved }),
+      replyTo: input.contact.email, test: !!input.context?.test, hasConsultation: !!input.contact.consultation });
+    return NextResponse.json(result.body, { status: result.status });
+  }
   const receiptNo = issueDocumentNumber();
   const lead = kaigoLead(input, receiptNo, todayJst(new Date()));
 

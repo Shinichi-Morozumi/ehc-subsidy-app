@@ -4,6 +4,7 @@ import "./globals.css";
    既存のダークテーマ（globals.css）と診断ツール側の表示には影響しない。 */
 import "./home-v17.css";
 import { PwaRegister } from "@/components/PwaRegister";
+import LeadMeasurement from "@/components/LeadMeasurement";
 import { COMPANY } from "@/lib/company";
 import { SITE_URL } from "@/lib/site";
 
@@ -88,6 +89,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: VA_QUEUE }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ORGANIZATION_JSON_LD }} />
         {children}
+        <LeadMeasurement />
         <PwaRegister />
         {/* Vercel Web Analytics（Hobby枠）。@vercel/analytics を入れると package-lock.json と
             ズレて Vercel の npm ci が落ちるため、パッケージが注入するのと同じ計測スクリプトを直接読む。

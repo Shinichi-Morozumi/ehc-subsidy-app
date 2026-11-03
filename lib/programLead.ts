@@ -20,6 +20,8 @@ import { PROGRAMS, type ProgramId } from "./programs";
 import { CHECK_PREFS, checkAnswerLines, labelOfOpt, matchLines, matchPrograms, readCheckAnswers, type CheckAnswers } from "./programMatch";
 import { CONSULT_NOTE_MAX, CONSULT_SITES_MAX, consultFlagLabels, readConsultFlags, type ConsultFlagId } from "./consultOptions";
 import { readAdConsultation, adConsultationLines, type AdConsultation } from "./adConsultation";
+import { readConsultation, consultationLines, type ConsultationRequest } from "./consultation";
+import { readLeadContext, readRequestId, leadContextLines, type LeadContext } from "./leadContext";
 
 export const PROGRAM_LEAD_SOURCES = ["top", "shindan", "tokyo", "kaigo", "team", "dropin"] as const;
 export type ProgramLeadSource = (typeof PROGRAM_LEAD_SOURCES)[number];
@@ -34,6 +36,9 @@ const SOURCE_JA: Record<ProgramLeadSource, string> = {
 };
 
 export interface ProgramLeadInput {
+  requestId?: string | null;
+  consultation?: ConsultationRequest | null;
+  context?: LeadContext;
   ad?: AdConsultation | null;
   company: string;
   name: string;
@@ -153,6 +158,12 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
   if (!att.ok) return { ok: false, error: att.error };
   const ad = readAdConsultation(body.ad);
   if (ad.error) return { ok: false, error: ad.error };
+  const requestId = readRequestId(body.requestId);
+  if (requestId.error) return { ok: false, error: requestId.error };
+  if (requestId.value && ad.value && requestId.value !== ad.value.requestId) return { ok: false, error: "受付番号が一致しません。画面を開き直してください。" };
+  const consultation = readConsultation(body.consultation ?? ad.value?.consultation);
+  if (consultation.error) return { ok: false, error: consultation.error };
+  if (requestId.value && !consultation.value) return { ok: false, error: "Zoom相談の候補日時を3つご入力ください。" };
   const source = (PROGRAM_LEAD_SOURCES as readonly string[]).includes(body.source as string) ? (body.source as ProgramLeadSource) : "top";
   const fromList = Array.isArray(body.programIds) ? Array.from(new Set(body.programIds.filter(isProgramId))).slice(0, 6) : [];
   const single = isProgramId(body.programId) ? body.programId : null;
@@ -160,6 +171,9 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
   return {
     ok: true,
     input: {
+      requestId: requestId.value,
+      consultation: consultation.value,
+      context: readLeadContext(body.context),
       ad: ad.value,
       company,
       name,
@@ -192,7 +206,9 @@ function bodyLines(input: ProgramLeadInput, receiptNo: string, todayYmd: string)
   const result = input.answers ? matchPrograms(input.answers, todayYmd) : null;
   const flags = consultFlagLabels(input.flags ?? []);
   return [
+    ...leadContextLines(input.context),
     ...(input.ad ? adConsultationLines(input.ad) : []),
+    ...(!input.ad ? consultationLines(input.consultation) : []),
     `入口: ${SOURCE_JA[input.source]}`,
     ids.length
       ? `相談したい制度: ${ids.map((id) => `${PROGRAMS[id].tag} ${PROGRAMS[id].title}（${PROGRAMS[id].officialName}）`).join("／")}`
@@ -220,7 +236,7 @@ export function programLead(input: ProgramLeadInput, receiptNo: string, todayYmd
     proposalNo: receiptNo,
     sentDate: todayYmd,
     memo: [`【補助金サイトの相談（制度カード）】`, ...bodyLines(input, receiptNo, todayYmd)].join("\n"),
-    nextAction: input.ad ? `${input.ad.test ? "【営業対象外・テスト】" : ""}Zoom候補日時3つを確認し、日時と参加URLを折り返す（予約未確定）。法人規模・実機・省エネ量・助成対象を確認。` : `${input.flags?.includes("urgent") ? "【急ぎ】" : ""}${input.flags?.includes("mailOnly") || !input.phone ? "メールで" : "電話で"}折り返し、写真（室外機の銘板・電気料金の明細）をお願いして概算。現地調査の日程を調整${tag ? `（${tag}）` : ""}`,
+    nextAction: input.consultation || input.ad ? `${input.ad?.test || input.context?.test ? "【営業対象外・テスト】" : ""}${input.consultation?.booking ? "Zoom予約済み。確認した日時で相談。" : "Zoom候補日時3つを確認し、日時と参加URLを折り返す（予約未確定）。"}法人規模・実機・省エネ量・助成対象を確認。${tag ? `（${tag}）` : ""}` : `${input.flags?.includes("urgent") ? "【急ぎ】" : ""}${input.flags?.includes("mailOnly") || !input.phone ? "メールで" : "電話で"}折り返し、写真（室外機の銘板・電気料金の明細）をお願いして概算。現地調査の日程を調整${tag ? `（${tag}）` : ""}`,
   };
 }
 
@@ -236,7 +252,7 @@ export function programStaffMail(
   const urgent = input.flags?.includes("urgent");
   const mailOnly = input.flags?.includes("mailOnly");
   return {
-    subject: `${input.ad?.test ? "【営業対象外・公開確認】" : ""}${input.ad ? "【Zoom候補日時】" : ""}${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : input.source === "dropin" ? "（ドロップイン）" : ""}${tag ? `［${tag}］` : ""}`,
+    subject: `${input.ad?.test || input.context?.test ? "【営業対象外・公開確認】" : ""}${input.ad || input.consultation ? "【Zoom候補日時】" : ""}${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : input.source === "dropin" ? "（ドロップイン）" : ""}${tag ? `［${tag}］` : ""}`,
     text: [
       "補助金サイト（ehcjpn.com）の制度カードから、相談がありました。",
       opts.notionSaved === false

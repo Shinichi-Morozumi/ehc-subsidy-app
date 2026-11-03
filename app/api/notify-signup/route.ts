@@ -7,6 +7,7 @@ import { mailConfig } from "@/lib/mailConfig";
 import { notifyLead, notifyReceiptNo, notifyStaffMail, readNotifySignup } from "@/lib/notifySignup";
 import { todayJst } from "@/lib/programClock";
 import { COMPANY } from "@/lib/company";
+import { deliverStableLead } from "@/lib/leadDelivery";
 
 /* ───────────────────────────────────────────────────────────
    次の公募のお知らせの登録口（2026-09-26 改善6）。決め事は lib/notifySignup.ts。
@@ -40,6 +41,11 @@ export async function POST(req: Request) {
     return NG(429, `短い時間に登録が続いたため、いったん止めています。お急ぎの場合はお電話（${COMPANY.tel}）でご連絡ください。`);
   }
 
+  if (input.requestId) {
+    const receiptNo = `EHC-N-${input.requestId}`;
+    const result = await deliverStableLead({ receiptNo, identityData: input, lead: notifyLead(input, receiptNo, todayJst(new Date())), buildMail: () => notifyStaffMail(input, receiptNo), replyTo: input.email, test: !!input.context?.test, hasConsultation: false });
+    return NextResponse.json(result.body, { status: result.status });
+  }
   const receiptNo = notifyReceiptNo();
   const lead = notifyLead(input, receiptNo, todayJst(new Date()));
   let saved = false;

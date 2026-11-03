@@ -15,8 +15,13 @@
    ─────────────────────────────────────────────────────────── */
 
 import type { LeadPayload } from "./notionLead";
+import { readLeadContext, readRequestId, leadContextLines, type LeadContext } from "./leadContext";
+import { readReferralClaim, referralLines, referralTag, type ResolvedReferral } from "./referral";
 
 export interface NotifySignupInput {
+  requestId?: string | null;
+  context?: LeadContext;
+  referral?: ResolvedReferral | null;
   email: string;
   company: string | null;
   programs: string[];
@@ -34,6 +39,8 @@ const clean = (v: unknown, max: number): string | null => {
 
 /** 画面から来た値を確かめる。メールが不正・同意が無いときは null */
 export function readNotifySignup(body: Record<string, unknown>): NotifySignupInput | null {
+  const requestId = readRequestId(body.requestId);
+  if (requestId.error) return null;
   if (body.consent !== true) return null;
   const email = clean(body.email, 120);
   if (!email || !EMAIL_RE.test(email)) return null;
@@ -41,6 +48,7 @@ export function readNotifySignup(body: Record<string, unknown>): NotifySignupInp
     ? body.programs.map((p) => clean(p, 60)).filter((p): p is string => !!p).slice(0, 6)
     : [];
   return {
+    ...(body.requestId ? { requestId: requestId.value, context: readLeadContext(body.context), referral: readReferralClaim(body.referral) } : {}),
     email,
     company: clean(body.company, 80),
     programs,
@@ -70,6 +78,8 @@ export function notifyLead(input: NotifySignupInput, receiptNo: string, todayYmd
     sentDate: todayYmd,
     wishSubsidy: null,
     memo: [
+      ...leadContextLines(input.context),
+      ...(input.referral ? referralLines(input.referral, receiptNo) : []),
       "次の公募のお知らせを希望（Web診断の結果の画面から登録）。",
       input.programs.length ? `関心のある制度: ${input.programs.join("、")}` : "",
       [input.pref ? `所在地: ${input.pref}` : "", input.building ? `建物: ${input.building}` : "", input.timing ? `希望時期: ${input.timing}` : ""]
@@ -77,14 +87,16 @@ export function notifyLead(input: NotifySignupInput, receiptNo: string, todayYmd
         .join("／"),
       "配信の停止を求められたら、この行を消してください。",
     ].filter(Boolean).join("\n"),
-    nextAction: "公募の開始が分かったら、メールでご案内する",
+    nextAction: `${input.context?.test ? "【営業対象外・テスト】" : ""}公募の開始が分かったら、メールでご案内する`,
   };
 }
 
 export function notifyStaffMail(input: NotifySignupInput, receiptNo: string): { subject: string; text: string } {
   return {
-    subject: `【公募のお知らせ登録 ${receiptNo}】${input.company || input.email}`,
+    subject: `${input.context?.test ? "【営業対象外・テスト】" : ""}【公募のお知らせ登録 ${receiptNo}】${input.company || input.email}${referralTag(input.referral ?? null)}`,
     text: [
+      ...leadContextLines(input.context),
+      ...(input.referral ? referralLines(input.referral, receiptNo) : []),
       "Web診断の結果の画面から、次の公募のお知らせの登録がありました。",
       "Notion「EHC見込み顧客アタックリスト」に、ステータス「お知らせ希望」で1行追加しています。",
       "",

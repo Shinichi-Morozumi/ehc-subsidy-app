@@ -144,6 +144,7 @@ export interface KaigoAnswers {
 }
 
 import { consultationLines, readConsultation, type ConsultationRequest } from "./consultation";
+import { readLeadContext, readRequestId, leadContextLines, type LeadContext } from "./leadContext";
 
 export interface KaigoContact {
   company: string;
@@ -156,6 +157,8 @@ export interface KaigoContact {
 }
 
 export interface KaigoSubmitInput {
+  requestId?: string | null;
+  context?: LeadContext;
   answers: KaigoAnswers;
   contact: KaigoContact;
   ref: string | null;
@@ -320,9 +323,14 @@ export function readKaigoSubmit(body: Record<string, unknown>): KaigoReadResult 
   if (phone && !PHONE_RE.test(phone)) return { ok: false, error: "お電話番号をご確認ください（例：03-1234-5678）。" };
   const consultation = readConsultation(c.consultation);
   if (consultation.error) return { ok: false, error: consultation.error };
+  const requestId = readRequestId(body.requestId);
+  if (requestId.error) return { ok: false, error: requestId.error };
+  if (requestId.value && !consultation.value) return { ok: false, error: "Zoom相談の候補日時を3つご入力ください。" };
   return {
     ok: true,
     input: {
+      requestId: requestId.value,
+      context: readLeadContext(body.context),
       answers: {
         facility, capacity, pref, buildingAge, acType, acAge,
         city: clean(a.city, 30),
@@ -396,6 +404,7 @@ export function kaigoLead(input: KaigoSubmitInput, receiptNo: string, todayYmd: 
     proposalNo: receiptNo,
     sentDate: todayYmd,
     memo: [
+      ...leadContextLines(input.context),
       `【介護施設パンフ（QR）の事前確認】紹介コード: ${refLabel(input.ref)}`,
       ...consultationLines(c.consultation),
       ...(input.referral !== undefined ? referralLines(input.referral, receiptNo) : partnerLines(input.ref, receiptNo)),
@@ -404,7 +413,7 @@ export function kaigoLead(input: KaigoSubmitInput, receiptNo: string, todayYmd: 
       "画面に出した目安:",
       ...estimateLines(est),
     ].join("\n"),
-    nextAction: `候補日時3件を確認しZoomの日時・URLを折り返し案内。現地調査の日程調整（紹介コード ${refLabel(input.ref)}）`,
+    nextAction: `${input.context?.test ? "【営業対象外・テスト】" : ""}${c.consultation?.booking ? "Zoom予約済み。確認した日時で相談。" : "候補日時3件を確認しZoomの日時・URLを折り返し案内。"}現地調査の日程調整（紹介コード ${refLabel(input.ref)}）`,
   };
 }
 
@@ -416,8 +425,9 @@ export function kaigoStaffMail(
   const { answers: a, contact: c } = input;
   const est = kaigoEstimate(a);
   return {
-    subject: `【介護施設の事前確認 ${receiptNo}】${c.company}（紹介コード ${refLabel(input.ref)}）`,
+    subject: `${input.context?.test ? "【営業対象外・公開確認】" : ""}【介護施設の事前確認 ${receiptNo}】${c.company}（紹介コード ${refLabel(input.ref)}）`,
     text: [
+      ...leadContextLines(input.context),
       "介護施設向けパンフの QR（ehcjpn.com/kaigo）から、事前確認の相談がありました。",
       opts.notionSaved === false
         ? "※ Notion への追加に失敗しました。このメールの内容で「EHC見込み顧客アタックリスト」に手で1行追加してください（提案No ＝ 受付番号）。"
@@ -443,7 +453,7 @@ export function kaigoStaffMail(
       ...estimateLines(est),
       "",
       "■ 次にやること",
-      "候補日時3件を確認し、Zoomの日時とURLを折り返し案内してください（予約未確定）。所在地の市区町村の募集時期と現地調査の日程も相談してください。",
+      c.consultation?.booking ? "Zoom予約済み。確認した日時でご相談ください。所在地の募集時期と現地調査も確認。" : "候補日時3件を確認し、Zoomの日時とURLを折り返し案内してください（予約未確定）。所在地の市区町村の募集時期と現地調査の日程も相談してください。",
       "空調のほか、照明・電気・給排水・ガス・消防用設備・防水・バリアフリーの工事も EHC で対応します（2026-10-01 確認）。",
       "申請書類の作成は行政書士の業務です（EHC では作らない）。業者は補助のルールに沿って施設が公平に決めます。",
     ].join("\n"),

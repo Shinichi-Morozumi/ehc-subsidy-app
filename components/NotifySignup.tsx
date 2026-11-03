@@ -1,6 +1,8 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
+import { currentLeadContext } from "@/lib/leadContextClient";
+import { currentReferral } from "@/lib/referralClient";
 import { BellRing, CheckCircle2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
@@ -35,6 +37,9 @@ export function NotifySignup({
   const [error, setError] = useState<string | null>(null);
   const [hp, setHp] = useState("");
   const openedAt = useRef(Date.now());
+  const requestId = useRef("");
+  const inFlight = useRef(false);
+  const [uncertain, setUncertain] = useState(false);
 
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const emailError = touched && !emailOk ? (email.trim() ? "メールアドレスの形式をご確認ください（例：name@example.co.jp）。" : "メールアドレスをご入力ください。") : null;
@@ -43,13 +48,15 @@ export function NotifySignup({
   const submit = async () => {
     setTouched(true);
     setError(null);
-    if (!emailOk || !consent || busy) return;
+    if (!emailOk || !consent || busy || inFlight.current || uncertain) return;
+    inFlight.current = true; requestId.current ||= crypto.randomUUID();
     setBusy(true);
     try {
       const res = await fetch("/api/notify-signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          requestId: requestId.current, context: currentLeadContext(), referral: currentReferral(),
           email: email.trim(),
           company: company.trim() || null,
           consent,
@@ -63,6 +70,7 @@ export function NotifySignup({
       });
       const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
       if (!res.ok || !json?.ok) {
+        if (res.status >= 500 || res.status === 409) setUncertain(true);
         track("notify_signup", { ok: false });
         setError(json?.error || "登録できませんでした。時間をおいて、もう一度お試しください。");
         return;
@@ -71,9 +79,11 @@ export function NotifySignup({
       setDone(true);
     } catch {
       track("notify_signup", { ok: false });
-      setError("通信に失敗しました。電波の良い場所で、もう一度お試しください。");
+      setUncertain(true);
+      setError(`登録結果を確認できません。再送せず、受付番号 EHC-N-${requestId.current} を担当へお知らせください。`);
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   };
 

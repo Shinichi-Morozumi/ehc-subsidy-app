@@ -19,6 +19,7 @@
    ─────────────────────────────────────────────────────────── */
 
 export type TrackValue = string | number | boolean | null;
+import { captureLeadContext } from "./leadContextClient";
 
 /** 記録するイベントの名前。ここに無い名前は使わない（ダッシュボードで読み違えないため）。 */
 export type TrackEvent =
@@ -66,6 +67,7 @@ type VaFunction = (command: "event", payload: { name: string; data?: Record<stri
 export function track(name: TrackEvent, data?: Record<string, TrackValue>): void {
   if (typeof window === "undefined") return;
   try {
+    if (captureLeadContext().test) return;
     const va = (window as unknown as { va?: VaFunction }).va;
     if (typeof va !== "function") return;
     const entries = data ? Object.entries(data).slice(0, 2) : [];

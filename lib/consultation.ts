@@ -1,8 +1,10 @@
 // v1 / 2026-10-23 / EHC-0089: 予約の自動確定はしない。候補3件を受領して折り返す。
+import { readZoomBooking, bookingDate, type ZoomBooking } from "./zoomBooking";
 export interface ConsultationRequest {
   mode: "zoom";
   timezone: "Asia/Tokyo";
-  preferredDates: [string, string, string];
+  preferredDates?: [string, string, string];
+  booking?: ZoomBooking;
 }
 
 export const CONSULTATION_GUIDE = "お打ち合わせはZoomが基本です。候補日時を3つ（日本時間）お知らせください。担当者が折り返し、日時とZoomのURLをご案内します。送信時点では予約は確定しません。";
@@ -11,6 +13,10 @@ export const CONSULTATION_GUIDE = "お打ち合わせはZoomが基本です。�
 export function readConsultation(raw: unknown, now = new Date()): { value: ConsultationRequest | null; error: string | null } {
   if (raw == null) return { value: null, error: null }; // 古い画面からの再送を壊さない
   const r = raw as Partial<ConsultationRequest>;
+  if (r.mode === "zoom" && r.timezone === "Asia/Tokyo" && r.booking) {
+    const booking = readZoomBooking(r.booking);
+    return booking ? { value: { mode: "zoom", timezone: "Asia/Tokyo", booking }, error: null } : { value: null, error: "予約を確認できません。" };
+  }
   if (typeof raw !== "object" || Array.isArray(raw) || r.mode !== "zoom" || r.timezone !== "Asia/Tokyo" ||
       !Array.isArray(r.preferredDates) || r.preferredDates.length !== 3) {
     return { value: null, error: "Zoom相談の候補日時を3つ、日本時間でご入力ください。" };
@@ -30,9 +36,10 @@ export function readConsultation(raw: unknown, now = new Date()): { value: Consu
 }
 
 export function consultationLines(request?: ConsultationRequest | null): string[] {
+  if (request?.booking) return request.booking.start ? ["■ Zoom相談（空き枠から予約・Zoom照合済み）", `日時（日本時間）: ${bookingDate(request.booking.start)}`, `参加URL: ${request.booking.joinUrl}`, `予約照合番号: ${request.booking.eventId}`] : ["■ Zoom予約の結果を確認中です。予約を作り直さず担当へご連絡ください。"];
   return request ? [
     "■ Zoom相談の候補日時（日本時間・予約未確定）",
-    ...request.preferredDates.map((d, i) => `第${i + 1}希望: ${d.replace("T", " ")}`),
+    ...(request.preferredDates ?? []).map((d, i) => `第${i + 1}希望: ${d.replace("T", " ")}`),
     "担当者が折り返し、日時とZoomのURLをご案内します。",
   ] : ["■ ご相談はZoomが基本です。候補日時3つを伺い、担当者が折り返して調整します（予約未確定）。"];
 }

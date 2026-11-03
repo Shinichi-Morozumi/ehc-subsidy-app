@@ -17,6 +17,7 @@ import { todayJst } from "./programClock";
 import { COMPANY } from "./company";
 import type { LeadPayload, LeadWish } from "./notionLead";
 import { consultationLines } from "./consultation";
+import { leadContextLines, type LeadContext } from "./leadContext";
 import { referralLines, referralTag, type ResolvedReferral } from "./referral";
 
 /** 「最大 約166.3万円」→ 1,663,000（円）。読めなければ null */
@@ -55,6 +56,7 @@ export function addBusinessDaysJst(n: number, now: Date = new Date()): string {
 }
 
 export type DiagnosisLeadOptions = {
+  context?: LeadContext | null;
   now?: Date;
   /** 担当者宛メールの結果。"unknown"（届いたか分からない）のときはメモの先頭に書く */
   staffMail?: "sent" | "unknown";
@@ -77,6 +79,7 @@ export function buildDiagnosisLead(s: DiagnosisSnapshot, opts: DiagnosisLeadOpti
       ? `${s.equipGroups.length}群（馬力未入力）`
       : "未入力";
   const memo = [
+    ...leadContextLines(opts.context),
     opts.staffMail === "unknown"
       ? "【要確認】担当者宛メールの送信結果が不明です（届いていない可能性）。受信箱に無ければ、この行から対応してください。"
       : "",
@@ -109,6 +112,6 @@ export function buildDiagnosisLead(s: DiagnosisSnapshot, opts: DiagnosisLeadOpti
     sentDate: todayJst(now),
     memo,
     status: "未着手",
-    nextAction: `${COMPANY.replyDays}営業日以内にご連絡（目安 ${due}）。候補日時3件を確認しZoomの日時・URLを折り返し案内。現地確認の日程調整・診断書PDFの転送${referralTag(opts.referral ?? null) ? `（${referralTag(opts.referral ?? null)}）` : ""}`,
+    nextAction: `${opts.context?.test ? "【営業対象外・テスト】" : ""}${COMPANY.replyDays}営業日以内にご連絡（目安 ${due}）。${s.contact.consultation?.booking ? "Zoom予約済み。確認した日時で相談。" : "候補日時3件を確認しZoomの日時・URLを折り返し案内。"}現地確認の日程調整・診断書PDFの転送${referralTag(opts.referral ?? null) ? `（${referralTag(opts.referral ?? null)}）` : ""}`,
   };
 }

@@ -39,10 +39,10 @@ export const SUBSIDY_UPDATES: Readonly<Record<string, Partial<Subsidy>>> = {
     difficultyNote: "旅館業許可・登録等が前提。新公募は要領の再確認が必要。",
   },
   tokyo_zeroemi: {
-    applyOpen: "2026-11-09", applyClose: "2026-11-20", verificationState: "unavailable",
-    period: "既公表日程：第5回2026/11/9〜11/20、第6回2027/1/18〜1/29（公式本文の再確認が必要）",
-    scheduleNote: "10/26は公式URLが404。既公表日程を参考表示しますが、現行本文が再確認できるまで公式確認済みの試算には使いません。",
-    nextCheck: "公式ページの移設先・現行要項・第5回受付日程と区分別条件を確認。旧日程だけで申請可とは判断しません。",
+    applyOpen: "2026-11-09", applyClose: "2026-11-20", verificationState: "verified", officialCheckedAt: "2026-11-03T16:00:00+09:00",
+    period: "第5回2026/11/9〜11/20、第6回2027/1/18〜1/29（開始9時・最終日17時必着）",
+    scheduleNote: "11/3に公式本文の受付表・3区分の助成率／上限を再確認。10/26の取得不可状態を解消。予算超過時は抽選。交付決定前の契約・発注不可。",
+    nextCheck: "申請区分、対象事業所、設備とCO2削減量・申請時点の要項を個別照合。日付だけで補助対象と確定しません。",
   },
   jizokuka: {
     officialCheckedAt: "2026-10-26T13:05:00+09:00",

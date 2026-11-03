@@ -1,6 +1,7 @@
 import { Subsidy } from "./types";
 import { todayJst } from "./programClock";
 import { SUBSIDY_UPDATES } from "./subsidyUpdates";
+import { PROGRAMS } from "./programs";
 
 // 補助金データの確認日（注記・鮮度表示に使用）。データ更新時はここも更新。
 export const SUBSIDY_DATA_ASOF = "2026年10月26日（未確認制度は個別表示）";
@@ -396,6 +397,12 @@ function inferStatus(s: Subsidy, today: string, now: Date): Subsidy["status"] {
 //   そこで「JSTの今日」をキーにしたキャッシュ付き関数にして、日付が変われば必ず再計算させる。
 function normalize(s: Subsidy, today: string, now: Date): Subsidy {
   s = { ...s, ...SUBSIDY_UPDATES[s.id] };
+  // EHC-0124: カード・簡易診断・詳細診断で同じ公表済み受付を選ぶ。締切時刻後は次回へ。
+  if (s.id === "tokyo_zeroemi") {
+    const windows = PROGRAMS.tokyoZeroemi.windows;
+    const w = windows.find(w => w.end && Date.parse(`${w.end}T17:00:00+09:00`) > now.getTime()) ?? windows[windows.length - 1];
+    if (w) s = { ...s, applyOpen: w.start, applyClose: w.end, applyCloseAt: w.end ? `${w.end}T17:00:00+09:00` : undefined };
+  }
   const checkedAt = s.officialCheckedAt ?? OFFICIAL_CHECKED_AT;
   const age = (Date.parse(`${today}T23:59:59+09:00`) - Date.parse(checkedAt)) / 86400000;
   return {

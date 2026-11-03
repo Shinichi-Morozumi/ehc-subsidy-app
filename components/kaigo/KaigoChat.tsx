@@ -3,6 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
+import { currentLeadContext } from "@/lib/leadContextClient";
+import { recordAdConversion, recordQaConversion } from "@/lib/adMeasurement";
+import type { ZoomBooking } from "@/lib/zoomBooking";
 import { CheckCircle2, ChevronLeft, Loader2, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
@@ -144,7 +147,12 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
   const moved = useRef(false);
   const submittedReferral = useRef<{ claim: ReferralClaim | null } | null>(null);
   const [preferredDates, setPreferredDates] = useState<string[]>(["", "", ""]);
-  const consultation = readConsultation({ mode: "zoom", timezone: "Asia/Tokyo", preferredDates });
+  const [booking, setBooking] = useState<ZoomBooking | null>(null);
+  const [uncertain, setUncertain] = useState(false);
+  const [warning, setWarning] = useState<string | null>(null);
+  const requestId = useRef("");
+  const inFlight = useRef(false);
+  const consultation = readConsultation({ mode: "zoom", timezone: "Asia/Tokyo", ...(booking ? { booking } : { preferredDates }) });
 
   /* 紹介コード：URL にあればそれを覚え直す。無ければ30日以内に覚えたものを使う。 */
   useEffect(() => {
@@ -217,7 +225,8 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
     setTouched(true);
     setError(null);
     const reachOk = (phone.trim() || email.trim()) && (!phone.trim() || phoneOk) && (!email.trim() || emailOk);
-    if (!answers || !company.trim() || !name.trim() || !reachOk || !consent || busy || consultation.error) return;
+    if (!answers || !company.trim() || !name.trim() || !reachOk || !consent || busy || consultation.error || uncertain || inFlight.current || receiptNo) return;
+    inFlight.current = true; requestId.current ||= crypto.randomUUID();
     setBusy(true);
     if (!submittedReferral.current) submittedReferral.current = { claim: currentReferral() };
     try {
@@ -225,6 +234,7 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          requestId: requestId.current, context: currentLeadContext(),
           answers,
           contact: { company: company.trim(), name: name.trim(), phone: phone.trim() || null, email: email.trim() || null, scope, callTime, consultation: consultation.value },
           consent,
@@ -234,9 +244,10 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
           elapsedMs: Date.now() - openedAt.current,
         }),
       });
-      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; receiptNo?: string } | null;
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; receiptNo?: string; warning?: string; cvEligible?: boolean; qaCvEligible?: boolean } | null;
       if (!res.ok || !json?.ok || !json.receiptNo) {
         track("kaigo_submit", { ok: false, ref: ref ?? "none" });
+        if (res.status >= 500 || res.status === 409) setUncertain(true);
         setError(json?.error || `送信できませんでした。時間をおいて、もう一度お試しください。お急ぎの場合はお電話（${COMPANY.tel}）でどうぞ。`);
         return;
       }
@@ -244,12 +255,18 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
       const sentRef = submittedReferral.current.claim?.ref;
       if (sentRef && referralLinkOf(sentRef)) track("ref_submit", { ref: sentRef, ok: true });
       moved.current = true;
+      setWarning(json.warning ?? null);
+      if (json.cvEligible) recordAdConversion(json.receiptNo);
+      if (json.qaCvEligible) recordQaConversion(json.receiptNo);
+      if (json.cvEligible && currentLeadContext().variant) track("ad_submit", { variant: currentLeadContext().variant, ok: true });
       setReceiptNo(json.receiptNo);
     } catch {
+      setUncertain(true);
       track("kaigo_submit", { ok: false, ref: ref ?? "none" });
-      setError("通信に失敗しました。電波の良い場所で、もう一度お試しください。");
+      setError(`送信結果を確認できません。再送せず、受付番号 EHC-${requestId.current} を ${COMPANY.tel} へお知らせください。`);
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   };
 
@@ -466,7 +483,7 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
                   </div>
                   <p className="-mt-2 text-[14px] text-ink-soft">お電話かメールの、どちらかは必須です。</p>
                   {errs.reach && <p className="-mt-2 text-[14px] font-bold text-red-800">{errs.reach}</p>}
-                  <ConsultationFields id={`${id}-consultation`} dates={preferredDates} onChange={setPreferredDates} error={touched ? consultation.error : null} />
+                  <ConsultationFields id={`${id}-consultation`} dates={preferredDates} onChange={setPreferredDates} email={email} booking={booking} onBooking={setBooking} error={touched ? consultation.error : null} />
                   <fieldset>
                     <legend className="text-[14px] font-bold text-ink">ご連絡の希望（任意）</legend>
                     <div className="mt-1 flex flex-wrap gap-2">
@@ -498,7 +515,7 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
                   <button
                     type="button"
                     onClick={() => void submit()}
-                    disabled={busy}
+                    disabled={busy || uncertain}
                     className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-brand-deep px-4 text-[17px] font-bold text-white hover:bg-brand focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep"
                   >
                     {busy && <Loader2 aria-hidden className="h-5 w-5 animate-spin" />}
@@ -521,7 +538,7 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
                 </span>
               </Bot>
               <div className="space-y-3 pl-10">
-                <p className="rounded-2xl bg-paper-sub p-4 text-[15px] leading-[1.8]">候補日時を3件受け付けました。担当者が折り返し、Zoomの日時・URLをご案内します。まだ予約は確定していません。</p>
+                {warning && <p className="rounded-2xl bg-amber-50 p-4 text-[15px]">{warning}</p>}<p className="rounded-2xl bg-paper-sub p-4 text-[15px] leading-[1.8]">{booking ? "Zoomは選択した日時で予約済みです。確認メールの参加URLをご確認ください。" : "候補日時を3件受け付けました。担当者が折り返し、Zoomの日時・URLをご案内します。まだ予約は確定していません。"}</p>
                 <div className="rounded-2xl border border-ink-line bg-white p-4 text-[15px] leading-[1.8]">
                   <p className="font-bold">ご用意いただくと早いもの</p>
                   <p className="mt-1"><b>空調の場合：</b>施設の種類・定員、開設年・前回の大規模修繕の年、空調の台数・年式（室外機の銘板の写真）、電気料金の明細（12か月分）、図面（あれば）</p>

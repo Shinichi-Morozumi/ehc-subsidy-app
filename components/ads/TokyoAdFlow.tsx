@@ -12,10 +12,13 @@ import { PROGRAMS } from "@/lib/programs";
 import { BUILD_RECORDS, BUILD_RECORDS_NOTE, WHY } from "@/lib/team";
 import { AD_BUDGETS, AD_CAMPAIGN, AD_INDUSTRIES, AD_PREFS, adGuidance, type AdVariant } from "@/lib/adConsultation";
 import { readConsultation } from "@/lib/consultation";
-import { chooseAdMeasurement, enableAdMeasurement, measurementChoice, recordAdConversion } from "@/lib/adMeasurement";
+import { chooseAdMeasurement, enableAdMeasurement, measurementChoice, recordAdConversion, recordQaConversion } from "@/lib/adMeasurement";
 import { currentReferral } from "@/lib/referralClient";
 import { splitReach } from "@/lib/programLead";
 import { track } from "@/lib/track";
+import { captureLeadContext, currentLeadContext } from "@/lib/leadContextClient";
+import type { ZoomBooking } from "@/lib/zoomBooking";
+import { referralLinkOf } from "@/lib/referral";
 
 const P = PROGRAMS.tokyoZeroemi;
 const PRIMARY = "inline-flex min-h-[54px] items-center justify-center gap-3 rounded-full bg-brand-deep px-6 py-3 text-[16px] font-bold text-white shadow-card hover:bg-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand disabled:opacity-60";
@@ -33,12 +36,14 @@ export function TokyoAdFlow({ variant, today }: { variant: AdVariant; today: str
   const [name, setName] = useState("");
   const [reach, setReach] = useState("");
   const [dates, setDates] = useState(["", "", ""]);
+  const [booking, setBooking] = useState<ZoomBooking | null>(null);
   const [consent, setConsent] = useState(false);
   const [hp, setHp] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState<string | null>(null);
   const [uncertain, setUncertain] = useState(false);
+  const [warning, setWarning] = useState<string | null>(null);
   const [choice, setChoice] = useState<"granted" | "denied" | null>(null);
   const [showChoice, setShowChoice] = useState(false);
   const [isTest, setIsTest] = useState(false);
@@ -47,7 +52,7 @@ export function TokyoAdFlow({ variant, today }: { variant: AdVariant; today: str
   const openedAt = useRef(0);
   const inFlight = useRef(false);
   const entry = useRef<HTMLElement>(null);
-  const datesRead = readConsultation({ mode: "zoom", timezone: "Asia/Tokyo", preferredDates: dates });
+  const datesRead = readConsultation({ mode: "zoom", timezone: "Asia/Tokyo", ...(booking ? { booking } : { preferredDates: dates }) });
   const windows = P.windows.filter(w => w.end && w.end >= today);
   const finalWindow = windows[windows.length - 1];
   const result = adGuidance(pref, budget);
@@ -59,7 +64,8 @@ export function TokyoAdFlow({ variant, today }: { variant: AdVariant; today: str
     openedAt.current = Date.now();
     requestId.current = crypto.randomUUID();
     const q = new URLSearchParams(window.location.search);
-    const test = q.get("adtest") === "1";
+    const context = captureLeadContext();
+    const test = context.test;
     setIsTest(test);
     setCampaign(q.get("utm_campaign") === AD_CAMPAIGN ? AD_CAMPAIGN : null);
     const saved = measurementChoice();
@@ -72,7 +78,7 @@ export function TokyoAdFlow({ variant, today }: { variant: AdVariant; today: str
       if (last && /^EHCAD-[0-9a-f-]{36}$/i.test(last)) {
         setReceipt(last); setPhase("form");
         // 通信途中で再読込しても、同じ成功受付の計測だけ再開できる（問い合わせは再送しない）。
-        recordAdConversion(last);
+        if (sessionStorage.getItem(`ehc_ad_eligible:${last}`) === "1") recordAdConversion(last);
       }
     } catch { /* 保存不可でも入力・送信できる */ }
   }, [variant]);
@@ -103,7 +109,7 @@ export function TokyoAdFlow({ variant, today }: { variant: AdVariant; today: str
       const res = await fetch("/api/program-lead", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ company: company.trim(), name: name.trim(), reach: reach.trim(), consent, source: "tokyo", programIds: ["tokyoZeroemi"],
-          referral: currentReferral(), hp, elapsedMs: Date.now() - openedAt.current,
+          requestId: requestId.current, consultation: datesRead.value, context: currentLeadContext(), referral: currentReferral(), hp, elapsedMs: Date.now() - openedAt.current,
           ad: { variant, requestId: requestId.current, pref, city: city.trim(), industry: industry || null, budget: budget || null, campaign, test: isTest, consultation: datesRead.value } }),
       });
       const json = await res.json().catch(() => null);
@@ -114,9 +120,16 @@ export function TokyoAdFlow({ variant, today }: { variant: AdVariant; today: str
         return;
       }
       setReceipt(json.receiptNo);
+      setWarning(json.warning ?? null);
+      if (json.qaCvEligible) recordQaConversion(json.receiptNo);
       try { sessionStorage.setItem(`ehc_ad_receipt:${variant}`, json.receiptNo); } catch { /* 連絡先は端末保存しない */ }
       if (!isTest) track("ad_submit", { variant, ok: true });
-      recordAdConversion(json.receiptNo);
+      const sentRef = currentReferral()?.ref;
+      if (sentRef && referralLinkOf(sentRef) && json.cvEligible) track("ref_submit", { ref: sentRef, ok: true });
+      if (json.cvEligible && !isTest) {
+        try { sessionStorage.setItem(`ehc_ad_eligible:${json.receiptNo}`, "1"); } catch { /* メモリでも重複防止 */ }
+        recordAdConversion(json.receiptNo);
+      }
       move("form");
     } catch {
       setUncertain(true);
@@ -140,8 +153,8 @@ export function TokyoAdFlow({ variant, today }: { variant: AdVariant; today: str
           <h1 className="mt-5 text-[31px] font-bold leading-[1.45] tracking-tight sm:text-[43px]">空調の入れ替え。<br /><span className="text-brand">助成金が使えるか、<br />まずは確認。</span></h1>
           <p className="mt-5 max-w-lg text-[16px] leading-[1.95] text-ink-soft">東京都の「ゼロエミ助成」で自己負担を抑えられるか。使える条件と、工事・費用の段取りを一緒に整理します。</p>
           <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-[14px] font-bold">{["空調・換気・LEDなど", "複数台の更新にも対応"].map(t => <span key={t} className="inline-flex items-center gap-1.5"><Check className="h-4 w-4 text-brand" aria-hidden />{t}</span>)}</div>
-          <button type="button" onClick={start} className={`${PRIMARY} mt-7 w-full sm:w-auto`}>{variant === "lp" ? "Zoom相談の候補日時を送る" : "3項目で、相談の目安を確認"}<ArrowRight className="h-5 w-5" aria-hidden /></button>
-          <p className="mt-3 text-[12px] leading-relaxed text-ink-soft">{variant === "lp" ? "候補日時を3つ送信 → 担当者が折り返し、日程を調整します。" : "連絡先は結果を見たあと。補助対象・金額を確定する診断ではありません。"}</p>
+          <button type="button" onClick={start} className={`${PRIMARY} mt-7 w-full sm:w-auto`}>{variant === "lp" ? "Zoom相談を申し込む" : "3項目で、相談の目安を確認"}<ArrowRight className="h-5 w-5" aria-hidden /></button>
+          <p className="mt-3 text-[12px] leading-relaxed text-ink-soft">{variant === "lp" ? "空き枠から予約、または候補日時を3つ送って調整します。" : "連絡先は結果を見たあと。補助対象・金額を確定する診断ではありません。"}</p>
         </div>
         <div className="relative"><Image src="/v17/hero-scene.webp" width={1536} height={1024} alt="事業所の空調機と、設備を確認するEHCの作業員のイラスト" priority sizes="(max-width:1024px) 100vw, 520px" className="h-auto w-full rounded-[28px] mix-blend-multiply" />
           <div className="relative mx-3 -mt-5 flex items-center justify-between gap-3 rounded-2xl border border-ink-line bg-white px-5 py-4 shadow-card"><span className="text-[13px] font-bold">まず確認するのは<br /><span className="text-ink-soft">「自社で使えるか」</span></span><span className="flex items-center gap-2 text-[14px] font-bold text-brand"><Video className="h-5 w-5" aria-hidden />Zoomで相談</span></div>
@@ -151,10 +164,11 @@ export function TokyoAdFlow({ variant, today }: { variant: AdVariant; today: str
       <section ref={entry} id="ad-consult" className="scroll-mt-5" aria-label="相談の受付">
         {phase !== "intro" && <div className="rounded-[28px] border border-ink-line bg-white p-5 shadow-card sm:p-8">
           {receipt ? <div role="status" className="mx-auto max-w-2xl py-6">
-            <CheckCircle2 className="h-12 w-12 text-brand" aria-hidden /><h2 className="mt-4 text-[25px] font-bold">候補日時を受け付けました</h2>
-            <p className="mt-3 text-[16px] leading-[1.9]">担当者から{COMPANY.replyDays}営業日以内を目安に折り返し、日時とZoomのURLをご案内します。<strong>まだ予約は確定していません。</strong></p>
+            <CheckCircle2 className="h-12 w-12 text-brand" aria-hidden /><h2 className="mt-4 text-[25px] font-bold">相談を受け付けました</h2>
+            <p className="mt-3 text-[16px] leading-[1.9]">{booking ? "Zoomは選択した日時で予約済みです。確認メールの参加URLをご確認ください。" : `候補日時を受け付けました。担当者から${COMPANY.replyDays}営業日以内を目安に折り返し、日時とZoomのURLをご案内します。まだ予約は確定していません。`}</p>
             <p className="mt-5 break-all rounded-xl bg-paper-sub p-4 text-[14px]">受付番号<br /><strong data-testid="ad-receipt">{receipt}</strong></p>
-            <p className="mt-3 text-[13px] text-ink-soft">お客様宛の自動メールはお送りしていません。この画面を控えておいてください。</p>
+            {warning && <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-[14px] text-amber-950">{warning}</p>}
+            <p className="mt-3 text-[13px] text-ink-soft">相談内容の自動返信はありません。Zoom予約の場合はZoomから確認メールが届きます。受付番号も控えておいてください。</p>
             <Link href="/team" className="mt-6 inline-flex min-h-[44px] items-center gap-2 font-bold text-brand underline">施工体制と実績を見る<ArrowRight className="h-4 w-4" aria-hidden /></Link>
           </div> : phase === "check" ? <div className="mx-auto max-w-2xl">
             <div className="flex items-center justify-between"><p className="text-[13px] font-bold text-brand">相談の目安を確認</p><p className="text-[13px] text-ink-soft">{step + 1} / 3</p></div>
@@ -164,19 +178,19 @@ export function TokyoAdFlow({ variant, today }: { variant: AdVariant; today: str
             {step === 0 ? <div className="mt-5 grid gap-4 sm:grid-cols-[160px_1fr]"><label className="text-[14px] font-bold">都道府県<select value={pref} onChange={e => setPref(e.target.value)} className={INPUT}>{AD_PREFS.map(x => <option key={x}>{x}</option>)}</select></label><label className="text-[14px] font-bold">市区町村<input value={city} onChange={e => setCity(e.target.value)} maxLength={60} placeholder="例：中野区" autoComplete="address-level2" className={INPUT} /></label></div> : <fieldset className="mt-5 grid gap-2 sm:grid-cols-2"><legend className="sr-only">{step === 1 ? "施設・業種" : "ご予算"}</legend>{(step === 1 ? AD_INDUSTRIES : AD_BUDGETS).map(x => <label key={x} className={`flex min-h-[54px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-[15px] font-bold ${((step === 1 ? industry : budget) === x) ? "border-brand bg-paper-tint" : "border-ink-line bg-white hover:bg-paper-sub"}`}><input type="radio" name={`ad-step-${step}`} checked={(step === 1 ? industry : budget) === x} onChange={() => step === 1 ? setIndustry(x) : setBudget(x)} className="h-4 w-4 accent-brand" />{x}</label>)}</fieldset>}
             {error && <p role="alert" className="mt-4 text-[14px] font-bold text-red-800">{error}</p>}
             <div className="mt-6 flex items-center justify-between gap-3"><button type="button" onClick={() => { setError(null); step ? setStep(step - 1) : move("intro"); }} className="min-h-[48px] px-3 text-[14px] font-bold text-ink-soft">戻る</button><button type="button" onClick={next} className={PRIMARY}>{step === 2 ? "相談の目安を見る" : "次へ"}<ArrowRight className="h-4 w-4" aria-hidden /></button></div>
-          </div> : phase === "result" ? <div className="mx-auto max-w-2xl py-2"><p className="text-[13px] font-bold text-brand">ご相談の目安</p><h2 className="mt-3 text-[24px] font-bold leading-[1.5]">{result.title}</h2><p className="mt-4 text-[16px] leading-[1.9]">{result.reason}</p><dl className="mt-5 grid gap-2 rounded-xl bg-paper-sub p-4 text-[14px]"><div><dt className="inline text-ink-soft">工事場所　</dt><dd className="inline font-bold">{pref} {city}</dd></div><div><dt className="inline text-ink-soft">施設・業種　</dt><dd className="inline font-bold">{industry}</dd></div><div><dt className="inline text-ink-soft">予算の目安　</dt><dd className="inline font-bold">{budget}</dd></div></dl><p className="mt-4 text-[14px] leading-[1.8] text-ink-soft">次に法人規模・設備の型番・省エネ量を確認します。申請や採択を約束するものではありません。</p><button type="button" onClick={() => move("form")} className={`${PRIMARY} mt-6 w-full sm:w-auto`}>Zoom相談の候補日時を送る<ArrowRight className="h-4 w-4" aria-hidden /></button><button type="button" onClick={() => { setStep(0); move("check"); }} className="mt-3 block min-h-[44px] text-[14px] font-bold text-ink-soft underline">回答を見直す</button></div> : <div className="mx-auto max-w-3xl">
-            <p className="text-[13px] font-bold tracking-wider text-brand">ONLINE CONSULTATION</p><h2 className="mt-2 text-[25px] font-bold">Zoom相談の申し込み</h2><p className="mt-2 text-[15px] leading-[1.8] text-ink-soft">ご希望を3ついただき、担当者が折り返します。写真・型番の準備は、今は必要ありません。</p>
+          </div> : phase === "result" ? <div className="mx-auto max-w-2xl py-2"><p className="text-[13px] font-bold text-brand">ご相談の目安</p><h2 className="mt-3 text-[24px] font-bold leading-[1.5]">{result.title}</h2><p className="mt-4 text-[16px] leading-[1.9]">{result.reason}</p><dl className="mt-5 grid gap-2 rounded-xl bg-paper-sub p-4 text-[14px]"><div><dt className="inline text-ink-soft">工事場所　</dt><dd className="inline font-bold">{pref} {city}</dd></div><div><dt className="inline text-ink-soft">施設・業種　</dt><dd className="inline font-bold">{industry}</dd></div><div><dt className="inline text-ink-soft">予算の目安　</dt><dd className="inline font-bold">{budget}</dd></div></dl><p className="mt-4 text-[14px] leading-[1.8] text-ink-soft">次に法人規模・設備の型番・省エネ量を確認します。申請や採択を約束するものではありません。</p><button type="button" onClick={() => move("form")} className={`${PRIMARY} mt-6 w-full sm:w-auto`}>Zoom相談を申し込む<ArrowRight className="h-4 w-4" aria-hidden /></button><button type="button" onClick={() => { setStep(0); move("check"); }} className="mt-3 block min-h-[44px] text-[14px] font-bold text-ink-soft underline">回答を見直す</button></div> : <div className="mx-auto max-w-3xl">
+            <p className="text-[13px] font-bold tracking-wider text-brand">ONLINE CONSULTATION</p><h2 className="mt-2 text-[25px] font-bold">Zoom相談の申し込み</h2><p className="mt-2 text-[15px] leading-[1.8] text-ink-soft">空き枠からZoomを予約できます。日程が決まらない場合は、候補を3つお送りください。</p>
             {isTest && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-[14px] font-bold">公開確認テストです。営業対象・月次実績から除外して受け付けます。</p>}
             <form onSubmit={submit} className="mt-6 space-y-5">
               <div className="grid gap-5 sm:grid-cols-2"><label className="block text-[14px] font-bold">法人名・施設名 <span className="text-red-800">必須</span><input required maxLength={80} autoComplete="organization" value={company} onChange={e => setCompany(e.target.value)} className={INPUT} /></label><label className="block text-[14px] font-bold">お名前 <span className="text-red-800">必須</span><input required maxLength={40} autoComplete="name" value={name} onChange={e => setName(e.target.value)} className={INPUT} /></label></div>
               <label className="block text-[14px] font-bold">メールアドレス または 電話番号 <span className="text-red-800">どちらか必須</span><input required maxLength={120} value={reach} onChange={e => setReach(e.target.value)} placeholder="name@example.co.jp または 03-1234-5678" className={INPUT} /><span className="mt-1 block text-[12px] font-normal text-ink-soft">折り返しの連絡に使用します。</span></label>
               {variant === "lp" ? <div className="grid gap-4 sm:grid-cols-[160px_1fr]"><label className="block text-[14px] font-bold">工事場所の都道府県<select value={pref} onChange={e => setPref(e.target.value)} className={INPUT}>{AD_PREFS.map(x => <option key={x}>{x}</option>)}</select></label><label className="block text-[14px] font-bold">工事場所の市区町村 <span className="text-red-800">必須</span><input required maxLength={60} autoComplete="address-level2" value={city} onChange={e => setCity(e.target.value)} placeholder="例：中野区" className={INPUT} /></label></div> : <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-paper-sub p-4 text-[14px]"><span>工事場所：{pref} {city}</span><button type="button" onClick={() => { setStep(0); move("check"); }} className="min-h-[44px] font-bold text-brand underline">回答を変更</button></div>}
-              <ConsultationFields id="ad-zoom-dates" dates={dates} onChange={setDates} />
+              <ConsultationFields id="ad-zoom-dates" dates={dates} onChange={setDates} email={reach} booking={booking} onBooking={setBooking} />
               <div aria-hidden="true" className="hidden"><label>website<input value={hp} onChange={e => setHp(e.target.value)} tabIndex={-1} autoComplete="off" /></label></div>
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-ink-line p-4 text-[13px] leading-[1.8]"><input type="checkbox" required checked={consent} onChange={e => setConsent(e.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-brand" /><span><Link href="/privacy" target="_blank" rel="noopener" className="font-bold text-brand underline">個人情報の取扱い</Link>を確認し、EHCと施工連携先の株式会社プロジェクトネオへの共有に同意します。候補日時は予約の確定ではありません。</span></label>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-ink-line p-4 text-[13px] leading-[1.8]"><input type="checkbox" required checked={consent} onChange={e => setConsent(e.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-brand" /><span><Link href="/privacy" target="_blank" rel="noopener" className="font-bold text-brand underline">個人情報の取扱い</Link>を確認し、EHCと施工連携先の株式会社プロジェクトネオへの共有に同意します。候補日時を送る方法では、担当者の折り返し後に日時が決まります。</span></label>
               <p className="text-[12px] leading-[1.8] text-ink-soft">見積り・図面・省エネの計算などの資料づくりは、工事に至らなかった場合も規模により費用がかかることがあります。費用は事前にご案内します。</p>
               {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-[14px] font-bold leading-relaxed text-red-800">{error}</p>}
-              <button type="submit" disabled={busy || uncertain} className={`${PRIMARY} w-full`}>{busy ? "受け付けを確認しています…" : "この候補日時で相談を申し込む"}{!busy && <ArrowRight className="h-4 w-4" aria-hidden />}</button>
+              <button type="submit" disabled={busy || uncertain} className={`${PRIMARY} w-full`}>{busy ? "受け付けを確認しています…" : "相談内容を送る"}{!busy && <ArrowRight className="h-4 w-4" aria-hidden />}</button>
               <p className="text-center text-[12px] text-ink-soft">{COMPANY.replyDays}営業日以内を目安にご連絡します。自動メールは送られません。</p>
             </form>
           </div>}
@@ -195,7 +209,7 @@ export function TokyoAdFlow({ variant, today }: { variant: AdVariant; today: str
         { q: "最大3/4・4,500万円は、誰でも使えますか？", a: `いいえ。CO2を年28トン以上削減する区分の上限です。ほかに2/3・最大2,500万円／1,000万円の区分があります。補助額800万円を超える見込みの、まとまった設備更新を優先してご案内します。` },
         { q: "申請や工事は、誰が進めますか？", a: "EHCのチームが現地調査・機器選定・見積り・図面や省エネ計算などの準備を進めます。申請者はお客様です。申請書類の作成は行政書士へ依頼します。施工範囲・費用は見積りでご案内します。" },
       ].map(x => <details key={x.q} className="group py-1"><summary className="flex min-h-[60px] cursor-pointer list-none items-center justify-between gap-4 text-[15px] font-bold">{x.q}<ChevronDown className="h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden /></summary><p className="pb-4 text-[14px] leading-[1.95] text-ink-soft">{x.a}</p></details>)}</div></section>
-      <section className="mt-10 rounded-[24px] bg-paper-tint px-5 py-7 text-center"><h2 className="text-[21px] font-bold">使える条件と、次の一歩を整理しましょう。</h2><button type="button" onClick={start} className={`${PRIMARY} mt-5 w-full sm:w-auto`}>{variant === "lp" ? "Zoom相談の候補日時を送る" : "3項目で、相談の目安を確認"}<ArrowRight className="h-4 w-4" aria-hidden /></button><p className="mt-3 text-[12px] text-ink-soft">予約は自動で確定しません。担当者が折り返して日程を調整します。</p></section>
+      <section className="mt-10 rounded-[24px] bg-paper-tint px-5 py-7 text-center"><h2 className="text-[21px] font-bold">使える条件と、次の一歩を整理しましょう。</h2><button type="button" onClick={start} className={`${PRIMARY} mt-5 w-full sm:w-auto`}>{variant === "lp" ? "Zoom相談を申し込む" : "3項目で、相談の目安を確認"}<ArrowRight className="h-4 w-4" aria-hidden /></button><p className="mt-3 text-[12px] text-ink-soft">空き枠から予約した場合は確定メールが届きます。候補日時を送った場合は担当者が折り返します。</p></section>
       <p className="mt-6 text-[11px] leading-[1.8] text-ink-soft">制度：{P.officialName}。掲載内容の確認日：2026年11月3日。募集・要件は変更されることがあります。<a href={P.official[0].url} target="_blank" rel="noopener noreferrer" className="underline">クール・ネット東京の公式情報</a>をご確認ください。予算を超えた場合は抽選です。{windows.length > 1 ? `直近の受付：${ymd(windows[0].start)}〜${ymd(windows[0].end)}。` : ""}準備状況により間に合わない場合があります。</p>
       <button type="button" onClick={() => setShowChoice(true)} className="mt-3 min-h-[44px] text-[12px] text-ink-soft underline">広告計測の設定{choice ? `（${choice === "granted" ? "許可" : "許可しない"}）` : ""}</button>
     </main>

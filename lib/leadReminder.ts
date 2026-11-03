@@ -66,7 +66,9 @@ export function reminderFilter(todayYmd: string) {
     and: [
       { property: "ステータス", select: { equals: "未着手" } },
       { property: "送信日", date: { on_or_before: businessDaysBefore(todayYmd, REMIND_AFTER_BUSINESS_DAYS) } },
-      { property: "提案No", rich_text: { starts_with: "EHC-2" } },
+      { or: [{ property: "提案No", rich_text: { starts_with: "EHC-" } }, { property: "提案No", rich_text: { starts_with: "EHCAD-" } }] },
+      { property: "メモ", rich_text: { does_not_contain: "営業対象外" } },
+      { property: "次アクション", rich_text: { does_not_contain: "営業対象外" } },
     ],
   };
 }
@@ -102,11 +104,13 @@ export function rowsFromNotion(results: unknown): ReminderRow[] {
     const page = r as { id?: string; url?: string; properties?: Record<string, NotionProp> };
     if (!page.id || !page.properties) continue;
     const props = page.properties;
+    const receipt = plain(props["提案No"]);
+    if (!/^(?:EHC-\d{8}-\d{6}-[0-9A-Z]{4}|EHC(?:AD)?-[0-9a-f-]{36})$/i.test(receipt) || /営業対象外/.test([plain(props["会社名"]), plain(props["メモ"]), plain(props["次アクション"])].join(" "))) continue;
     rows.push({
       pageId: page.id,
       url: page.url ?? null,
       company: plain(props["会社名"]) || "（会社名なし）",
-      receiptNo: plain(props["提案No"]),
+      receiptNo: receipt,
       sentDate: dateStart(props["送信日"]),
       remindedDate: dateStart(props[REMINDED_PROPERTY]),
       email: typeof props["担当メール"]?.email === "string" ? (props["担当メール"].email as string) : null,

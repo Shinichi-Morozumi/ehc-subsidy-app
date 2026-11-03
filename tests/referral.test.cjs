@@ -314,7 +314,8 @@ test("U05 片側失敗：Notion に入らなくても、担当者宛メールに
     assert.equal(env.pages.length, 0);
     const log = env.logs.find((l) => l.includes("Notion への追加に失敗"));
     assert.ok(log, "失敗をログに出す");
-    assert.match(log, /krh01-clinic/, "ログの行の中身から手で足せる");
+    assert.match(log, /EHC-20261014-150000-NTF1/, "受付番号で担当者の受信メールと照合できる");
+    assert.doesNotMatch(log, /krh01-clinic|@/, "紹介元・連絡先をサーバログへ複製しない");
   } finally { env.done(); }
 });
 

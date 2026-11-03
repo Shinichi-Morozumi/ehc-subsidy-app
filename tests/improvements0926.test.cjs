@@ -208,7 +208,8 @@ test("未着手の通知: 絞り込み・行の読み方・同じ日に2度知�
   const f = reminder.reminderFilter("2026-09-28");
   assert.deepEqual(f.and[0], { property: "ステータス", select: { equals: "未着手" } });
   assert.deepEqual(f.and[1], { property: "送信日", date: { on_or_before: "2026-09-24" } });
-  assert.deepEqual(f.and[2], { property: "提案No", rich_text: { starts_with: "EHC-2" } });
+  assert.deepEqual(f.and[2], { or: [{ property: "提案No", rich_text: { starts_with: "EHC-" } }, { property: "提案No", rich_text: { starts_with: "EHCAD-" } }] });
+  assert.equal(f.and[3].rich_text.does_not_contain, "営業対象外");
   const page = (id, reminded) => ({
     id, url: `https://www.notion.so/${id}`,
     properties: {

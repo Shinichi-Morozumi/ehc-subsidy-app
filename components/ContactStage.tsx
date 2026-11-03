@@ -1,4 +1,7 @@
 "use client";
+import { currentLeadContext } from "@/lib/leadContextClient";
+import { recordAdConversion, recordQaConversion } from "@/lib/adMeasurement";
+import type { ZoomBooking } from "@/lib/zoomBooking";
 
 import {
   useCallback,
@@ -105,6 +108,7 @@ type ChannelResult =
   | "skipped";
 
 interface SubmitResult {
+  warning?: string;
   ok: boolean;
   mode: "send" | "dry_run" | "not_sent";
   receiptNo: string;
@@ -193,7 +197,8 @@ export function ContactStage({
   const [touched, setTouched] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const [preferredDates, setPreferredDates] = useState<string[]>(["", "", ""]);
-  const consultation = readConsultation({ mode: "zoom", timezone: "Asia/Tokyo", preferredDates });
+  const [booking, setBooking] = useState<ZoomBooking | null>(null);
+  const consultation = readConsultation({ mode: "zoom", timezone: "Asia/Tokyo", ...(booking ? { booking } : { preferredDates }) });
   /* 2026-09-26 改善13: 迷惑な送信の見分け（lib/spamGuard.ts）。
      hp … 人には見えない欄（画面の外に置く）。openedAt … この段を最初に開いた時刻。
      送信の処理（下の effect）から読むので ref に持つ。 */
@@ -476,6 +481,7 @@ export function ContactStage({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            context: currentLeadContext(),
             receiptNo: frozen.receiptNo,
             issuedAtJst: frozen.issuedAtJst,
             contact: frozen.contact,
@@ -506,7 +512,7 @@ export function ContactStage({
             elapsedMs: Date.now() - openedAtRef.current,
           }),
         });
-        const json = (await res.json()) as SubmitResult & { error?: string };
+        const json = (await res.json()) as SubmitResult & { error?: string; cvEligible?: boolean; qaCvEligible?: boolean };
         if (!alive()) return;
         if (!res.ok) {
           track("submit_error", { kind: (json as { rateLimited?: boolean }).rateLimited ? "rate_limited" : json.contentMismatch ? "mismatch" : `http_${res.status}` });
@@ -528,6 +534,9 @@ export function ContactStage({
         const sentReferral = referralRef.current?.receiptNo === frozen.receiptNo ? referralRef.current.claim : null;
         if (sentReferral && referralLinkOf(sentReferral.ref)) track("ref_submit", { ref: sentReferral.ref, ok: !!json.ok });
         if (json.ok) {
+          if (json.cvEligible) recordAdConversion(frozen.receiptNo);
+          if (json.qaCvEligible) recordQaConversion(frozen.receiptNo);
+          if (json.cvEligible && currentLeadContext().variant) track("ad_submit", { variant: currentLeadContext().variant, ok: true });
           track("submit_ok", { customer: json.customer });
           onSubmittedRef.current?.();
         } else {
@@ -643,7 +652,7 @@ export function ContactStage({
 
           <WhatYouGet input={input} projection={projection} receiptRecord={issuedRecord} />
 
-          <ConsultationFields id="contact-consultation" dates={preferredDates} onChange={setPreferredDates} error={touched ? consultation.error : null} />
+          <ConsultationFields id="contact-consultation" dates={preferredDates} onChange={setPreferredDates} email={email} booking={booking} onBooking={setBooking} error={touched ? consultation.error : null} />
 
           <div className="ehc-contact-privacy rounded-2xl border border-ink-line bg-paper-sub p-4">
             <h3 className="text-[16px] font-bold leading-[1.7] text-ink">送信前にご確認ください</h3>
@@ -999,6 +1008,7 @@ function SubmitReport({
         <p className="mt-2 text-[16px] leading-[1.7] text-ink">
           受付番号 <span className="font-bold">{result.receiptNo}</span>
         </p>
+        {result.warning && <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-[15px] text-amber-950">{result.warning}</p>}
         {result.duplicate && (
           <p className="mt-1 text-[14px] leading-[1.7] text-ink-soft">
             {result.note ?? "同じ受付番号ですでに受け付けています。重ねて送信していません。"}

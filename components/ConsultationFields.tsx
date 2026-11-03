@@ -1,12 +1,18 @@
 "use client";
 // v1 / 2026-10-23 / EHC-0089
 import { CONSULTATION_GUIDE } from "@/lib/consultation";
+import ZoomBookingPicker from "./ZoomBookingPicker";
+import type { ZoomBooking } from "@/lib/zoomBooking";
 
-export default function ConsultationFields({ id, dates, onChange, error }: {
+export default function ConsultationFields({ id, dates, onChange, error, email, booking, onBooking }: {
   id: string; dates: string[]; onChange: (dates: string[]) => void; error?: string | null;
+  email?: string; booking?: ZoomBooking | null; onBooking?: (booking: ZoomBooking | null) => void;
 }) {
   return <fieldset className="min-w-0 rounded-2xl border border-ink-line bg-paper-sub p-4">
-    <legend className="px-1 text-[17px] font-bold text-ink">Zoom相談の候補日時 <span className="text-[14px] text-red-800">必須・3件</span></legend>
+    <legend className="px-1 text-[17px] font-bold text-ink">Zoom相談の日程</legend>
+    {onBooking && <ZoomBookingPicker email={email || ""} booking={booking ?? null} onChange={onBooking} />}
+    {!booking && <>
+    <p className="mb-2 text-[15px] font-bold">{onBooking ? "または、候補日時を3つ送って調整" : "候補日時を3つ送って調整"}</p>
     <p id={`${id}-guide`} className="text-[14px] leading-[1.8] text-ink-soft">{CONSULTATION_GUIDE}</p>
     <div className="mt-4 grid min-w-0 gap-4 sm:grid-cols-3">
       {[0, 1, 2].map(i => <div key={i} className="min-w-0">
@@ -17,6 +23,7 @@ export default function ConsultationFields({ id, dates, onChange, error }: {
           className="mt-1 min-h-[48px] w-full min-w-0 max-w-full rounded-xl border border-ink-line bg-white px-2 text-[16px] text-ink focus:outline-brand-deep" />
       </div>)}
     </div>
+    </>}
     {error && <p id={`${id}-error`} role="alert" className="mt-3 text-[14px] font-bold text-red-800">{error}</p>}
   </fieldset>;
 }

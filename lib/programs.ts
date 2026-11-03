@@ -133,6 +133,7 @@ export interface Program {
   /** 上限が何で分かれるか：施設の種類（facility）なら結局いくらを施設ごとに、区分（tier）なら幅で出す */
   capsBy?: "facility" | "tier";
   verifiedAt: string;
+  recheckAfterDays?: number;
 }
 
 /* 2026-10-29 直し2回目（10名のレビュー）：「EHCがやらないこと」より先に「だれが何をするか」を、EHC → 施設 → 行政書士 → 事務局の順に書く */
@@ -194,7 +195,8 @@ export const PROGRAMS: Readonly<Record<ProgramId, Program>> = {
     official: [{ label: "クール・ネット東京（公式）", url: "https://www.tokyo-co2down.jp/subsidy/zeroemi-shoene/" }],
     pending: ["冷媒だけの入れ替えの扱い", "国・都のほかの補助との併用の範囲", "2027年度に続くか"],
     capsBy: "tier",
-    verifiedAt: VERIFIED_AT,
+    verifiedAt: "2026-11-03",
+    recheckAfterDays: 7,
   },
   tokyoKaishu: {
     id: "tokyoKaishu",
@@ -511,7 +513,7 @@ export function prepWarning(p: Program, today: string = todayJst()): { window: P
 
 /** 確認日から日数が経って、公式で確かめ直す必要があるか */
 export function needsRecheck(p: Program, today: string = todayJst()): boolean {
-  return daysBetween(p.verifiedAt, today) > RECHECK_AFTER_DAYS;
+  return daysBetween(p.verifiedAt, today) > (p.recheckAfterDays ?? RECHECK_AFTER_DAYS);
 }
 
 export interface Milestone {

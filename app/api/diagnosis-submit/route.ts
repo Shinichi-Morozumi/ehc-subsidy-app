@@ -57,6 +57,9 @@ import { clientFileName } from "@/lib/diagnosisPdf";
 import { customerSafeContact } from "@/lib/customerSafe";
 import { spamMessage, spamReasonOf } from "@/lib/spamGuard";
 import { readConsultation } from "@/lib/consultation";
+import { resolveConsultation } from "@/lib/zoomBookingServer";
+import { readLeadContext, leadContextLines } from "@/lib/leadContext";
+import { deliverStableLead } from "@/lib/leadDelivery";
 import type { DiagnosisSnapshot } from "@/lib/diagnosisSnapshot";
 import { readReferralClaim, referralLines, referralTag } from "@/lib/referral";
 
@@ -423,7 +426,9 @@ export async function POST(req: Request) {
 
   const consultation = readConsultation((body.contact as Record<string, unknown>)?.consultation);
   if (consultation.error) return NextResponse.json({ ok: false, error: consultation.error }, { status: 400 });
-  if (consultation.value) contact.consultation = consultation.value;
+  try { const c = await resolveConsultation(consultation.value, contact.email); if (c) contact.consultation = c; }
+  catch (e) { return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "Zoom予約を確認できません。" }, { status: 400 }); }
+  const leadContext = readLeadContext(body.context);
 
   const equipGroups = normalizeGroups(body.equipGroups);
   const unpriced = normalizeUnpriced(body.unpriced);
@@ -709,11 +714,12 @@ export async function POST(req: Request) {
     snapshot,
     targetProduct ? targetProductStaffLines(targetProduct) : undefined
   );
-  const staffText = referral
+  const referredText = referral
     ? ["■ 紹介リンク（社内向け。お客様には出していません）", ...referralLines(referral, receiptNo), "", staffTextBase].join("\n")
     : staffTextBase;
+  const staffText = [...leadContextLines(leadContext), referredText].join("\n");
   const subjectCustomer = customerMailSubject(snapshot);
-  const subjectStaff = `【Web診断 ${receiptNo}】${contact.company || contact.name} 様からのご相談${referralMark ? `（${referralMark}）` : ""}`;
+  const subjectStaff = `${leadContext.test ? "【営業対象外・テスト】" : ""}【Web診断 ${receiptNo}】${contact.company || contact.name} 様からのご相談${referralMark ? `（${referralMark}）` : ""}`;
   const serverPdfReason = serverPdfForStaff && pdfStatus !== "ok" ? PDF_STATUS_JA[pdfStatus] : "";
 
   /* 2026-09-25: お客様宛を自動で送らない運用では、添付の診断書PDFを担当者が確認して
@@ -804,6 +810,21 @@ export async function POST(req: Request) {
   const staffMailNow: { state: "sent" | "unknown" | null } = { state: null };
 
   const staffAttachment = { filename: staffPdfFilename, content: staffPdfBytes, contentType: "application/pdf" };
+
+  // 新画面の担当者宛送信は、通常相談と同じ永続受付照合を使う。
+  if (body.context && live && !liveCustomer && staffPdfBytes) {
+    const delivery = await deliverStableLead({ receiptNo,
+      identityData: { snapshot, referral, context: leadContext },
+      lead: buildDiagnosisLead(snapshot, { referral, context: leadContext }),
+      buildMail: () => ({ subject: subjectStaff, text: staffBody }), replyTo: contact.email,
+      attachments: [staffAttachment], test: leadContext.test, hasConsultation: !!contact.consultation });
+    const notified = delivery.body.notified === true;
+    return NextResponse.json({ ...delivery.body, mode: "send", customerMail: "off", customer: "skipped",
+      staff: notified ? delivery.body.duplicate ? "already_sent" : "sent" : "unknown", pdf: pdfStatus,
+      serverPdf: serverPdfForStaff, serverTotal, clientTotal,
+      contentMismatch: false, contentVerified: true, crmSaved: delivery.body.saved === true,
+      ledger: { persistence: "notion_receipt", shared: true, crossProcessRetry: true } }, { status: delivery.status });
+  }
 
   const outcome = await withSubmitLock(receiptNo, async () => {
     const existing = await loadEntry(receiptNo);
@@ -1033,14 +1054,16 @@ export async function POST(req: Request) {
        失敗は行の中身ごとログに残す（そこから手で足せる）。
      ・応答を返す前に待つ。応答のあとに回すと、Vercel では処理が止められて行が入らないことがある。
      お客様への応答には Notion の結果を載せない（社内の都合なので）。 */
+  let crmSaved = false;
   if (staffMailNow.state) {
-    const lead = buildDiagnosisLead(snapshot, { staffMail: staffMailNow.state, referral });
+    const lead = buildDiagnosisLead(snapshot, { staffMail: staffMailNow.state, referral, context: leadContext });
     try {
       const notion = await appendLeadToNotionOnce(lead);
+      crmSaved = notion.ok;
       if (notion.skipped) {
         console.warn("[diagnosis-submit] Notion への追加を省略:", notion.error);
       } else if (!notion.ok) {
-        console.error("[diagnosis-submit] Notion への追加に失敗:", notion.error, JSON.stringify(lead));
+        console.error("[diagnosis-submit] Notion への追加に失敗:", receiptNo, notion.error);
       } else {
         console.info(
           `[diagnosis-submit] Notion ${notion.duplicate ? "は同じ受付番号の行があるため追加せず" : "に1行追加"}:`,
@@ -1051,10 +1074,12 @@ export async function POST(req: Request) {
       console.error(
         "[diagnosis-submit] Notion への追加で例外:",
         e instanceof Error ? e.message : String(e),
-        JSON.stringify(lead)
+        receiptNo
       );
     }
   }
 
-  return NextResponse.json(outcome.payload, { status: outcome.status });
+  return NextResponse.json({ ...outcome.payload, crmSaved,
+    cvEligible: staffMailNow.state === "sent" && crmSaved && !!contact.consultation && !leadContext.test,
+    ...(!crmSaved && staffMailNow.state ? { warning: "担当者へ通知しましたが、顧客記録の保存を確認できません。再送せず受付番号をお知らせください。" } : {}) }, { status: outcome.status });
 }

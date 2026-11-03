@@ -28,6 +28,12 @@ import { CONSULT_FLAGS, CONSULT_MULTI_EVENT, CONSULT_NOTE_MAX, CONSULT_SITES_MAX
 import { ATTACH_ACCEPT, ATTACH_MAX_FILES, ATTACH_MAX_TOTAL_BYTES, ATTACH_PHOTO_MAX_EDGE, fmtBytes } from "@/lib/attachLimits";
 import type { CheckAnswers } from "@/lib/programMatch";
 import type { ProgramLeadSource } from "@/lib/programLead";
+import ConsultationFields from "@/components/ConsultationFields";
+import { readConsultation } from "@/lib/consultation";
+import type { ZoomBooking } from "@/lib/zoomBooking";
+import { currentLeadContext } from "@/lib/leadContextClient";
+import { recordAdConversion, recordQaConversion } from "@/lib/adMeasurement";
+import { referralLinkOf } from "@/lib/referral";
 
 const PHOTO_SUBJECT = "写真で概算の依頼";
 const photoHref = (receiptNo?: string | null) =>
@@ -109,6 +115,14 @@ export function ConsultForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receiptNo, setReceiptNo] = useState<string | null>(null);
+  const [dates, setDates] = useState(["", "", ""]);
+  const [booking, setBooking] = useState<ZoomBooking | null>(null);
+  const [uncertain, setUncertain] = useState(false);
+  const [warning, setWarning] = useState<string | null>(null);
+  const requestId = useRef("");
+  const inFlight = useRef(false);
+  const submitted = useRef<{ referral: ReturnType<typeof currentReferral>; context: ReturnType<typeof currentLeadContext> } | null>(null);
+  const consultation = readConsultation({ mode: "zoom", timezone: "Asia/Tokyo", ...(booking ? { booking } : { preferredDates: dates }) });
   const [delivered, setDelivered] = useState<boolean | null>(null);
   const [files, setFiles] = useState<Picked[]>([]);
   const [fileMsg, setFileMsg] = useState<string | null>(null);
@@ -177,7 +191,11 @@ export function ConsultForm({
   const submit = async () => {
     setTouched(true);
     setError(null);
-    if (!company.trim() || !name.trim() || !reachText || !reachOk || !consent || busy || reading) return;
+    if (!company.trim() || !name.trim() || !reachText || !reachOk || !consent || busy || reading || inFlight.current || uncertain || receiptNo) return;
+    if (consultation.error) { setError(consultation.error); return; }
+    inFlight.current = true;
+    requestId.current ||= crypto.randomUUID();
+    submitted.current ||= { referral: currentReferral(), context: currentLeadContext() };
     setBusy(true);
     try {
       const res = await fetch("/api/program-lead", {
@@ -187,23 +205,33 @@ export function ConsultForm({
           company: company.trim(), name: name.trim(), reach: reachText, consent,
           source, programId: picked[0] ?? null, programIds: picked, flags, note: note.trim(), sites: flags.includes("multiSite") ? sites.trim() : "", answers: answers ?? null,
           attachments: files.map((f) => ({ name: f.name, data: f.data })),
-          referral: currentReferral(), hp, elapsedMs: Date.now() - openedAt.current,
+          requestId: requestId.current, consultation: consultation.value, context: submitted.current.context,
+          referral: submitted.current.referral, hp, elapsedMs: Date.now() - openedAt.current,
         }),
       });
-      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; receiptNo?: string; attachmentsDelivered?: boolean | null } | null;
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; receiptNo?: string; attachmentsDelivered?: boolean | null; warning?: string; cvEligible?: boolean; qaCvEligible?: boolean } | null;
       if (!res.ok || !json?.ok || !json.receiptNo) {
         track("consult_submit", { ok: false, source });
+        if (res.status >= 500 || res.status === 409) setUncertain(true);
         setError(json?.error || (res.status === 413 ? "添付が大きすぎて送れませんでした。枚数を減らすか、写真はメールでお送りください。" : `送信できませんでした。時間をおいて、もう一度お試しください。お急ぎの場合はお電話（${COMPANY.tel}）でどうぞ。`));
         return;
       }
       track("consult_submit", { ok: true, source });
+      const sentRef = submitted.current.referral?.ref;
+      if (sentRef && referralLinkOf(sentRef) && json.cvEligible !== false) track("ref_submit", { ref: sentRef, ok: true });
+      if (json.cvEligible) recordAdConversion(json.receiptNo);
+      if (json.qaCvEligible) recordQaConversion(json.receiptNo);
+      if (json.cvEligible && submitted.current.context.variant) track("ad_submit", { variant: submitted.current.context.variant, ok: true });
+      setWarning(json.warning ?? null);
       setDelivered(json.attachmentsDelivered ?? null);
       setReceiptNo(json.receiptNo);
     } catch {
+      setUncertain(true);
       track("consult_submit", { ok: false, source });
-      setError("通信に失敗しました。電波の良い場所で、もう一度お試しください。");
+      setError(`送信結果を確認できません。再送せず、受付番号 EHC-${requestId.current} を ${COMPANY.tel} へお知らせください。`);
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   };
 
@@ -218,7 +246,7 @@ export function ConsultForm({
     <section ref={sectionRef} id={anchorId} aria-labelledby={`${id}-title`} className="scroll-mt-32 rounded-3xl border border-ink-line bg-white p-5 shadow-card sm:p-6">
       <h2 id={`${id}-title`} className="text-[22px] font-bold leading-[1.4]">相談する</h2>
       <p className="mt-1 text-[15px] leading-[1.8] text-ink-soft">
-        必須の入力は3つだけです（ほかは任意）。写真やPDFもそのまま添えて送れます。
+        連絡先とZoom相談の日程をお知らせください。写真やPDFも添えて送れます。
       </p>
       <div className="mt-3 rounded-2xl bg-paper-sub p-4">
         <p className="text-[15px] font-bold">送ったあとの流れ</p>
@@ -266,6 +294,8 @@ export function ConsultForm({
             <span><b>受け付けました。</b>受付番号 <b>{receiptNo}</b></span>
           </p>
           <p>{COMPANY.replyDays}営業日以内に、担当からご連絡します。お急ぎの場合は、お電話（{COMPANY.tel}・{COMPANY.hours}）でどうぞ。</p>
+          {warning && <p className="rounded-xl bg-amber-50 p-3 text-amber-900">{warning}</p>}
+          {booking?.start && <p>Zoomは選択した日時で予約済みです。参加URLはZoomの確認メールをご確認ください。</p>}
           {files.length > 0 && delivered !== false && <p>添えていただいた {files.length} 件の写真・PDF も、担当に届けました。</p>}
           {files.length > 0 && delivered === false && (
             <p className="rounded-xl border border-red-700/30 bg-red-50 px-3 py-2 text-red-800">
@@ -318,6 +348,7 @@ export function ConsultForm({
             {errs.reach && <p className="mt-1 text-[14px] font-bold text-red-800">{errs.reach}</p>}
           </div>
 
+          <ConsultationFields id={`${id}-consultation`} dates={dates} onChange={setDates} email={reachText} booking={booking} onBooking={setBooking} error={touched ? consultation.error : null} />
           <fieldset>
             <legend className="text-[14px] font-bold text-ink">当てはまるもの（任意）</legend>
             <div className="mt-1 flex flex-wrap gap-2">
@@ -408,7 +439,7 @@ export function ConsultForm({
           <button
             type="button"
             onClick={() => void submit()}
-            disabled={busy || reading}
+            disabled={busy || reading || uncertain}
             className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-2xl bg-brand-deep px-4 text-[17px] font-bold text-white hover:bg-brand disabled:opacity-60 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-deep"
           >
             {busy && <Loader2 aria-hidden className="h-5 w-5 animate-spin" />}

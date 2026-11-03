@@ -40,10 +40,11 @@ export type LeadPayload = {
   nextAction?: string;
 };
 
-export type NotionResult = { ok: boolean; skipped?: boolean; error?: string };
+export type NotionResult = { ok: boolean; skipped?: boolean; error?: string; pageId?: string };
 
 /** Notion の rich_text 1要素は2,000字まで */
 const clipText = (s: string, max = 1900) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+export const leadRichText = (s: string) => (s.match(/[\s\S]{1,1900}/g) ?? [""]).slice(0, 100).map(content => ({ text: { content } }));
 
 export function buildLeadProperties(lead: LeadPayload): Record<string, unknown> {
   const props: Record<string, unknown> = {
@@ -58,7 +59,7 @@ export function buildLeadProperties(lead: LeadPayload): Record<string, unknown> 
   if (lead.address) props["住所"] = { rich_text: [{ text: { content: clipText(lead.address) } }] };
   if (lead.proposalNo) props["提案No"] = { rich_text: [{ text: { content: clipText(lead.proposalNo, 100) } }] };
   if (lead.sentDate) props["送信日"] = { date: { start: lead.sentDate } };
-  if (lead.memo) props["メモ"] = { rich_text: [{ text: { content: clipText(lead.memo) } }] };
+  if (lead.memo) props["メモ"] = { rich_text: leadRichText(lead.memo) };
   if (lead.nextAction) props["次アクション"] = { rich_text: [{ text: { content: clipText(lead.nextAction) } }] };
   return props;
 }
@@ -95,7 +96,8 @@ export async function appendLeadToNotion(lead: LeadPayload): Promise<NotionResul
       const detail = await res.text().catch(() => "");
       return { ok: false, error: `Notion ${res.status}: ${detail.slice(0, 500)}` };
     }
-    return { ok: true };
+    const data = await res.json().catch(() => null) as { id?: string } | null;
+    return { ok: true, ...(data?.id ? { pageId: data.id } : {}) };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   } finally {

@@ -10,6 +10,8 @@ import { programLead, programStaffMail, readProgramSubmit } from "@/lib/programL
 import { issueDocumentNumber } from "@/lib/docNumber";
 import { todayJst } from "@/lib/programClock";
 import { COMPANY } from "@/lib/company";
+import { deliverStableLead } from "@/lib/leadDelivery";
+import { resolveConsultation } from "@/lib/zoomBookingServer";
 
 /* ───────────────────────────────────────────────────────────
    v1 / 2026-10-29 / EHC-0102 制度カードからの相談の受け口。決め事は lib/programLead.ts。
@@ -47,6 +49,17 @@ export async function POST(req: Request) {
   }
 
   const input = read.input;
+  try { input.consultation = await resolveConsultation(input.consultation, input.email); if (input.ad && input.consultation) input.ad.consultation = input.consultation; }
+  catch (e) { return NG(400, e instanceof Error ? e.message : "Zoom予約を確認できません。"); }
+  if (input.requestId) {
+    const receiptNo = input.ad ? `EHCAD-${input.requestId}` : `EHC-${input.requestId}`;
+    const today = todayJst(new Date());
+    const result = await deliverStableLead({ receiptNo, identityData: input, lead: programLead(input, receiptNo, today),
+      buildMail: saved => programStaffMail(input, receiptNo, today, { notionSaved: saved }),
+      replyTo: input.email, attachments: input.attachments,
+      test: !!(input.context?.test || input.ad?.test), hasConsultation: !!input.consultation });
+    return NextResponse.json(result.body, { status: result.status });
+  }
   // 広告フォームは通信再試行でも同じ受付番号。既存の通常フォームは変更しない。
   const receiptNo = input.ad ? `EHCAD-${input.ad.requestId}` : issueDocumentNumber();
   return withSubmitLock(receiptNo, async () => {
