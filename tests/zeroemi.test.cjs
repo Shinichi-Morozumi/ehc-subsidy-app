@@ -132,29 +132,39 @@ test("併用の判定：同じ機械に2制度は×、機械を分ければ○�
   // 空調だけ：ゼロエミの決まり（同じ事業所1回・区分は変えられない）だけ。2制度の話は出さない
   const k = Z.judgeZeroemi(kuchoAnswers);
   assert.equal(k.compare, false);
-  assert.ok(titles(k).some((t) => t.startsWith("△ゼロエミの申請は、同じ事業所で1回")));
+  assert.ok(titles(k).some((t) => t.startsWith("×ゼロエミは、同じ事業所で今年度1回だけ")));
+  assert.ok(titles(k).some((t) => t.startsWith("×区分（3/4か2/3）と申請額は")));
+  assert.ok(titles(k).some((t) => t.startsWith("×ゼロエミを受けると、都の省エネ促進税制")));
   assert.ok(!titles(k).some((t) => t.includes("ノンフロン")));
   // 空調＋別置型ショーケース：同じ機械に両方は×、機械を分ければ○、まとめて1申請の注意、比べる表
   const mix = Z.judgeZeroemi({ ...kuchoAnswers, equip: ["ac", "sc_out"] });
   assert.equal(mix.compare, true);
   assert.ok(titles(mix).includes("×同じ機械に、ゼロエミとノンフロンの両方は使えません"));
   assert.ok(titles(mix).includes("○機械を分ければ、両方の制度を使える見込みです"));
-  assert.match(mix.combos.find((c) => c.title.startsWith("ゼロエミの申請は")).note, /1つの申請にまとめます/);
+  assert.match(mix.combos.find((c) => c.title.startsWith("ゼロエミは、同じ事業所で今年度1回だけ")).note, /1つの申請にまとめます.*設備全体/);
   assert.equal(mix.marks.length, 2);
   // 国の補助を予定：ゼロエミとは×、ノンフロンは差し引き（△）
   const nat = Z.judgeZeroemi({ ...kuchoAnswers, equip: ["ac", "sc_out"], others: ["national"] });
   assert.ok(titles(nat).includes("×国の補助（省エネ補助金など）とゼロエミは、同じ設備に重ねられません"));
   assert.ok(titles(nat).some((t) => t.startsWith("△ノンフロンは国の補助と重ねられますが")));
   // 区市町村：ゼロエミ側は除外されている（△・区市町村側を確認）
-  assert.ok(titles(Z.judgeZeroemi({ ...kuchoAnswers, others: ["city"] })).some((t) => t.startsWith("△区市町村の補助は")));
+  assert.ok(titles(Z.judgeZeroemi({ ...kuchoAnswers, others: ["city"] })).some((t) => t.startsWith("△都内の区市町村の補助は")));
+  // ノンフロン＋国の補助：差し引くので合計はほぼ増えない。SII・環境省の側の決まりも書く
+  assert.match(nat.combos.find((c) => c.title.startsWith("ノンフロンは国の補助")).note, /引いた額.*ほぼ同じ.*SII.*一般財源/s);
   // 今年度もうゼロエミに申し込んだ：空調だけなら対象外、ショーケースならノンフロンの道
   const done = Z.judgeZeroemi({ ...kuchoAnswers, others: ["zeAlready"] });
   assert.equal(done.level, "other"); assert.equal(done.marks[0].mark, "×");
-  assert.ok(titles(done).some((t) => t.startsWith("×この事業所は、今年度のゼロエミに追加で申し込めない見込み")));
+  assert.ok(titles(done).some((t) => t === "×この事業所は、今年度のゼロエミに追加で申し込めません"));
+  assert.equal(done.title, "この事業所は、今年度のゼロエミに追加で申し込めません");
   const doneSc = Z.judgeZeroemi({ ...kuchoAnswers, equip: ["sc_out"], others: ["zeAlready"] });
   assert.equal(doneSc.level, "likely"); assert.equal(doneSc.compare, false);
   assert.match(doneSc.title, /ノンフロン/);
   assert.match(doneSc.combos.find((c) => c.mark === "×").note, /ノンフロン機器の助成（先着順/);
+  // 店舗・事業所が複数：ゼロエミは1回の受付で1事業所（×）、ノンフロンは回数の制限なし（○）
+  const multi = Z.judgeZeroemi({ ...kuchoAnswers, equip: ["ac", "sc_out"], others: ["multiSite"] });
+  assert.ok(titles(multi).includes("×ゼロエミは、1回の受付で1事業所だけ申し込めます"));
+  assert.ok(titles(multi).includes("○ノンフロン機器の助成は、事業所ごとに何度でも申請できます"));
+  assert.deepEqual(Z.readZeroemiAnswers({ ...kuchoAnswers, others: ["multiSite", "national"] }).others, ["multiSite", "national"]);
   // 大企業：ゼロエミ×なので「同じ機械に両方」は出さない（そもそもノンフロンだけ）
   const large = Z.judgeZeroemi({ ...kuchoAnswers, org: "large", equip: ["sc_out"] });
   assert.equal(large.compare, false); assert.equal(large.combos.length, 0);

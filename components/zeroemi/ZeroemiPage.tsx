@@ -371,7 +371,7 @@ export function ZeroemiPage({ kind: initialKind, today }: { kind: ZeroemiKind; t
             {judge.combos.length > 0 && <div className="mt-5 rounded-2xl border border-ink-line p-4">
               <p className="text-[15px] font-bold">併用の判定（どちらかを使うと、もう一方が使えない など）</p>
               <ul className="mt-2 divide-y divide-ink-line">{judge.combos.map((c) => <li key={c.title} className="flex items-start gap-3 py-3"><span aria-hidden className="w-6 shrink-0 text-center text-[20px] font-bold leading-none" style={{ color: markColor(c.mark) }}>{c.mark}</span><div className="min-w-0"><p className="text-[15px] font-bold leading-snug"><span className="sr-only">{c.mark === "×" ? "できない：" : c.mark === "△" ? "条件つき・要確認：" : "できる見込み："}</span>{c.title}</p><p className="mt-1 text-[14px] leading-relaxed text-ink-soft">{c.note}</p><p className="mt-1 text-[12px] text-ink-soft">根拠：{c.src}</p></div></li>)}</ul>
-              <p className="mt-1 text-[12px] leading-relaxed text-ink-soft">×＝できない　△＝条件つき・確認が必要　○＝機械を分ければ使える見込み。最終的な可否は、それぞれの事務局の確認で決まります。</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-ink-soft">×＝できない（要綱・募集要項に書かれている）　△＝条件つき・確認が必要　○＝できる見込み。2026年11月6日に各制度の要綱・募集要項・Q&Aで確認しました。最終的な可否は、それぞれの事務局の確認で決まります。</p>
             </div>}
             {judge.compare && <div className="mt-4 overflow-hidden rounded-2xl border border-ink-line">
               <p className="bg-paper-sub px-4 py-2 text-[14px] font-bold">冷凍冷蔵の機械は、どちらか一方。ちがいの目安</p>
@@ -446,8 +446,9 @@ export function ZeroemiPage({ kind: initialKind, today }: { kind: ZeroemiKind; t
       <section className="mt-10 grid gap-3 sm:mt-12 md:grid-cols-[0.6fr_1fr] md:gap-5"><div className="flex items-center gap-2 md:block"><ShieldCheck className="h-6 w-6 text-brand" aria-hidden /><h2 className={`${H2} md:mt-3`}>よくあるご質問</h2></div><div className="divide-y divide-ink-line border-y border-ink-line">{[
         { q: "どの会社・施設が対象ですか？", a: "都内の中小規模事業所を所有・使用する中小企業、医療法人・社会福祉法人・学校法人などです。大企業と、大企業が株式の半分以上を持つ会社などは対象外です。業種だけでは決まりません。" },
         { q: "最大3/4・4,500万円は、誰でも使えますか？", a: "いいえ。CO2を年28トン以上減らす区分の上限です。ほかに2/3・上限2,500万円（東京都の省エネ診断を受ける）と、2/3・上限1,000万円（自分で計画を作る）の区分があります。区分は申し込んだあとに変えられません。" },
-        { q: "空調と冷凍冷蔵の両方を入れ替えたい。補助は重ねられますか？", a: "同じ機械に2つの制度は使えません。ゼロエミは、国や都など（区市町村を除く）ほかの補助を同じ設備に重ねられないためです。空調・照明などはゼロエミ、自然冷媒のショーケース・冷凍機はノンフロン機器の助成のように、機械を分ければ両方を使える見込みです。ゼロエミは同じ事業所で申請1回のため、ゼロエミで入れ替える設備は1つの申請にまとめます。簡易診断の結果に「併用の判定」を出します。" },
-        { q: "店舗・事業所が複数あります。", a: "どちらの制度も、事業所（設置場所）ごとに申請します。ゼロエミは1回の受付で申し込める事業所の数に決まりがあるため、回を分けることがあります（事務局に確認します）。ノンフロン機器の助成は、申請の回数に制限がありません。" },
+        { q: "空調と冷凍冷蔵の両方を入れ替えたい。補助は重ねられますか？", a: "同じ機械に2つの制度は使えません。ゼロエミは、国や都など（都内の区市町村を除く）ほかの補助を同じ設備に重ねられないためです。空調・照明などはゼロエミ、自然冷媒のショーケース・冷凍機はノンフロン機器の助成のように、機械を分ければ両方を使える見込みです。ゼロエミは同じ事業所で年度に1回しか申し込めないため、ゼロエミで入れ替える設備は1つの申請にまとめます（CO2の削減は申請した設備全体で数えます）。簡易診断の結果に「併用の判定」を出します。" },
+        { q: "店舗・事業所が複数あります。", a: "どちらの制度も、事業所（設置場所）ごとに申請します。ゼロエミは1回の受付で1つの事業者が申し込めるのは1事業所だけなので、事業所ごとに回を分けます（同じ回に2つ出すと、はじめの1つだけが受理されます）。ノンフロン機器の助成は、申請の回数に制限がありません。" },
+        { q: "国の補助金と一緒に使えますか？", a: "ゼロエミは、国の補助を受ける設備には使えません。ノンフロン機器の助成は国の補助と重ねられますが、国の補助の額を差し引くため、合計はほとんど増えません。国の側の決まり（省エネ補助金・環境省の自然冷媒機器の補助）も含めて、どの組み合わせが有利かを一緒に確かめます。" },
         { q: "Zoomで面談しないと相談できませんか？", a: `いいえ。「電話かメールで連絡がほしい」を選べば、担当から${COMPANY.replyDays}営業日以内にご連絡します。Zoomを選んだ場合は、空き枠から30分を予約できます。` },
         { q: "申請や工事は、誰が進めますか？", a: "EHCのチームが現地調査・機器選定・見積り・図面や省エネの計算などの準備を進めます。申請者はお客様です。申請書類の作成は行政書士の業務のため、EHCでは作りません。" },
       ].map((x) => <details key={x.q} className="group py-1"><summary className="flex min-h-[60px] cursor-pointer list-none items-center justify-between gap-4 text-[16px] font-bold leading-snug sm:text-[15px]">{x.q}<ChevronDown className="h-5 w-5 shrink-0 transition group-open:rotate-180 sm:h-4 sm:w-4" aria-hidden /></summary><p className="pb-4 text-[15px] leading-[1.85] text-ink-soft sm:text-[14px] sm:leading-[1.95]">{x.a}</p></details>)}</div></section>
