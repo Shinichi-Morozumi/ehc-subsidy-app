@@ -15,6 +15,7 @@
    ─────────────────────────────────────────────────────────── */
 
 import Image from "next/image";
+import { ZeroemiLinks } from "./ZeroemiLinks";
 import { useState } from "react";
 import { AlertTriangle, CalendarDays, Check, ChevronDown, ExternalLink, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -398,6 +399,7 @@ export function ProgramCard({
             <CalendarDays aria-hidden className="h-4 w-4" />公式確認日 {p.verifiedAt.replace(/-/g, "/")}
             {recheck && <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-bold text-amber-900"><Info aria-hidden className="h-3.5 w-3.5" />公式で再確認中</span>}
           </p>
+          {p.id === "tokyoZeroemi" && <ZeroemiLinks place={`card-${place}`} color={c.num} cols={2} />}
           <div className="no-print grid gap-2 sm:grid-cols-2">
             {onConsult && (
               <button

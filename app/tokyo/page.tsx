@@ -7,6 +7,7 @@ import { TokyoDeadlines } from "@/components/programs/TokyoDeadlines";
 import { SiteFooterSimple, SiteHeader } from "@/components/programs/SiteShell";
 import { ReferralCapture } from "@/components/programs/ReferralCapture";
 import { TokyoAdFlow } from "@/components/ads/TokyoAdFlow";
+import { ZeroemiLinks } from "@/components/programs/ZeroemiLinks";
 
 /* ───────────────────────────────────────────────────────────
    v1 / 2026-10-29 / EHC-0102 東京都限定の補助金（第1段階で最初に出すページ）
@@ -62,6 +63,8 @@ export default function TokyoPage({ searchParams }: { searchParams?: { adflow?: 
                 );
               })}
             </ul>
+            {/* EHC-0150（2026-11-06）ゼロエミ専用ページへの入口（本人の指摘「見失う」） */}
+            <ZeroemiLinks place="tokyo-hero" color={COLORS.tokyo.num} cols={2} className="mt-4" />
           </div>
           <Image src="/v17/hero-scene.webp" alt="事務所と店舗の天井の空調と、室外機の前で確かめる作業員のイラスト" width={1536} height={1024} priority sizes="(max-width: 1024px) 100vw, 560px" className="h-auto w-full rounded-3xl" />
         </section>

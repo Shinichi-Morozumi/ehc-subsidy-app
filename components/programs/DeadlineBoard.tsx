@@ -12,6 +12,7 @@
    ─────────────────────────────────────────────────────────── */
 
 import { COLORS, PREP_DAYS, PROGRAMS, PROGRAM_ORDER, VERIFIED_AT, countdownKind, countdownLabel, jaDate, upcomingWindowItems, windowRangeText, type ProgramId, type WindowItem } from "@/lib/programs";
+import { ZeroemiLinks } from "./ZeroemiLinks";
 import { daysBetween } from "@/lib/programClock";
 import { cn } from "@/lib/utils";
 
@@ -146,6 +147,7 @@ export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "受付中�
               <p className="text-[13px] font-bold" style={{ color: c.num }}>{p.tag}</p>
               <p className="mt-0.5 text-[18px] font-bold leading-[1.45]">{p.title}</p>
               <WhatWhenHowMuch programId={first.programId} item={first} today={today} />
+              {first.programId === "tokyoZeroemi" && <ZeroemiLinks place="board-first" variant="inline" color={c.num} className="mt-1" />}
             </div>
             <p className="whitespace-nowrap text-right leading-none">
               {first.state === "open" && first.daysToEnd <= 1 ? (
@@ -181,6 +183,7 @@ export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "受付中�
                     <Pill item={it} />
                   </div>
                   <WhatWhenHowMuch programId={it.programId} item={it} today={today} compact />
+                  {it.programId === "tokyoZeroemi" && <ZeroemiLinks place="board-row" variant="inline" color={c.num} />}
                 </div>
               </li>
             );

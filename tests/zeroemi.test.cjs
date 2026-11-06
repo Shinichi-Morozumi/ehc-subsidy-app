@@ -1,4 +1,4 @@
-// v2 / 2026-11-06 / EHC-0150 ゼロエミ専用ページ（1ページ＋切り替え）の簡易診断・併用の判定・相談の受け口・Zoom予約の照合の検査。
+// v3 / 2026-11-06 / EHC-0150 ゼロエミ専用ページ（1ページ＋切り替え）の簡易診断・併用の判定・相談の受け口・Zoom予約の照合の検査。
 // SMTP・Notion・Zoom はすべて差し替え。外部への送信なし。
 const test = require("node:test"), assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), vm = require("node:vm"), ts = require("typescript");
 const { createRequire } = require("node:module");
@@ -185,4 +185,21 @@ test("担当者メールとNotion：ほかの補助金の予定と併用の判�
   assert.match(mail.text, /× 同じ機械に、ゼロエミとノンフロンの両方は使えません（根拠: ゼロエミ交付要綱/);
   // 冷凍冷蔵の表示から送ったら入口は zeroemiReizo
   assert.equal(P.readProgramSubmit({ ...body, source: "zeroemiReizo", zeroemi: { ...body.zeroemi, kind: "reizo", answers: { ...answers, kind: "reizo" } } }).ok, true);
+});
+
+test("入口：トップ（上の細い入口・案内）・締切ボード・/tokyo・制度カードから、ゼロエミ専用ページ（空調・照明など／冷凍冷蔵）へ行ける（本人の指摘「見失う」）", () => {
+  const read = (f) => fs.readFileSync(path.resolve(root, f), "utf8");
+  const links = read("components/programs/ZeroemiLinks.tsx");
+  assert.match(links, /href: "\/zeroemi", label: "空調・照明など"/);
+  assert.match(links, /href: "\/zeroemi\/reizo", label: "冷凍冷蔵庫・ショーケース"/);
+  const home = read("components/home/HomeV18.tsx");
+  assert.match(home, /<ZeroemiBanner today=\{today\} \/>/);
+  assert.match(home, /href="#ze-banner"/);
+  assert.match(home, /href="\/zeroemi"/);
+  assert.match(home, /href="\/zeroemi\/reizo"/);
+  assert.match(home, /id === "tokyoZeroemi" && <ZeroemiLinks place="top-pillar"/);
+  assert.match(read("components/programs/DeadlineBoard.tsx"), /programId === "tokyoZeroemi" && <ZeroemiLinks place="board-/);
+  assert.match(read("components/programs/ProgramCard.tsx"), /p\.id === "tokyoZeroemi" && <ZeroemiLinks/);
+  assert.match(read("app/tokyo/page.tsx"), /<ZeroemiLinks place="tokyo-hero"/);
+  assert.match(read("lib/track.ts"), /\| "ze_entry"/);
 });

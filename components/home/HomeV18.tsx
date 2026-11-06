@@ -18,7 +18,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback } from "react";
-import { ArrowRight, ClipboardCheck, FileText, HandCoins, Phone } from "lucide-react";
+import { ArrowDown, ArrowRight, ClipboardCheck, FileText, HandCoins, Phone } from "lucide-react";
 import { OPEN_HEARING_EVENT } from "../HowItWorks";
 import { COMPANY } from "@/lib/company";
 import { track } from "@/lib/track";
@@ -30,6 +30,7 @@ import { ConsultForm } from "../programs/ConsultForm";
 import { SiteFooterSimple, SiteHeader } from "../programs/SiteShell";
 import { WHY } from "@/lib/team";
 import { CONSULT_MULTI_EVENT } from "@/lib/consultOptions";
+import { ZeroemiLinks } from "../programs/ZeroemiLinks";
 
 type PillarDef = { pillar: "tokyo" | "kaigo" | "sii"; color: ProgramColor; icon: string; title: string; lead: string; ids: ProgramId[]; cta: string; more: { label: string; href?: string } };
 
@@ -94,12 +95,43 @@ function PillarCard({ def, today, onSii }: { def: PillarDef; today: string | nul
                 </div>
                 <div className="grid grid-cols-[5.5em_minmax(0,1fr)] gap-2"><dt className="font-bold" style={{ color: c.num }}>いくら</dt><dd><b>{p.amountShort}</b></dd></div>
               </dl>
+              {id === "tokyoZeroemi" && <ZeroemiLinks place="top-pillar" color={c.num} className="mt-3" />}
             </li>
           );
         })}
       </ul>
       <footer className="border-t border-ink-line px-5 py-4">{button}</footer>
     </article>
+  );
+}
+
+/* EHC-0150（2026-11-06）本人の指摘「メインに戻ると（ゼロエミの専用ページを）見失う」→ 最初の画面のすぐ下に、専用ページへの案内を置く。
+   締切・補助率は lib/programs.ts から読む（ここに数字を書かない） */
+function ZeroemiBanner({ today }: { today: string | null }) {
+  const p = PROGRAMS.tokyoZeroemi;
+  const it = today ? upcomingWindowItems(today, ["tokyoZeroemi"])[0] : undefined;
+  return (
+    <section id="ze-banner" aria-labelledby="ze-entry" className="mt-8 scroll-mt-32 overflow-hidden rounded-3xl bg-[#082C1E] text-white shadow-card md:grid md:grid-cols-[minmax(0,1fr)_340px] lg:grid-cols-[minmax(0,1fr)_440px]">
+      <div className="p-5 sm:p-7">
+        <p className="text-[13px] font-bold text-[#86EFAC]">東京都・都内の事業所さま（業種は問いません）</p>
+        <h2 id="ze-entry" className="mt-1 text-[23px] font-bold leading-[1.4] sm:text-[28px]">東京都のゼロエミ：入れ替え費用の<span className="whitespace-nowrap"><span className="text-[#86EFAC]">最大{p.rate.value}</span>を助成</span></h2>
+        {it && today && (
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-[14px] leading-[1.7]">
+            <span className="rounded-full bg-amber-400 px-3 py-0.5 font-bold text-amber-950">{countdownLabel(it)}</span>
+            <span><b>{it.window.short}</b>　{windowRangeText(it.window, today)}</span>
+          </p>
+        )}
+        <p className="mt-2 text-[15px] leading-[1.8] opacity-95">空調・照明などと、冷凍冷蔵庫・ショーケースで専用ページを分けています。5問で、使えるか・ほかの補助と併用できるかを確かめられます。</p>
+        <div className="mt-4 grid gap-2 sm:flex">
+          <Link href="/zeroemi" onClick={() => track("ze_entry", { place: "top-banner", kind: "kucho" })} className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full bg-brand-lime px-6 text-[16px] font-bold text-ink hover:brightness-95">空調・照明など<ArrowRight aria-hidden className="h-5 w-5" /></Link>
+          <Link href="/zeroemi/reizo" onClick={() => track("ze_entry", { place: "top-banner", kind: "reizo" })} className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full border-2 border-white/80 px-6 text-[16px] font-bold text-white hover:bg-white/10">冷凍冷蔵庫・ショーケース<ArrowRight aria-hidden className="h-5 w-5" /></Link>
+        </div>
+      </div>
+      <div className="relative hidden md:block">
+        <Image src="/zeroemi/kucho-hero-v3.webp" alt="" fill sizes="(min-width: 1024px) 440px, 340px" className="object-cover" style={{ objectPosition: "50% 35%" }} />
+        <div aria-hidden className="absolute inset-0" style={{ background: "linear-gradient(90deg, #082C1E 0%, rgba(8,44,30,.35) 30%, rgba(8,44,30,0) 60%)" }} />
+      </div>
+    </section>
   );
 }
 
@@ -113,6 +145,10 @@ export function HomeV18() {
     <div className="min-h-screen bg-paper text-ink">
       <SiteHeader page="top" />
       <main id="home-main" className="mx-auto max-w-6xl px-4 pb-6 pt-5">
+        {/* EHC-0150：スマホ・タブレットでは案内（#ze-banner）が最初の画面の下になるので、いちばん上に細い入口を置く */}
+        <a href="#ze-banner" onClick={() => track("ze_entry", { place: "top-bar", kind: "anchor" })} className="mb-4 flex min-h-[48px] items-center justify-between gap-2 rounded-2xl bg-[#082C1E] px-4 text-[14px] font-bold text-white lg:hidden">
+          <span>東京都のゼロエミ（最大{PROGRAMS.tokyoZeroemi.rate.value}）専用ページ</span><ArrowDown aria-hidden className="h-4 w-4 shrink-0" />
+        </a>
         <section className="grid items-center gap-6 lg:grid-cols-[1.05fr_1fr]">
           <div>
             <p className="inline-block rounded-xl bg-paper-tint px-3 py-1 text-[14px] font-bold text-brand-deep">東京都・国・介護施設の補助</p>
@@ -142,6 +178,8 @@ export function HomeV18() {
           </div>
           <Image src="/v17/hero-scene.webp" alt="事務所と店舗の天井の空調と、室外機の前で確かめる作業員のイラスト" width={1536} height={1024} priority sizes="(max-width: 1024px) 100vw, 560px" className="h-auto w-full rounded-3xl" />
         </section>
+
+        <ZeroemiBanner today={today} />
 
         <div className="mt-8">
           <DeadlineBoard today={today} />
