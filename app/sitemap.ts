@@ -11,6 +11,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/kaigo`, lastModified: new Date("2026-10-29T00:00:00+09:00"), changeFrequency: "weekly", priority: 0.8 },
     /* 2026-10-29 EHC-0102: 東京都の制度と6問の診断 */
     { url: `${SITE_URL}/tokyo`, lastModified: new Date("2026-10-29T00:00:00+09:00"), changeFrequency: "weekly", priority: 0.9 },
+    /* 2026-11-06 EHC-0150: ゼロエミ専用ページ（広告の遷移先） */
+    { url: `${SITE_URL}/zeroemi`, lastModified: new Date("2026-11-06T00:00:00+09:00"), changeFrequency: "weekly", priority: 0.9 },
+    { url: `${SITE_URL}/zeroemi/reizo`, lastModified: new Date("2026-11-06T00:00:00+09:00"), changeFrequency: "weekly", priority: 0.8 },
     { url: `${SITE_URL}/shindan`, lastModified: new Date("2026-10-29T00:00:00+09:00"), changeFrequency: "weekly", priority: 0.7 },
     { url: `${SITE_URL}/team`, lastModified: new Date("2026-10-29T00:00:00+09:00"), changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE_URL}/dropin`, lastModified: new Date("2026-10-29T00:00:00+09:00"), changeFrequency: "monthly", priority: 0.6 },

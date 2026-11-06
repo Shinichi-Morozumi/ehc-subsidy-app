@@ -57,7 +57,8 @@ export async function POST(req: Request) {
     const result = await deliverStableLead({ receiptNo, identityData: input, lead: programLead(input, receiptNo, today),
       buildMail: saved => programStaffMail(input, receiptNo, today, { notionSaved: saved }),
       replyTo: input.email, attachments: input.attachments,
-      test: !!(input.context?.test || input.ad?.test), hasConsultation: !!input.consultation });
+      /* EHC-0150: ゼロエミ専用ページは「電話・メールで折り返し」でも相談として数える（Zoomなら予約の照合が先に済んでいる） */
+      test: !!(input.context?.test || input.ad?.test || input.zeroemi?.test), hasConsultation: !!input.consultation || !!input.zeroemi });
     return NextResponse.json(result.body, { status: result.status });
   }
   // 広告フォームは通信再試行でも同じ受付番号。既存の通常フォームは変更しない。

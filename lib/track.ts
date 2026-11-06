@@ -28,6 +28,12 @@ export type TrackEvent =
   | "ad_result"
   | "ad_form"
   | "ad_submit"
+  /* 2026-11-06 EHC-0150: ゼロエミ専用ページ（kind＝kucho/reizo） */
+  | "ze_open" // 開いた（kind）
+  | "ze_step" // 簡易診断の何問目を出したか（kind, step）
+  | "ze_result" // 結果を出した（kind, level）
+  | "ze_form" // 問い合わせの欄を出した（kind, contact）
+  | "ze_submit" // 送った（kind, ok）
   | "diagnosis_open" // 7問のダイアログを開いた
   | "diagnosis_answered" // 7問を最後まで答えた（候補を見る）
   | "stage_view" // 5段のどれかを開いた（stage）

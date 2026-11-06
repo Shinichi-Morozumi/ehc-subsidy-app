@@ -11,7 +11,8 @@ export default function LeadMeasurement() {
   const [adPage, setAdPage] = useState(false);
   useEffect(() => {
     const c = captureLeadContext(); setTest(c.test);
-    const isAd = path === "/tokyo" && ["lp", "diagnosis"].includes(new URLSearchParams(window.location.search).get("adflow") || "");
+    /* EHC-0150: ゼロエミ専用ページは自前の確認（同じ文言・同じ保存先）を出すので、ここでは出さない */
+    const isAd = (path === "/tokyo" && ["lp", "diagnosis"].includes(new URLSearchParams(window.location.search).get("adflow") || "")) || path === "/zeroemi" || path === "/zeroemi/reizo";
     setAdPage(isAd);
     const choice = measurementChoice(); setShow(choice === null);
     if (choice === "granted" && !c.test) enableAdMeasurement();

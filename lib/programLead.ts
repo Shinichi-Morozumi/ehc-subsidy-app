@@ -22,8 +22,9 @@ import { CONSULT_NOTE_MAX, CONSULT_SITES_MAX, consultFlagLabels, readConsultFlag
 import { readAdConsultation, adConsultationLines, type AdConsultation } from "./adConsultation";
 import { readConsultation, consultationLines, type ConsultationRequest } from "./consultation";
 import { readLeadContext, readRequestId, leadContextLines, type LeadContext } from "./leadContext";
+import { readZeroemiLead, zeroemiLines, type ZeroemiLead } from "./zeroemiFlow";
 
-export const PROGRAM_LEAD_SOURCES = ["top", "shindan", "tokyo", "kaigo", "team", "dropin"] as const;
+export const PROGRAM_LEAD_SOURCES = ["top", "shindan", "tokyo", "kaigo", "team", "dropin", "zeroemi", "zeroemiReizo"] as const;
 export type ProgramLeadSource = (typeof PROGRAM_LEAD_SOURCES)[number];
 
 const SOURCE_JA: Record<ProgramLeadSource, string> = {
@@ -33,6 +34,9 @@ const SOURCE_JA: Record<ProgramLeadSource, string> = {
   kaigo: "介護施設の制度（/kaigo）",
   team: "メンバーと実績（/team）",
   dropin: "ドロップイン（/dropin）",
+  /* 2026-11-06 EHC-0150: ゼロエミ専用ページ（広告の遷移先） */
+  zeroemi: "ゼロエミ専用ページ・空調（/zeroemi）",
+  zeroemiReizo: "ゼロエミ専用ページ・冷凍冷蔵（/zeroemi/reizo）",
 };
 
 export interface ProgramLeadInput {
@@ -40,6 +44,8 @@ export interface ProgramLeadInput {
   consultation?: ConsultationRequest | null;
   context?: LeadContext;
   ad?: AdConsultation | null;
+  /** ゼロエミ専用ページの簡易診断と連絡の方法（EHC-0150） */
+  zeroemi?: ZeroemiLead | null;
   company: string;
   name: string;
   phone: string | null;
@@ -161,10 +167,17 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
   const requestId = readRequestId(body.requestId);
   if (requestId.error) return { ok: false, error: requestId.error };
   if (requestId.value && ad.value && requestId.value !== ad.value.requestId) return { ok: false, error: "受付番号が一致しません。画面を開き直してください。" };
+  const zeroemi = readZeroemiLead(body.zeroemi);
+  if (zeroemi.error) return { ok: false, error: zeroemi.error };
+  if (zeroemi.value && ad.value) return { ok: false, error: "相談の入口を確認できません。ページを開き直してください。" };
   const consultation = readConsultation(body.consultation ?? ad.value?.consultation);
   if (consultation.error) return { ok: false, error: consultation.error };
-  if (requestId.value && !consultation.value) return { ok: false, error: "Zoom相談の候補日時を3つご入力ください。" };
+  /* ゼロエミ専用ページ：Zoomを選んだら空き枠の予約が必須。電話・メールの折り返しなら日程は要らない */
+  if (zeroemi.value?.contact === "zoom" && !consultation.value?.booking) return { ok: false, error: "Zoomの空き枠から予約してから送ってください。予約しない場合は「電話かメールで連絡」をお選びください。" };
+  if (zeroemi.value?.contact === "callback" && consultation.value) return { ok: false, error: "連絡の方法を確認できません。ページを開き直してください。" };
+  if (requestId.value && !consultation.value && zeroemi.value?.contact !== "callback") return { ok: false, error: "Zoom相談の候補日時を3つご入力ください。" };
   const source = (PROGRAM_LEAD_SOURCES as readonly string[]).includes(body.source as string) ? (body.source as ProgramLeadSource) : "top";
+  if (zeroemi.value && source !== (zeroemi.value.kind === "kucho" ? "zeroemi" : "zeroemiReizo")) return { ok: false, error: "相談の入口を確認できません。ページを開き直してください。" };
   const fromList = Array.isArray(body.programIds) ? Array.from(new Set(body.programIds.filter(isProgramId))).slice(0, 6) : [];
   const single = isProgramId(body.programId) ? body.programId : null;
   const programIds = fromList.length ? fromList : single ? [single] : [];
@@ -175,6 +188,7 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
       consultation: consultation.value,
       context: readLeadContext(body.context),
       ad: ad.value,
+      zeroemi: zeroemi.value,
       company,
       name,
       phone: reach.phone,
@@ -208,7 +222,8 @@ function bodyLines(input: ProgramLeadInput, receiptNo: string, todayYmd: string)
   return [
     ...leadContextLines(input.context),
     ...(input.ad ? adConsultationLines(input.ad) : []),
-    ...(!input.ad ? consultationLines(input.consultation) : []),
+    ...(input.zeroemi ? zeroemiLines(input.zeroemi) : []),
+    ...(input.zeroemi?.contact === "callback" ? ["■ 連絡の方法: 電話かメールで折り返し（Zoom面談は希望なし）"] : !input.ad ? consultationLines(input.consultation) : []),
     `入口: ${SOURCE_JA[input.source]}`,
     ids.length
       ? `相談したい制度: ${ids.map((id) => `${PROGRAMS[id].tag} ${PROGRAMS[id].title}（${PROGRAMS[id].officialName}）`).join("／")}`
@@ -230,13 +245,15 @@ export function programLead(input: ProgramLeadInput, receiptNo: string, todayYmd
     contact: input.name,
     email: input.email ?? undefined,
     phone: input.phone ?? undefined,
-    address: input.ad ? `${input.ad.pref} ${input.ad.city}` : input.answers ? labelOfOpt(CHECK_PREFS, input.answers.pref) : undefined,
+    address: input.ad ? `${input.ad.pref} ${input.ad.city}` : input.zeroemi ? `${input.zeroemi.answers.place === "tokyo" ? "東京都" : "東京都の外"} ${input.zeroemi.answers.city}`.trim() : input.answers ? labelOfOpt(CHECK_PREFS, input.answers.pref) : undefined,
     status: "未着手",
     wishSubsidy: wishOf(input.programId),
     proposalNo: receiptNo,
     sentDate: todayYmd,
     memo: [`【補助金サイトの相談（制度カード）】`, ...bodyLines(input, receiptNo, todayYmd)].join("\n"),
-    nextAction: input.consultation || input.ad ? `${input.ad?.test || input.context?.test ? "【営業対象外・テスト】" : ""}${input.consultation?.booking ? "Zoom予約済み。確認した日時で相談。" : "Zoom候補日時3つを確認し、日時と参加URLを折り返す（予約未確定）。"}法人規模・実機・省エネ量・助成対象を確認。${tag ? `（${tag}）` : ""}` : `${input.flags?.includes("urgent") ? "【急ぎ】" : ""}${input.flags?.includes("mailOnly") || !input.phone ? "メールで" : "電話で"}折り返し、写真（室外機の銘板・電気料金の明細）をお願いして概算。現地調査の日程を調整${tag ? `（${tag}）` : ""}`,
+    nextAction: input.zeroemi?.contact === "callback"
+      ? `${input.zeroemi.test || input.context?.test ? "【営業対象外・テスト】" : ""}【ゼロエミ専用ページ】${input.phone ? "電話で" : "メールで"}折り返し、Zoomか現地調査の日程を調整。法人規模・実機・省エネ量・助成対象を確認。${tag ? `（${tag}）` : ""}`
+      : input.consultation || input.ad ? `${input.zeroemi ? "【ゼロエミ専用ページ】" : ""}${input.ad?.test || input.zeroemi?.test || input.context?.test ? "【営業対象外・テスト】" : ""}${input.consultation?.booking ? "Zoom予約済み。確認した日時で相談。" : "Zoom候補日時3つを確認し、日時と参加URLを折り返す（予約未確定）。"}法人規模・実機・省エネ量・助成対象を確認。${tag ? `（${tag}）` : ""}` : `${input.flags?.includes("urgent") ? "【急ぎ】" : ""}${input.flags?.includes("mailOnly") || !input.phone ? "メールで" : "電話で"}折り返し、写真（室外機の銘板・電気料金の明細）をお願いして概算。現地調査の日程を調整${tag ? `（${tag}）` : ""}`,
   };
 }
 
@@ -252,7 +269,7 @@ export function programStaffMail(
   const urgent = input.flags?.includes("urgent");
   const mailOnly = input.flags?.includes("mailOnly");
   return {
-    subject: `${input.ad?.test || input.context?.test ? "【営業対象外・公開確認】" : ""}${input.ad || input.consultation ? "【Zoom候補日時】" : ""}${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : input.source === "dropin" ? "（ドロップイン）" : ""}${tag ? `［${tag}］` : ""}`,
+    subject: `${input.ad?.test || input.zeroemi?.test || input.context?.test ? "【営業対象外・公開確認】" : ""}${input.zeroemi ? `【ゼロエミ${input.zeroemi.kind === "reizo" ? "・冷凍冷蔵" : "・空調"}】${input.consultation?.booking ? "【Zoom予約済み】" : "【折り返し希望】"}` : input.ad || input.consultation ? "【Zoom候補日時】" : ""}${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : input.source === "dropin" ? "（ドロップイン）" : ""}${tag ? `［${tag}］` : ""}`,
     text: [
       "補助金サイト（ehcjpn.com）の制度カードから、相談がありました。",
       opts.notionSaved === false
@@ -273,6 +290,7 @@ export function programStaffMail(
       "",
       "■ 次にやること",
       ...(input.ad ? ["候補日時3件を確認し、Zoomの日時と参加URLを折り返す（予約未確定）。3問の回答だけで補助対象・金額を確定しない。"] : []),
+      ...(input.zeroemi ? [input.consultation?.booking ? "Zoomは予約済み（上の日時）。当日までに会社の区分・設備・電気料金の明細を確認しておく。簡易診断の答えだけで補助対象・金額を確定しない。" : "Zoom面談は希望なし。電話かメールで折り返し、現地調査かZoomの日程を決める。簡易診断の答えだけで補助対象・金額を確定しない。"] : []),
       `1. ${urgent ? "急ぎの印あり。できるだけ早く" : `${COMPANY.hours}に`}${mailOnly ? "メールで" : ""}折り返す（連絡の目安${COMPANY.replyDays}営業日以内）。写真（室外機の銘板・電気料金の明細）をお願いすると概算が早い。`,
       "2. 制度の締切と、交付決定の前に契約しないことを先に伝える。",
       "3. 申請書類の作成は行政書士の業務です（EHC では作らない）。業者は補助のルールに沿って施設が公平に決めます。",
