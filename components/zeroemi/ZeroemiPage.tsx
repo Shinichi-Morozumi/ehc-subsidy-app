@@ -46,11 +46,13 @@ const CFG = {
   kucho: {
     path: "/zeroemi" as const,
     source: "zeroemi" as const,
-    /* v4 2026-11-06：本人の指示「空調照明のメイン画像がしょぼすぎるから生成して」→ Figma「nene 制作」で生成（gpt-image-2.5-flare）。
-       夕方の都内オフィスで天井カセットエアコンを入れ替える作業員とLED照明。スマホでもエアコンと作業員が上の見える範囲に入る */
-    hero: "/zeroemi/kucho-hero-v2.webp",
-    heroAlt: "夕方のオフィスで、天井の業務用エアコンを入れ替える作業員とLED照明（イメージ）",
-    heroPos: "50% 12%",
+    /* v5 2026-11-06：本人の指示「人いらない／もっと空調っぽい感じがいい」→ Figma「nene 制作」で生成（gpt-image-2.5-flare）。
+       人なし。夕方の都内オフィスの天井に天井カセット形エアコンが奥へ並び、LEDのライン照明が走る。
+       PCは写真を右側に寄せて全体（並んだエアコン・照明・窓の夜景）を見せ、左は文字用の深緑にする（heroSplit） */
+    hero: "/zeroemi/kucho-hero-v3.webp",
+    heroAlt: "オフィスの天井に並ぶ業務用エアコン（天井カセット形）とLED照明（イメージ）",
+    heroPos: "50% 30%",
+    heroSplit: true,
     over: "空調・照明などを入れ替える、都内の事業所さまへ（業種は問いません）",
     titleA: "空調の入れ替え費用の",
     sub: "古い空調・照明などを省エネ型に入れ替える工事に使える、東京都の補助金「ゼロエミ」",
@@ -66,6 +68,7 @@ const CFG = {
     hero: "/zeroemi/reizo-hero.webp",
     heroAlt: "冷蔵ショーケースが並ぶお店の通路（イメージ）",
     heroPos: "50% 40%",
+    heroSplit: false,
     over: "冷凍冷蔵庫・ショーケースを入れ替える、お店・工場・倉庫の事業者さまへ",
     titleA: "冷凍冷蔵庫・ショーケースの入れ替え費用の",
     sub: "省エネ型や、フロンを使わない新しい機械への入れ替えに使える、東京都の2つの制度",
@@ -299,11 +302,18 @@ export function ZeroemiPage({ kind: initialKind, today }: { kind: ZeroemiKind; t
       </div>
     </nav>
 
-    <section className="relative h-[460px] overflow-hidden sm:h-[520px]" aria-label="ゼロエミのご案内">
-      <Image src={cfg.hero} alt={cfg.heroAlt} fill priority sizes="100vw" className="object-cover" style={{ objectPosition: cfg.heroPos }} />
+    <section className={`relative h-[460px] overflow-hidden sm:h-[520px] ${cfg.heroSplit ? "lg:bg-[#082C1E]" : ""}`} aria-label="ゼロエミのご案内">
+      {/* heroSplit：幅1024px以上では写真を右の58%に置き、ほぼ切らずに全体を見せる（左は文字用の深緑）。それより狭い幅は全面のまま */}
+      <div className={`absolute inset-0 ${cfg.heroSplit ? "lg:left-auto lg:w-[58%]" : ""}`}>
+        <Image src={cfg.hero} alt={cfg.heroAlt} fill priority sizes={cfg.heroSplit ? "(min-width: 1024px) 58vw, 100vw" : "100vw"} className="object-cover" style={{ objectPosition: cfg.heroPos }} />
+      </div>
       {/* スマホは下を暗く（文字が下に来る）。PCは文字のある左を暗くし、右側は写真をそのまま見せる */}
       <div className="absolute inset-0 sm:hidden" style={{ background: "linear-gradient(180deg, rgba(8,44,30,.30) 0%, rgba(8,44,30,0) 22%, rgba(8,44,30,.22) 40%, rgba(8,44,30,.95) 78%)" }} />
-      <div className="absolute inset-0 hidden sm:block" style={{ background: "linear-gradient(90deg, rgba(8,44,30,.94) 0%, rgba(8,44,30,.86) 45%, rgba(8,44,30,.35) 70%, rgba(8,44,30,0) 100%), linear-gradient(0deg, rgba(8,44,30,.55) 0%, rgba(8,44,30,0) 35%)" }} />
+      {cfg.heroSplit ? <>
+        {/* タブレット幅（640〜1023px）は文字が写真の明るい天井にかかるので、右端まで濃くする */}
+        <div className="absolute inset-0 hidden sm:block lg:hidden" style={{ background: "linear-gradient(90deg, rgba(8,44,30,.95) 0%, rgba(8,44,30,.90) 55%, rgba(8,44,30,.62) 80%, rgba(8,44,30,.30) 100%)" }} />
+        <div className="absolute inset-0 hidden lg:block" style={{ background: "linear-gradient(90deg, #082C1E 0%, #082C1E 44%, rgba(8,44,30,.80) 50%, rgba(8,44,30,.35) 58%, rgba(8,44,30,0) 66%), linear-gradient(0deg, rgba(8,44,30,.45) 0%, rgba(8,44,30,0) 30%)" }} />
+      </> : <div className="absolute inset-0 hidden sm:block" style={{ background: "linear-gradient(90deg, rgba(8,44,30,.94) 0%, rgba(8,44,30,.86) 45%, rgba(8,44,30,.35) 70%, rgba(8,44,30,0) 100%), linear-gradient(0deg, rgba(8,44,30,.55) 0%, rgba(8,44,30,0) 35%)" }} />}
       <div className="absolute inset-x-0 bottom-0 mx-auto max-w-6xl px-4 pb-6 text-white sm:px-5 sm:pb-7">
         {/* スマホは1行に収まるよう年を省く（年は下の締切の枠に出す） */}
         {target && <p className="inline-block rounded-md bg-amber-400 px-3 py-1 text-[14px] font-bold text-amber-950"><span className="sm:hidden">{kind === "reizo" ? "【1】" : ""}{target.short}の締切 {jaDate(target.end, false)} 17時</span><span className="hidden sm:inline">{sixth ? "今年度の最終回 ｜ " : ""}{kind === "reizo" ? "【1】" : ""}{target.short.replace("（最終回）", "")}の締切 {jaDate(target.end)} 17時</span></p>}
