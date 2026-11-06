@@ -1,9 +1,19 @@
 /* ───────────────────────────────────────────────────────────
-   v1 / 2026-11-06 / EHC-0150 ゼロエミ専用ページ（広告の遷移先・東京都内の事業者向け）の決め事
-   ・/zeroemi（空調）と /zeroemi/reizo（冷凍冷蔵庫・ショーケース）。本人の指示「空調と冷凍冷蔵ページは分ける」。
-   ・流れ：4問の簡易診断 → 結果と助成の目安 → そのまま問い合わせ。
+   v2 / 2026-11-06 / EHC-0150 ゼロエミ専用ページ（広告の遷移先・東京都内の事業者向け）の決め事
+   ・1ページ（/zeroemi）＋上の切り替え（空調・照明など／冷凍冷蔵庫・ショーケース）。/zeroemi/reizo は冷凍冷蔵側を選んだ状態で開く。
+     本人の指示「この二つのURL合算できない？」→「1ページ＋上で切り替え」。kind は「どちらの表示で送ったか」だけを表す。
+   ・流れ：5問の簡易診断 → 結果と助成の目安・併用の判定 → そのまま問い合わせ。
      Zoom面談を希望するなら空き枠から予約（Zoomで照合）、希望しないなら電話かメールで折り返し。
+   ・本人の指示「どちらか受けるとどちらかできないとかもしっかり判定したい」→ combos（併用の判定）。
+     決まりの出典（2026-11-06に一次資料で確認）:
+       ゼロエミ交付要綱（令和8年3月27日改正）第3条第1項第2号・第12条第3号：
+         助成対象設備の経費に、国その他の団体（区市町村を除く）の補助を重ねて受けられない。
+       ゼロエミ公式Q&A（令和5年10月12日版）A205（併用）・A207（同一事業所の申請は1回のみ）・A206（事業所ごとに申請）。
+         A207 は最新版で未確認のため「見込み」「事務局に確認」と書く。
+       ノンフロン（東京都環境公社・令和8年度）公式ページ「国等の補助がある場合は、その額を除きます」、交付要綱 別表第2 No.18、
+         Q&A Ver.1.0（A108 申請回数の制限なし・A111 事業所ごとに申請・A306 室内機と室外機はセット）。
    ・ここで出すのは「使える見込み」と「目安」。採択・金額・対象の確定はしない（景表法・要綱の確認が先）。
+     併用は「できない（×）」が要綱で確かなものと、「条件つき・要確認（△）」と、「機械を分ければ使える見込み（○）」だけ。
    ・数字の出典：クール・ネット東京（ゼロエミ・2026-11-06確認）／東京都環境公社（ノンフロン・2026-11-06確認）。
    ─────────────────────────────────────────────────────────── */
 
@@ -42,9 +52,22 @@ export const ZE_EQUIP = {
     { id: "unit", label: "プレハブ冷蔵庫・冷凍庫の冷凍機" },
     { id: "fridge", label: "業務用冷凍冷蔵庫・コールドテーブル" },
     { id: "chiller", label: "チリングユニット" },
-    { id: "unknown", label: "まだ分からない" },
+    { id: "unknown", label: "冷凍冷蔵の機械（機種はまだ分からない）" },
   ],
 } as const;
+/** 空調・照明などと冷凍冷蔵をまとめた一覧（1ページにまとめたので、どちらの表示からでも両方選べる） */
+export const ZE_EQUIP_ALL = [...ZE_EQUIP.kucho, ...ZE_EQUIP.reizo] as const;
+const KUCHO_IDS: readonly string[] = ZE_EQUIP.kucho.map((x) => x.id);
+const REIZO_IDS: readonly string[] = ZE_EQUIP.reizo.map((x) => x.id);
+
+/** ほかの補助金の予定（併用の判定に使う）。none は他と同時に選ばない */
+export const ZE_OTHERS = [
+  { id: "national", label: "国の補助金（省エネ補助金など）に申し込んだ・申し込む予定" },
+  { id: "city", label: "区市町村の補助金も使う予定" },
+  { id: "zeAlready", label: "今年度、この事業所でゼロエミにもう申し込んだ" },
+  { id: "none", label: "特にない・分からない" },
+] as const;
+export type ZeOther = (typeof ZE_OTHERS)[number]["id"];
 
 export const ZE_BUDGETS = [
   { id: "lt500", label: "500万円未満", min: 0, max: 500 },
@@ -62,18 +85,32 @@ export const NONFURON_URL = "https://www.tokyokankyo.jp/apply/nonfuron/nonfuron-
 export const ZEROEMI_REPORT_END = "2027-11-30";
 
 export interface ZeroemiAnswers {
+  /** どちらの表示（切り替え）で答えたか。判定には使わない */
   kind: ZeroemiKind;
   place: ZePlace;
   city: string;
   org: ZeOrg;
+  /** 空調・照明などと冷凍冷蔵の両方から選べる */
   equip: string[];
   budget: ZeBudget;
+  /** ほかの補助金の予定。古い画面から来た答えには無いので省略可 */
+  others?: ZeOther[];
 }
 
 export interface ZeroemiMark {
   name: string;
   mark: "○" | "△" | "×";
   note: string;
+}
+
+/** 併用の判定（どちらかを受けると、もう一方ができない、など） */
+export interface ZeroemiCombo {
+  /** ×＝できない（要綱で確か）／△＝条件つき・要確認／○＝機械を分ければ使える見込み */
+  mark: "○" | "△" | "×";
+  title: string;
+  note: string;
+  /** 根拠（画面と担当者メールに出す） */
+  src: string;
 }
 
 export interface ZeroemiJudge {
@@ -83,7 +120,14 @@ export interface ZeroemiJudge {
   marks: ZeroemiMark[];
   /** 助成の目安（万円）。予算が分からない・対象外なら null */
   estimate: { min: number; max: number | null; text: string; note: string } | null;
+  combos: ZeroemiCombo[];
+  /** ゼロエミとノンフロンのどちらも候補になる機械がある（比べる表を出す） */
+  compare: boolean;
 }
+
+const SRC_ZE_YOUKOU = "ゼロエミ交付要綱（令和8年度）第3条・第12条";
+const SRC_ZE_QA = "ゼロエミ公式Q&A（令和5年版）。今年度の扱いは事務局に確認します";
+const SRC_NF = "ノンフロン機器の助成（東京都環境公社・令和8年度）公式ページ・交付要綱";
 
 const labelOf = (list: readonly { readonly id: string; readonly label: string }[], id: string): string => list.find((x) => x.id === id)?.label ?? id;
 
@@ -97,80 +141,123 @@ function rangeText(min: number, max: number | null): string {
   return `${Math.round(min).toLocaleString("ja-JP")}万〜${man(max)}`;
 }
 
-/** 簡易診断の判定。使える見込みと目安だけを出す（確定はしない）。 */
+/** 機械ごとの見込み（EHC-0136 の早見表と同じ）。○＝対象 △＝機種しだい ×＝対象外 */
+const ZE_ITEM: Record<string, ZeroemiMark["mark"]> = { ac: "○", vent: "○", light: "○", water: "○", other: "○", sc_in: "○", sc_out: "○", unit: "○", fridge: "△", chiller: "△", unknown: "△" };
+const NF_ITEM: Record<string, ZeroemiMark["mark"]> = { sc_in: "○", sc_out: "○", unit: "○", fridge: "×", chiller: "○", unknown: "△" };
+const bestOf = (ids: string[], m: Record<string, ZeroemiMark["mark"]>): ZeroemiMark["mark"] => {
+  const marks = ids.map((e) => m[e] ?? "△");
+  return marks.includes("○") ? "○" : marks.includes("△") ? "△" : "×";
+};
+
+/** 簡易診断の判定。使える見込みと目安・併用の判定だけを出す（確定はしない）。 */
 export function judgeZeroemi(a: ZeroemiAnswers): ZeroemiJudge {
   const b = ZE_BUDGETS.find((x) => x.id === a.budget) ?? ZE_BUDGETS[4];
+  const others = a.others ?? [];
   if (a.place !== "tokyo") {
     return {
       level: "other",
       title: "東京都の外の工事は、ゼロエミの対象外です",
-      reason: "ゼロエミは都内の事業所が対象です。国の省エネ補助金（SII）など、工事場所で使える制度があるか一緒に確かめます。このままご相談ください。",
+      reason: "ゼロエミとノンフロン機器の助成は、都内の事業所が対象です。国の省エネ補助金（SII）など、工事場所で使える制度があるか一緒に確かめます。このままご相談ください。",
       marks: [{ name: "東京都のゼロエミ", mark: "×", note: "都内の事業所が対象" }],
       estimate: null,
+      combos: [],
+      compare: false,
     };
   }
-  if (a.kind === "kucho") {
-    if (a.org === "large") {
-      return {
-        level: "other",
-        title: "大企業は、ゼロエミの対象外です",
-        reason: "ゼロエミは中小企業・医療法人・社会福祉法人などが対象です。国の省エネ補助金（SII）など、ほかの制度を一緒に確かめます。",
-        marks: [{ name: "東京都のゼロエミ", mark: "×", note: "中小企業等が対象" }],
-        estimate: null,
-      };
-    }
-    const est = b.min === null ? null : {
-      min: Math.min(b.min * 2 / 3, 1000),
-      max: b.max === null ? 4500 : Math.min(b.max * 3 / 4, 4500),
-    };
-    return {
-      level: "likely",
-      title: "ゼロエミが使える見込みがあります",
-      reason: a.org === "unknown"
-        ? "会社の区分（中小企業等か）を確かめたうえで、CO2をどれだけ減らせるかで助成の割合（3/4か2/3）が決まります。現地で今の設備と電気の使い方を確かめます。"
-        : "CO2をどれだけ減らせるかで、助成の割合（3/4か2/3）と上限が決まります。現地で今の設備と電気の使い方を確かめ、どの区分になるかをお伝えします。",
-      marks: [{ name: "東京都のゼロエミ", mark: a.org === "unknown" ? "△" : "○", note: "空調・換気・照明・給湯などの入れ替え" }],
-      estimate: est ? {
-        ...est,
-        text: rangeText(est.min, est.max),
-        note: "補助の対象になる費用（税抜）がこの予算の場合の目安です。年28トン以上減らすなら3/4（上限4,500万円）、それ以外は2/3（上限2,500万円か1,000万円）。撤去・処分費と消費税は対象外です。",
-      } : null,
-    };
-  }
-  // 冷凍冷蔵：機械ごとに【1】ゼロエミ・【2】ノンフロンの見込みを出す（EHC-0136 の早見表と同じ）
-  const ze: Record<string, ZeroemiMark["mark"]> = { sc_in: "○", sc_out: "○", unit: "○", fridge: "△", chiller: "△", unknown: "△" };
-  const nf: Record<string, ZeroemiMark["mark"]> = { sc_in: "○", sc_out: "○", unit: "○", fridge: "×", chiller: "○", unknown: "△" };
-  const best = (m: Record<string, ZeroemiMark["mark"]>): ZeroemiMark["mark"] => {
-    const marks = (a.equip.length ? a.equip : ["unknown"]).map((e) => m[e] ?? "△");
-    return marks.includes("○") ? "○" : marks.includes("△") ? "△" : "×";
-  };
-  const zeMark: ZeroemiMark["mark"] = a.org === "large" ? "×" : a.org === "unknown" && best(ze) === "○" ? "△" : best(ze);
-  const nfMark = best(nf);
-  const marks: ZeroemiMark[] = [
-    { name: "【1】ゼロエミ（省エネの機械へ）", mark: zeMark, note: a.org === "large" ? "中小企業等が対象" : "インバータ圧縮機などの省エネ機種への入れ替え" },
-    { name: "【2】ノンフロン機器（フロンを使わない機械へ）", mark: nfMark, note: "自然冷媒の機種。業務用冷凍冷蔵庫・コールドテーブルは対象外" },
-  ];
-  const level: ZeroemiJudge["level"] = marks.some((m) => m.mark === "○") ? "likely" : marks.some((m) => m.mark === "△") ? "check" : "other";
+  const kuchoSel = a.equip.filter((e) => KUCHO_IDS.includes(e));
+  const reizoSel = a.equip.filter((e) => REIZO_IDS.includes(e));
   const large = a.org === "large";
-  const rateLow = large ? 1 / 2 : 2 / 3;
-  const rateHigh = large ? 1 / 2 : zeMark === "×" ? 2 / 3 : 3 / 4;
-  const est = b.min === null || level === "other" ? null : { min: b.min * rateLow, max: b.max === null ? null : b.max * rateHigh };
+  const already = others.includes("zeAlready");
+  let zeMark: ZeroemiMark["mark"] = large || already ? "×" : bestOf(a.equip.length ? a.equip : ["unknown"], ZE_ITEM);
+  if (zeMark === "○" && a.org === "unknown") zeMark = "△";
+  const nfMark: ZeroemiMark["mark"] | null = reizoSel.length ? bestOf(reizoSel, NF_ITEM) : null;
+  const zeOk = zeMark !== "×";
+  const nfOk = nfMark !== null && nfMark !== "×";
+  /* 両方の制度の候補になる機械（同じ機械にはどちらか一方） */
+  const both = reizoSel.filter((e) => ZE_ITEM[e] !== "×" && NF_ITEM[e] !== "×");
+
+  const marks: ZeroemiMark[] = [{
+    name: "東京都のゼロエミ（省エネの機械へ）",
+    mark: zeMark,
+    note: large ? "中小企業・医療法人・社会福祉法人などが対象（大企業は対象外）"
+      : already ? "同じ事業所の申請は1回のみ（公式Q&A）。今年度の扱いは事務局に確認します"
+      : kuchoSel.length && reizoSel.length ? "空調・照明などと冷凍冷蔵を、1つの申請にまとめて入れ替え"
+      : reizoSel.length ? "インバータ圧縮機などの省エネ機種への入れ替え" : "空調・換気・照明・給湯などの入れ替え",
+  }];
+  if (nfMark) marks.push({ name: "ノンフロン機器の助成（フロンを使わない冷凍冷蔵の機械へ）", mark: nfMark, note: `自然冷媒（CO2・プロパンなど）の機種。業務用冷凍冷蔵庫・コールドテーブルは対象外${large ? "。大企業は1/2" : ""}` });
+
+  const level: ZeroemiJudge["level"] = marks.some((m) => m.mark === "○") ? "likely" : marks.some((m) => m.mark === "△") ? "check" : "other";
+
+  /* ───── 併用の判定 ───── */
+  const combos: ZeroemiCombo[] = [];
+  if (both.length && zeOk) {
+    combos.push({ mark: "×", title: "同じ機械に、ゼロエミとノンフロンの両方は使えません", note: "ゼロエミは、国や都など（区市町村を除く）ほかの補助を同じ設備に重ねられません。冷凍冷蔵の機械は、1台ずつどちらか一方を選びます。", src: SRC_ZE_YOUKOU });
+    if (kuchoSel.length || reizoSel.length > 1) {
+      combos.push({ mark: "○", title: "機械を分ければ、両方の制度を使える見込みです", note: kuchoSel.length ? "例：空調・照明などはゼロエミ、ショーケース・冷凍機はノンフロン。1台に1つの制度なら、重ねたことになりません。" : "例：別置型ショーケースはノンフロン、ほかの機械はゼロエミ。1台に1つの制度なら、重ねたことになりません。", src: "両制度の要綱（重ねられないのは同じ設備・経費）。進める前に事務局に確認します" });
+    }
+  }
+  if (zeOk) {
+    combos.push({
+      mark: "△",
+      title: "ゼロエミの申請は、同じ事業所で1回です",
+      note: kuchoSel.length && reizoSel.length
+        ? "空調・照明などと冷凍冷蔵をゼロエミで入れ替えるなら、1つの申請にまとめます。回を分けると、あとの分は申し込めない見込みです。"
+        : "あとから別の設備を足して申し込めない見込みです。入れ替えたい設備は、最初の申請にまとめます。",
+      src: SRC_ZE_QA,
+    });
+    combos.push({ mark: "△", title: "区分（3/4か2/3）は、申し込んだあとに変えられません", note: "CO2をどれだけ減らせるかを先に計算し、区分を決めてから申し込みます。", src: "ゼロエミ公式ページ（クール・ネット東京）" });
+  }
+  if (others.includes("national")) {
+    if (zeOk) combos.push({ mark: "×", title: "国の補助（省エネ補助金など）とゼロエミは、同じ設備に重ねられません", note: "国の補助を受ける設備は、ゼロエミの対象になりません。設備ごとにどちらか一方を選びます。", src: `${SRC_ZE_YOUKOU}・公式Q&A A205` });
+    if (nfOk) combos.push({ mark: "△", title: "ノンフロンは国の補助と重ねられますが、国の補助の額を差し引きます", note: "ノンフロンの助成は、国などの補助がある場合その額を除いた額になります。国の制度の側が、ほかの補助との併用を認めているかも確かめます。", src: SRC_NF });
+  }
+  if (others.includes("city")) {
+    combos.push({ mark: "△", title: "区市町村の補助は、ゼロエミと重ねられる見込みです（区市町村の側の決まりを確認）", note: `ゼロエミは、重ねてはいけない補助から区市町村を除いています。区市町村の制度の側が、都の補助との併用を認めているかを確かめます。${nfOk ? "ノンフロンは、ほかの補助がある場合その額を差し引く扱いです。" : ""}`, src: `${SRC_ZE_YOUKOU}${nfOk ? `／${SRC_NF}` : ""}` });
+  }
+  if (already) {
+    combos.push({ mark: "×", title: "この事業所は、今年度のゼロエミに追加で申し込めない見込みです", note: `公式Q&Aでは、同じ事業所の申請は1回のみです。${nfOk ? "冷凍冷蔵の自然冷媒の機械なら、ノンフロン機器の助成（先着順・2027年3月31日まで）を考えます。" : "別の事業所（別の店舗など）なら申し込めます。"}`, src: SRC_ZE_QA });
+  }
+
+  const rateNf = large ? 1 / 2 : 2 / 3;
+  const est = b.min === null || (!zeOk && !nfOk) ? null
+    : zeOk && !nfOk ? { min: Math.min(b.min * 2 / 3, 1000), max: b.max === null ? 4500 : Math.min(b.max * 3 / 4, 4500) }
+    : !zeOk ? { min: b.min * rateNf, max: b.max === null ? null : b.max * rateNf }
+    : { min: b.min * 2 / 3, max: b.max === null ? null : b.max * 3 / 4 };
+  const estNote = zeOk && !nfOk
+    ? "補助の対象になる費用（税抜）がこの予算の場合の目安です。年28トン以上減らすなら3/4（上限4,500万円）、それ以外は2/3（上限2,500万円か1,000万円）。撤去・処分費と消費税は対象外です。"
+    : !zeOk ? `${large ? "大企業はノンフロン機器の助成（1/2）だけです。" : "ノンフロン機器の助成は2/3です。"}上限は機械1台ごとに決まっています。予算が補助の対象になる費用（税抜）の場合の目安です。`
+    : "ゼロエミは最大3/4（1つの申請で上限4,500万円）、ノンフロンは2/3（上限は機械1台ごと）。同じ機械には一方だけです。予算が補助の対象になる費用（税抜）の場合の目安です。";
+
+  const title = level === "other"
+    ? (already && !nfOk ? "この事業所は、今年度のゼロエミに追加で申し込めない見込みです"
+      : large && !reizoSel.length ? "大企業は、ゼロエミの対象外です"
+      : "選んだ機械は、2つの制度の対象外の見込みです")
+    : level === "check" ? "機種や会社の区分しだいで、使える見込みがあります"
+    : zeMark === "○" && nfMark === "○" ? "ゼロエミかノンフロンの助成が使える見込みがあります"
+    : zeMark === "○" ? "ゼロエミが使える見込みがあります"
+    : "ノンフロン機器の助成が使える見込みがあります";
+  const reason = level === "other"
+    ? (already ? "同じ事業所のゼロエミの申請は1回のみです。別の事業所や、ほかの制度を一緒に確かめます。"
+      : large && !reizoSel.length ? "ゼロエミは中小企業・医療法人・社会福祉法人などが対象です。国の省エネ補助金（SII）など、ほかの制度を一緒に確かめます。"
+      : "業務用冷凍冷蔵庫・コールドテーブルは、ノンフロンの対象外です。大企業はゼロエミの対象外です。ほかの方法も含めてご相談ください。")
+    : both.length && zeOk ? "同じ機械に2つの制度は使えません。今の機械・冷媒・電気の使い方を現地で見て、機械ごとにどちらが合うかと、助成の目安をお伝えします。"
+    : zeOk ? (a.org === "unknown"
+      ? "会社の区分（中小企業等か）を確かめたうえで、CO2をどれだけ減らせるかで助成の割合（3/4か2/3）が決まります。現地で今の設備と電気の使い方を確かめます。"
+      : "CO2をどれだけ減らせるかで、助成の割合（3/4か2/3）と上限が決まります。現地で今の設備と電気の使い方を確かめ、どの区分になるかをお伝えします。")
+    : "自然冷媒（CO2・プロパンなど）の機種への入れ替えが対象です。機械1台ごとの上限があります。現地で今の機械と冷媒を確かめます。";
+
   return {
-    level,
-    title: level === "likely" ? (large ? "ノンフロン機器の助成が使える見込みがあります" : "ゼロエミかノンフロンの助成が使える見込みがあります")
-      : level === "check" ? "機種しだいで、使える見込みがあります" : "選んだ機械は、2つの制度の対象外の見込みです",
-    reason: level === "other"
-      ? "業務用冷凍冷蔵庫・コールドテーブルは、ノンフロンの対象外です。大企業はゼロエミの対象外です。ほかの方法も含めてご相談ください。"
-      : "同じ機械に2つの制度は使えません。今の機械・冷媒・電気の使い方を現地で見て、どちらが合うかと、助成の目安をお伝えします。",
-    marks,
-    estimate: est ? {
-      ...est,
-      text: rangeText(est.min, est.max),
-      note: large
-        ? "大企業はノンフロン機器の助成（1/2）だけです。上限は機械1台ごとに決まっています。"
-        : "ゼロエミは最大3/4（上限4,500万円）、ノンフロンは2/3（上限は機械1台ごと）。予算が補助の対象になる費用（税抜）の場合の目安です。",
-    } : null,
+    level, title, reason, marks,
+    estimate: est ? { ...est, text: rangeText(est.min, est.max), note: estNote } : null,
+    combos,
+    compare: both.length > 0 && zeOk,
   };
+}
+
+/** 担当者メールの件名に入れる「何を入れ替えたいか」 */
+export function zeroemiSubjectTag(a: ZeroemiAnswers): string {
+  const k = a.equip.some((e) => KUCHO_IDS.includes(e)), r = a.equip.some((e) => REIZO_IDS.includes(e));
+  return k && r ? "空調＋冷凍冷蔵" : r ? "冷凍冷蔵" : "空調";
 }
 
 /** これから準備するならどの回か（締切まで準備の日数がある最初の回）。無ければ最後の回。 */
@@ -204,10 +291,14 @@ export function readZeroemiAnswers(raw: unknown): ZeroemiAnswers | null {
   const city = typeof r.city === "string" ? r.city.trim() : "";
   if (city.length > 60 || CITY_BAD.test(city)) return null;
   if (r.place === "tokyo" && !city) return null;
-  const allowed = ZE_EQUIP[kind].map((x) => x.id as string);
-  const equip = Array.isArray(r.equip) ? Array.from(new Set(r.equip.filter((e): e is string => typeof e === "string" && allowed.includes(e)))).slice(0, 6) : [];
+  /* 1ページにまとめたので、どちらの表示からでも空調・照明などと冷凍冷蔵の両方を受ける */
+  const allowed = ZE_EQUIP_ALL.map((x) => x.id as string);
+  const equip = Array.isArray(r.equip) ? Array.from(new Set(r.equip.filter((e): e is string => typeof e === "string" && allowed.includes(e)))).slice(0, ZE_EQUIP_ALL.length) : [];
   if (!equip.length) return null;
-  return { kind, place: r.place as ZePlace, city, org: r.org as ZeOrg, equip, budget: r.budget as ZeBudget };
+  const okOthers = ZE_OTHERS.map((x) => x.id as string);
+  let others = Array.isArray(r.others) ? Array.from(new Set(r.others.filter((e): e is ZeOther => typeof e === "string" && okOthers.includes(e)))) : [];
+  if (others.length > 1) others = others.filter((o) => o !== "none");
+  return { kind, place: r.place as ZePlace, city, org: r.org as ZeOrg, equip, budget: r.budget as ZeBudget, others };
 }
 
 export function readZeroemiLead(raw: unknown): { value: ZeroemiLead | null; error: string | null } {
@@ -227,17 +318,19 @@ export function zeroemiLines(z: ZeroemiLead): string[] {
   const j = judgeZeroemi(a);
   return [
     ...(z.test ? ["【営業対象外・公開確認テスト／月次集計から除外】"] : []),
-    `入口: ゼロエミ専用ページ（${z.kind === "kucho" ? "空調 /zeroemi" : "冷凍冷蔵 /zeroemi/reizo"}）`,
+    `入口: ゼロエミ専用ページ /zeroemi（${z.kind === "kucho" ? "空調・照明など" : "冷凍冷蔵庫・ショーケース"}の表示で送信）`,
     `キャンペーン: ${z.campaign ?? "広告以外／未確認"}`,
     `連絡の方法: ${z.contact === "zoom" ? "Zoomで面談（空き枠から予約）" : "電話かメールで折り返し"}`,
     "簡易診断の答え:",
     `・工事場所: ${labelOf(ZE_PLACES, a.place)}${a.city ? ` ${a.city}` : ""}`,
     `・会社の区分: ${labelOf(ZE_ORGS, a.org)}`,
-    `・入れ替える設備: ${a.equip.map((e) => labelOf(ZE_EQUIP[a.kind], e)).join("・")}`,
+    `・入れ替える設備: ${a.equip.map((e) => labelOf(ZE_EQUIP_ALL, e)).join("・")}`,
     `・予算の目安（税抜）: ${labelOf(ZE_BUDGETS, a.budget)}`,
+    `・ほかの補助金の予定: ${(a.others ?? []).length ? (a.others ?? []).map((o) => labelOf(ZE_OTHERS, o)).join("・") : "（未回答）"}`,
     `画面に出した結果（確定ではない）: ${j.title}`,
     ...j.marks.map((m) => `・${m.mark} ${m.name}（${m.note}）`),
     ...(j.estimate ? [`・助成の目安: ${j.estimate.text}`] : []),
+    ...(j.combos.length ? ["併用の判定（画面に出したもの）:", ...j.combos.map((c) => `・${c.mark} ${c.title}（根拠: ${c.src}）`)] : []),
     "補助対象・補助額: 未確定。法人規模・所有関係・実機・CO2削減量の確認が必要。",
   ];
 }

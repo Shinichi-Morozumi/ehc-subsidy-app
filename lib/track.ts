@@ -34,6 +34,7 @@ export type TrackEvent =
   | "ze_result" // 結果を出した（kind, level）
   | "ze_form" // 問い合わせの欄を出した（kind, contact）
   | "ze_submit" // 送った（kind, ok）
+  | "ze_tab" // 空調・照明など／冷凍冷蔵の切り替え（kind）
   | "diagnosis_open" // 7問のダイアログを開いた
   | "diagnosis_answered" // 7問を最後まで答えた（候補を見る）
   | "stage_view" // 5段のどれかを開いた（stage）

@@ -1,4 +1,4 @@
-// v1 / 2026-11-06 / EHC-0150 ゼロエミ専用ページ（/zeroemi・/zeroemi/reizo）の簡易診断・相談の受け口・Zoom予約の照合の検査。
+// v2 / 2026-11-06 / EHC-0150 ゼロエミ専用ページ（1ページ＋切り替え）の簡易診断・併用の判定・相談の受け口・Zoom予約の照合の検査。
 // SMTP・Notion・Zoom はすべて差し替え。外部への送信なし。
 const test = require("node:test"), assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), vm = require("node:vm"), ts = require("typescript");
 const { createRequire } = require("node:module");
@@ -23,7 +23,7 @@ function harness() {
   return { load };
 }
 const RID = "a1b2c3d4-1234-4567-8901-123456789abc";
-const kuchoAnswers = { kind: "kucho", place: "tokyo", city: "中野区", org: "sme", equip: ["ac", "light"], budget: "1000" };
+const kuchoAnswers = { kind: "kucho", place: "tokyo", city: "中野区", org: "sme", equip: ["ac", "light"], budget: "1000", others: ["none"] };
 
 test("簡易診断（空調）：都内の中小企業は見込みあり・目安は2/3〜3/4。都外と大企業は対象外", () => {
   const Z = harness().load("lib/zeroemiFlow.ts");
@@ -41,7 +41,7 @@ test("簡易診断（空調）：都内の中小企業は見込みあり・目�
 
 test("簡易診断（冷凍冷蔵）：機械ごとに【1】【2】の見込みを出す。大企業はノンフロンだけ・1/2", () => {
   const Z = harness().load("lib/zeroemiFlow.ts");
-  const base = { kind: "reizo", place: "tokyo", city: "江東区", org: "sme", equip: ["sc_out"], budget: "500" };
+  const base = { kind: "reizo", place: "tokyo", city: "江東区", org: "sme", equip: ["sc_out"], budget: "500", others: ["none"] };
   const j = Z.judgeZeroemi(base);
   assert.equal(j.level, "likely"); assert.deepEqual(j.marks.map((m) => m.mark), ["○", "○"]);
   assert.equal(j.estimate.text, "333万〜750万円");
@@ -64,8 +64,13 @@ test("これから準備する回：11/6なら第5回は準備が足りず、第
 test("答えの確かめ：都内なら区市町村が必須。知らない設備は落とす。連絡の方法は2つだけ", () => {
   const Z = harness().load("lib/zeroemiFlow.ts");
   assert.equal(Z.readZeroemiAnswers({ ...kuchoAnswers, city: "" }), null);
-  assert.equal(Z.readZeroemiAnswers({ ...kuchoAnswers, equip: ["sc_in"] }), null);
+  // 1ページにまとめたので、空調の表示からでも冷凍冷蔵の機械を選べる。知らないものは落とす
+  assert.deepEqual(Z.readZeroemiAnswers({ ...kuchoAnswers, equip: ["sc_in"] }).equip, ["sc_in"]);
+  assert.equal(Z.readZeroemiAnswers({ ...kuchoAnswers, equip: ["x"] }), null);
   assert.deepEqual(Z.readZeroemiAnswers({ ...kuchoAnswers, equip: ["ac", "ac", "x", "vent"] }).equip, ["ac", "vent"]);
+  // ほかの補助金の予定：知らない値は落とす。「特にない」は他と一緒なら外す。古い画面（others なし）も受ける
+  assert.deepEqual(Z.readZeroemiAnswers({ ...kuchoAnswers, others: ["national", "none", "bad"] }).others, ["national"]);
+  assert.deepEqual(Z.readZeroemiAnswers({ ...kuchoAnswers, others: undefined }).others, []);
   assert.equal(Z.readZeroemiAnswers({ ...kuchoAnswers, city: "<script>" }), null);
   assert.ok(Z.readZeroemiLead({ answers: kuchoAnswers, contact: "fax" }).error);
   assert.equal(Z.readZeroemiLead({ answers: kuchoAnswers, contact: "callback", campaign: "Bad Value!" }).value.campaign, null);
@@ -77,7 +82,7 @@ test("相談の受け口：折り返しなら日程なしで受ける。Zoomな�
   const r = P.readProgramSubmit(body);
   assert.equal(r.ok, true, r.error);
   const lead = P.programLead(r.input, `EHC-${RID}`, "2026-11-06"), mail = P.programStaffMail(r.input, `EHC-${RID}`, "2026-11-06");
-  assert.match(lead.memo, /ゼロエミ専用ページ（空調 \/zeroemi）/); assert.match(lead.memo, /工事場所: 東京都内 中野区/); assert.match(lead.memo, /空調（業務用エアコン）・LED照明/);
+  assert.match(lead.memo, /ゼロエミ専用ページ \/zeroemi（空調・照明などの表示で送信）/); assert.match(lead.memo, /工事場所: 東京都内 中野区/); assert.match(lead.memo, /空調（業務用エアコン）・LED照明/);
   assert.match(lead.memo, /電話かメールで折り返し/); assert.match(lead.nextAction, /電話で折り返し/); assert.match(lead.nextAction, /営業対象外/);
   assert.equal(lead.address, "東京都 中野区");
   assert.match(mail.subject, /【ゼロエミ・空調】【折り返し希望】/); assert.match(mail.subject, /営業対象外/);
@@ -119,4 +124,55 @@ test("Zoom予約をメールアドレスで探す：1件だけなら結び付け
     await assert.rejects(() => Zs.findZoomBookingByEmail("taro@example.com"), /2件以上/);
     await assert.rejects(() => Zs.findZoomBookingByEmail("not-mail"), /メールアドレス/);
   } finally { global.fetch = oldFetch; process.env = oldEnv; }
+});
+
+test("併用の判定：同じ機械に2制度は×、機械を分ければ○、同じ事業所は1回、国の補助とゼロエミは×、ノンフロンは国の額を差し引き", () => {
+  const Z = harness().load("lib/zeroemiFlow.ts");
+  const titles = (j) => j.combos.map((c) => `${c.mark}${c.title}`);
+  // 空調だけ：ゼロエミの決まり（同じ事業所1回・区分は変えられない）だけ。2制度の話は出さない
+  const k = Z.judgeZeroemi(kuchoAnswers);
+  assert.equal(k.compare, false);
+  assert.ok(titles(k).some((t) => t.startsWith("△ゼロエミの申請は、同じ事業所で1回")));
+  assert.ok(!titles(k).some((t) => t.includes("ノンフロン")));
+  // 空調＋別置型ショーケース：同じ機械に両方は×、機械を分ければ○、まとめて1申請の注意、比べる表
+  const mix = Z.judgeZeroemi({ ...kuchoAnswers, equip: ["ac", "sc_out"] });
+  assert.equal(mix.compare, true);
+  assert.ok(titles(mix).includes("×同じ機械に、ゼロエミとノンフロンの両方は使えません"));
+  assert.ok(titles(mix).includes("○機械を分ければ、両方の制度を使える見込みです"));
+  assert.match(mix.combos.find((c) => c.title.startsWith("ゼロエミの申請は")).note, /1つの申請にまとめます/);
+  assert.equal(mix.marks.length, 2);
+  // 国の補助を予定：ゼロエミとは×、ノンフロンは差し引き（△）
+  const nat = Z.judgeZeroemi({ ...kuchoAnswers, equip: ["ac", "sc_out"], others: ["national"] });
+  assert.ok(titles(nat).includes("×国の補助（省エネ補助金など）とゼロエミは、同じ設備に重ねられません"));
+  assert.ok(titles(nat).some((t) => t.startsWith("△ノンフロンは国の補助と重ねられますが")));
+  // 区市町村：ゼロエミ側は除外されている（△・区市町村側を確認）
+  assert.ok(titles(Z.judgeZeroemi({ ...kuchoAnswers, others: ["city"] })).some((t) => t.startsWith("△区市町村の補助は")));
+  // 今年度もうゼロエミに申し込んだ：空調だけなら対象外、ショーケースならノンフロンの道
+  const done = Z.judgeZeroemi({ ...kuchoAnswers, others: ["zeAlready"] });
+  assert.equal(done.level, "other"); assert.equal(done.marks[0].mark, "×");
+  assert.ok(titles(done).some((t) => t.startsWith("×この事業所は、今年度のゼロエミに追加で申し込めない見込み")));
+  const doneSc = Z.judgeZeroemi({ ...kuchoAnswers, equip: ["sc_out"], others: ["zeAlready"] });
+  assert.equal(doneSc.level, "likely"); assert.equal(doneSc.compare, false);
+  assert.match(doneSc.title, /ノンフロン/);
+  assert.match(doneSc.combos.find((c) => c.mark === "×").note, /ノンフロン機器の助成（先着順/);
+  // 大企業：ゼロエミ×なので「同じ機械に両方」は出さない（そもそもノンフロンだけ）
+  const large = Z.judgeZeroemi({ ...kuchoAnswers, org: "large", equip: ["sc_out"] });
+  assert.equal(large.compare, false); assert.equal(large.combos.length, 0);
+  // 業務用冷凍冷蔵庫だけ：ノンフロン対象外なので2制度の話は出さない
+  assert.equal(Z.judgeZeroemi({ ...kuchoAnswers, equip: ["fridge"] }).compare, false);
+});
+
+test("担当者メールとNotion：ほかの補助金の予定と併用の判定を載せる。件名は選んだ設備で決める", () => {
+  const P = harness().load("lib/programLead.ts");
+  const answers = { ...kuchoAnswers, equip: ["ac", "sc_out"], others: ["national"] };
+  const body = { company: "営業対象外", name: "試験", reach: "03-1234-5678", consent: true, source: "zeroemi", requestId: RID, programIds: ["tokyoZeroemi"], zeroemi: { kind: "kucho", answers, contact: "callback", campaign: null, test: true } };
+  const r = P.readProgramSubmit(body);
+  assert.equal(r.ok, true, r.error);
+  const mail = P.programStaffMail(r.input, `EHC-${RID}`, "2026-11-06");
+  assert.match(mail.subject, /【ゼロエミ・空調＋冷凍冷蔵】【折り返し希望】/);
+  assert.match(mail.text, /ほかの補助金の予定: 国の補助金/);
+  assert.match(mail.text, /併用の判定（画面に出したもの）/);
+  assert.match(mail.text, /× 同じ機械に、ゼロエミとノンフロンの両方は使えません（根拠: ゼロエミ交付要綱/);
+  // 冷凍冷蔵の表示から送ったら入口は zeroemiReizo
+  assert.equal(P.readProgramSubmit({ ...body, source: "zeroemiReizo", zeroemi: { ...body.zeroemi, kind: "reizo", answers: { ...answers, kind: "reizo" } } }).ok, true);
 });

@@ -1,10 +1,12 @@
 "use client";
 /* ───────────────────────────────────────────────────────────
-   v2 / 2026-11-06 / EHC-0150 ゼロエミ専用ページ（広告の遷移先・東京都内の事業者向け）
+   v3 / 2026-11-06 / EHC-0150 ゼロエミ専用ページ（広告の遷移先・東京都内の事業者向け）
+   ・v3：1ページ＋上の切り替え（空調・照明など／冷凍冷蔵庫・ショーケース）にまとめた。/zeroemi/reizo は冷凍冷蔵側で開く。
+     簡易診断は5問（ほかの補助金の予定を追加）。結果に「併用の判定」（同じ機械に2制度は不可・国の補助とは不可・同じ事業所は1回 など）。
    ・v2：スマホで見やすく（助成の3枚・工事の種類・7段を縦の短い並びに、冷凍冷蔵の表を機械ごとのカードに、
      小さい文字を13px以上に、診断の「次へ」を画面下に固定、下の貼り付けボタンは同じボタンが見えている間は出さない）
    ・kind="kucho"（/zeroemi・空調）と kind="reizo"（/zeroemi/reizo・冷凍冷蔵庫・ショーケース）。
-   ・流れ：4問の簡易診断 → 結果と助成の目安 → そのまま問い合わせ。
+   ・流れ：5問の簡易診断 → 結果と助成の目安・併用の判定 → そのまま問い合わせ。
      Zoom面談を希望するなら空き枠から予約（サーバでZoomと照合してから送信）、希望しないなら電話かメールで折り返し。
    ・見た目は手渡し用チラシ（EHC-0145 v3・EHC-0146 v3）と同じ：写真・最大3/4・赤い締切・日付入りの7段。
    ・決め事は lib/zeroemiFlow.ts。送信は既存の /api/program-lead（Notion・担当者メール・受付番号は今までと同じ）。
@@ -27,8 +29,8 @@ import { track } from "@/lib/track";
 import { captureLeadContext, currentLeadContext } from "@/lib/leadContextClient";
 import { bookingDate, type ZoomBooking } from "@/lib/zoomBooking";
 import {
-  NONFURON_END, NONFURON_URL, ZEROEMI_REPORT_END, ZE_BUDGETS, ZE_EQUIP, ZE_ORGS, ZE_PLACES,
-  judgeZeroemi, zeroemiTargetWindow, type ZeBudget, type ZeOrg, type ZePlace, type ZeroemiAnswers, type ZeroemiContact, type ZeroemiKind,
+  NONFURON_END, NONFURON_URL, ZEROEMI_REPORT_END, ZE_BUDGETS, ZE_EQUIP, ZE_ORGS, ZE_OTHERS, ZE_PLACES,
+  judgeZeroemi, zeroemiTargetWindow, type ZeBudget, type ZeOrg, type ZeOther, type ZePlace, type ZeroemiAnswers, type ZeroemiContact, type ZeroemiKind,
 } from "@/lib/zeroemiFlow";
 
 const P = PROGRAMS.tokyoZeroemi;
@@ -55,7 +57,6 @@ const CFG = {
       { k: "東京都の省エネ診断か、自分の計画で年3トン以上か30%以上 減らす", n: "2/3", c: "上限2,500万円（診断）／1,000万円（自分の計画）", col: "#2563A8" },
       { k: "例：補助の対象になる費用が1,000万円", n: "助成 750万円", c: "28トン以上の場合（2/3の区分なら667万円）", col: "#B45309" },
     ],
-    q2: "入れ替えたい設備は？（いくつでも）",
   },
   reizo: {
     path: "/zeroemi/reizo" as const,
@@ -71,7 +72,6 @@ const CFG = {
       { k: "【2】ノンフロン機器（フロンを使わない機械へ）", n: "最大 6,700万円", c: "1台あたりの上限（中小企業など・助成率2/3）", col: "#0E7490" },
       { k: "例：別置型ショーケース一式 900万円", n: "助成 600万円", c: "【2】・中小企業の場合の目安（仮の金額）", col: "#B45309" },
     ],
-    q2: "入れ替えたい機械は？（いくつでも）",
   },
 } as const;
 
@@ -90,11 +90,20 @@ const REIZO_MATRIX = [
   { name: "業務用冷凍冷蔵庫・コールドテーブル", ze: ["△", "インバータ圧縮機の機種なら対象になりうる（機種ごとに確認）"], nf: ["×", "対象外"] },
   { name: "チリングユニット", ze: ["△", "機種ごとに確認"], nf: ["○", "自然冷媒。上限6,700万円/台（中小）"] },
 ] as const;
+/* ゼロエミとノンフロンのちがい（どちらも候補になる冷凍冷蔵の機械があるときに結果に出す）。出典は zeroemiFlow.ts の冒頭 */
+const COMPARE_ROWS: { k: string; ze: string; nf: string; zeLarge?: string; nfLarge?: string }[] = [
+  { k: "助成の割合", ze: "最大3/4（CO2を年28トン以上減らす場合）、ほかは2/3", nf: "2/3", zeLarge: "大企業は対象外", nfLarge: "1/2（大企業）" },
+  { k: "上限", ze: "1つの申請で4,500万円（空調などと合わせて）", nf: "機械1台ごと（例：別置型ショーケース2,200万円）", nfLarge: "機械1台ごと（例：別置型ショーケース1,600万円）" },
+  { k: "受付", ze: "年6回。各回の締切・予算を超えたら抽選", nf: "先着順。2027年3月31日まで（予算に達したら終了）" },
+  { k: "対象の機種", ze: "インバータ圧縮機などの省エネ機種", nf: "自然冷媒（CO2・プロパンなど）の機種だけ" },
+];
 const markColor = (m: string) => (m === "○" ? "#1E8E5A" : m === "△" ? "#B45309" : "#B91C1C");
 
 type Phase = "intro" | "check" | "result" | "form";
 
-export function ZeroemiPage({ kind, today }: { kind: ZeroemiKind; today: string }) {
+export function ZeroemiPage({ kind: initialKind, today }: { kind: ZeroemiKind; today: string }) {
+  /* 1ページ＋切り替え。kind は「いま表示している方」。開いたURLで初期値が決まる */
+  const [kind, setKind] = useState<ZeroemiKind>(initialKind);
   const cfg = CFG[kind];
   const [phase, setPhase] = useState<Phase>("intro");
   const [step, setStep] = useState(0);
@@ -103,6 +112,7 @@ export function ZeroemiPage({ kind, today }: { kind: ZeroemiKind; today: string 
   const [org, setOrg] = useState<ZeOrg | "">("");
   const [equip, setEquip] = useState<string[]>([]);
   const [budget, setBudget] = useState<ZeBudget | "">("");
+  const [others, setOthers] = useState<ZeOther[]>([]);
   const [contact, setContact] = useState<ZeroemiContact | "">("");
   const [company, setCompany] = useState("");
   const [name, setName] = useState("");
@@ -131,11 +141,11 @@ export function ZeroemiPage({ kind, today }: { kind: ZeroemiKind; today: string 
   const endCta = useRef<HTMLButtonElement>(null);
   const [ctaInView, setCtaInView] = useState(true);
 
-  const answers: ZeroemiAnswers | null = place && org && budget && equip.length ? { kind, place, city: city.trim(), org, equip, budget } : null;
+  const answers: ZeroemiAnswers | null = place && org && budget && equip.length && others.length ? { kind, place, city: city.trim(), org, equip, budget, others } : null;
   const judge = answers ? judgeZeroemi(answers) : null;
   const { target, tooSoon } = zeroemiTargetWindow(today);
   const sixth = target?.end === SIXTH_END;
-  const receiptKey = `ehc_ze_receipt:${kind}`;
+  const receiptKey = "ehc_ze_receipt";
 
   useEffect(() => {
     openedAt.current = Date.now();
@@ -157,7 +167,9 @@ export function ZeroemiPage({ kind, today }: { kind: ZeroemiKind; today: string 
         if (sessionStorage.getItem(`ehc_ze_eligible:${last}`) === "1") recordAdConversion(last);
       }
     } catch { /* 保存できなくても入力・送信はできる */ }
-  }, [kind, receiptKey]);
+    // 開いたときの表示だけ記録する（切り替えでは数え直さない）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [receiptKey]);
 
   /* スマホの貼り付けボタンは、ページ内の同じボタン（写真の上・診断の枠・ページ末尾）が見えていない時だけ出す */
   useEffect(() => {
@@ -180,6 +192,15 @@ export function ZeroemiPage({ kind, today }: { kind: ZeroemiKind; today: string 
   const start = () => { if (phase === "intro") { setStep(0); move("check"); } else scrollToEntry(); };
   const choose = (v: "granted" | "denied") => { chooseAdMeasurement(v); setChoice(v); setShowChoice(false); };
   const toggleEquip = (id: string) => setEquip((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  /* 「特にない・分からない」は他と同時に選ばない */
+  const toggleOther = (id: ZeOther) => setOthers((cur) => id === "none" ? (cur.includes("none") ? [] : ["none"]) : (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur.filter((x) => x !== "none"), id]));
+  /* 切り替え：表示とURLだけ変える（答えはそのまま。どちらの表示からでも両方の設備を選べる） */
+  const switchKind = (k: ZeroemiKind) => {
+    if (k === kind) return;
+    setKind(k);
+    try { window.history.replaceState(window.history.state, "", `${CFG[k].path}${window.location.search}`); } catch { /* URLが変えられなくても表示は切り替わる */ }
+    if (!isTest) track("ze_tab", { kind: k });
+  };
 
   const next = () => {
     if (step === 0 && !place) { setError("工事をする場所をお選びください。"); return; }
@@ -187,8 +208,9 @@ export function ZeroemiPage({ kind, today }: { kind: ZeroemiKind; today: string 
     if (step === 1 && !org) { setError("会社の区分をお選びください。分からなくても進めます。"); return; }
     if (step === 2 && !equip.length) { setError("入れ替えたいものを1つ以上お選びください。"); return; }
     if (step === 3 && !budget) { setError("予算の目安をお選びください。分からなくても進めます。"); return; }
+    if (step === 4 && !others.length) { setError("ほかの補助金の予定をお選びください。なければ「特にない・分からない」を。"); return; }
     setError(null);
-    if (step === 3) { if (!isTest) track("ze_result", { kind, level: judgeZeroemi({ kind, place: place as ZePlace, city, org: org as ZeOrg, equip, budget: budget as ZeBudget }).level }); move("result"); }
+    if (step === 4) { if (!isTest) track("ze_result", { kind, level: judgeZeroemi({ kind, place: place as ZePlace, city, org: org as ZeOrg, equip, budget: budget as ZeBudget, others }).level }); move("result"); }
     else { setStep(step + 1); if (!isTest) track("ze_step", { kind, step: step + 2 }); }
   };
 
@@ -260,13 +282,20 @@ export function ZeroemiPage({ kind, today }: { kind: ZeroemiKind; today: string 
   ];
 
   return <div className="min-h-screen bg-paper text-ink">
-    <ReferralCapture pathname={cfg.path} />
+    <ReferralCapture pathname={CFG[initialKind].path} />
     <header className="border-b border-ink-line bg-paper">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-5 sm:py-3">
         <Link href="/" className="flex min-h-[44px] items-center gap-2.5"><Image src="/icon-192.png" width={36} height={36} alt="" /><span className="text-[13px] font-bold leading-snug sm:text-[16px]">EHCソリューションズ<span className="hidden text-[11px] font-normal text-ink-soft sm:block">空調・設備の改修と補助金のご相談</span></span></Link>
         <a href={COMPANY.telHref} className="inline-flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-ink-line px-3 text-[13px] font-bold"><Phone className="h-4 w-4" aria-hidden /><span className="hidden sm:inline">{COMPANY.tel}</span><span className="sm:hidden">電話で相談</span></a>
       </div>
     </header>
+
+    {/* 切り替え：空調・照明など／冷凍冷蔵庫・ショーケース（同じページの中で表示が変わる） */}
+    <nav aria-label="入れ替えるものの切り替え" className="border-b border-ink-line bg-white">
+      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-2 px-4 py-2 sm:flex sm:px-5">
+        {(["kucho", "reizo"] as const).map((k) => <button key={k} type="button" aria-pressed={kind === k} onClick={() => switchKind(k)} className={`min-h-[48px] rounded-full px-4 text-[15px] font-bold leading-tight sm:px-6 ${kind === k ? "bg-brand-deep text-white" : "border border-ink-line bg-white text-ink hover:bg-paper-sub"}`}>{k === "kucho" ? <>空調・照明など</> : <>冷凍冷蔵庫<span className="hidden min-[400px]:inline">・</span><br className="min-[400px]:hidden" />ショーケース</>}</button>)}
+      </div>
+    </nav>
 
     <section className="relative h-[460px] overflow-hidden sm:h-[520px]" aria-label="ゼロエミのご案内">
       <Image src={cfg.hero} alt={cfg.heroAlt} fill priority sizes="100vw" className="object-cover" style={{ objectPosition: cfg.heroPos }} />
@@ -277,7 +306,7 @@ export function ZeroemiPage({ kind, today }: { kind: ZeroemiKind; today: string 
         <p className="mt-3 text-[14px] font-bold leading-snug opacity-95 sm:text-[15px]">{cfg.over}</p>
         <h1 className="mt-1.5 text-[28px] font-bold leading-[1.32] sm:text-[44px]">{cfg.titleA}<span className="text-[#86EFAC]">最大3/4</span>を<br className="hidden sm:block" />東京都が助成します</h1>
         <p className="mt-2 text-[15px] font-bold leading-relaxed opacity-95 sm:text-[16px]">{cfg.sub}</p>
-        <button ref={heroCta} type="button" onClick={start} className="mt-5 inline-flex min-h-[54px] w-full items-center justify-center gap-3 rounded-full bg-brand-lime px-6 py-3 text-[16px] font-bold text-ink hover:brightness-95 sm:w-auto">使えるか1分で確かめる（4問）<ArrowRight className="h-5 w-5" aria-hidden /></button>
+        <button ref={heroCta} type="button" onClick={start} className="mt-5 inline-flex min-h-[54px] w-full items-center justify-center gap-3 rounded-full bg-brand-lime px-6 py-3 text-[16px] font-bold text-ink hover:brightness-95 sm:w-auto">使えるか1分で確かめる（5問）<ArrowRight className="h-5 w-5" aria-hidden /></button>
       </div>
     </section>
 
@@ -316,28 +345,40 @@ export function ZeroemiPage({ kind, today }: { kind: ZeroemiKind; today: string 
             <p className="mt-3 text-[13px] text-ink-soft">相談内容の自動返信はありません。受付番号を控えておいてください。お急ぎの場合はお電話（{COMPANY.tel}・{COMPANY.hours}）でどうぞ。</p>
             <Link href="/team" className="mt-6 inline-flex min-h-[44px] items-center gap-2 font-bold text-brand underline">施工体制と実績を見る<ArrowRight className="h-4 w-4" aria-hidden /></Link>
           </div> : phase === "intro" ? <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-[13px] font-bold text-brand">簡易診断（4問・約1分）</p><h2 className="mt-1 text-[20px] font-bold leading-snug sm:text-[22px]">4つの質問に答えると、使える見込みと助成の目安が出ます</h2><p className="mt-2 text-[14px] leading-relaxed text-ink-soft sm:text-[13px]">質問：工事場所・会社の区分・{kind === "kucho" ? "設備" : "機械"}・予算の目安。連絡先は結果を見たあとで、そのまま相談やZoom面談の予約ができます。</p></div>
+            <div><p className="text-[13px] font-bold text-brand">簡易診断（5問・約1分）</p><h2 className="mt-1 text-[20px] font-bold leading-snug sm:text-[22px]">5つの質問に答えると、使える見込みと助成の目安、併用できるかが出ます</h2><p className="mt-2 text-[14px] leading-relaxed text-ink-soft sm:text-[13px]">質問：工事場所・会社の区分・入れ替えたいもの（空調・照明も冷凍冷蔵も選べます）・予算の目安・ほかの補助金の予定。連絡先は結果を見たあとで、そのまま相談やZoom面談の予約ができます。</p></div>
             <button ref={panelCta} type="button" onClick={start} className={`${PRIMARY} w-full shrink-0 sm:w-auto`}>診断をはじめる<ArrowRight className="h-5 w-5" aria-hidden /></button>
           </div> : phase === "check" ? <div className="mx-auto max-w-2xl">
-            <div className="flex items-center justify-between"><p className="text-[13px] font-bold text-brand">簡易診断</p><p className="text-[13px] text-ink-soft">{step + 1} / 4</p></div>
-            <div className="mt-3 flex gap-2" aria-hidden>{[0, 1, 2, 3].map((i) => <span key={i} className={`h-1 flex-1 rounded ${i <= step ? "bg-brand" : "bg-paper-tint"}`} />)}</div>
-            <h2 className="mt-5 text-[21px] font-bold leading-snug sm:mt-6 sm:text-[23px]">{["工事をする場所は？", "申し込む会社は？", cfg.q2, "予算の目安は？（税抜）"][step]}</h2>
-            <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">{["会社の本店ではなく、設備を入れ替える事業所の場所です。", "ゼロエミは中小企業・医療法人・社会福祉法人などが対象です。", "今ある設備を、同じ能力でより省エネの機種に入れ替える工事が対象です。", "補助の対象になる費用（機器・工事・設計）の目安です。分からなくても進めます。"][step]}</p>
+            <div className="flex items-center justify-between"><p className="text-[13px] font-bold text-brand">簡易診断</p><p className="text-[13px] text-ink-soft">{step + 1} / 5</p></div>
+            <div className="mt-3 flex gap-2" aria-hidden>{[0, 1, 2, 3, 4].map((i) => <span key={i} className={`h-1 flex-1 rounded ${i <= step ? "bg-brand" : "bg-paper-tint"}`} />)}</div>
+            <h2 className="mt-5 text-[21px] font-bold leading-snug sm:mt-6 sm:text-[23px]">{["工事をする場所は？", "申し込む会社は？", "入れ替えたいものは？（いくつでも）", "予算の目安は？（税抜）", "ほかの補助金の予定は？（いくつでも）"][step]}</h2>
+            <p className="mt-2 text-[14px] leading-relaxed text-ink-soft">{["会社の本店ではなく、設備を入れ替える事業所の場所です。", "ゼロエミは中小企業・医療法人・社会福祉法人などが対象です。", "空調・照明なども、冷凍冷蔵の機械も、まとめて選べます。今ある設備を、より省エネの機種に入れ替える工事が対象です。", "補助の対象になる費用（機器・工事・設計）の目安です。分からなくても進めます。", "同じ設備に重ねて使えない補助があります。併用できるかの判定に使います。"][step]}</p>
             {step === 0 ? <div className="mt-5 space-y-3">
               <fieldset className="grid gap-2 sm:grid-cols-2"><legend className="sr-only">工事をする場所</legend>{ZE_PLACES.map((x) => <label key={x.id} className={`flex min-h-[54px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-[15px] font-bold ${place === x.id ? "border-brand bg-paper-tint" : "border-ink-line bg-white hover:bg-paper-sub"}`}><input type="radio" name="ze-place" checked={place === x.id} onChange={() => setPlace(x.id)} className="h-4 w-4 accent-brand" />{x.label}</label>)}</fieldset>
               {place === "tokyo" && <label className="block text-[14px] font-bold">区市町村<input value={city} onChange={(e) => setCity(e.target.value)} maxLength={60} placeholder="例：中野区" autoComplete="address-level2" className={INPUT} /></label>}
             </div> : step === 1 ? <fieldset className="mt-5 grid gap-2"><legend className="sr-only">会社の区分</legend>{ZE_ORGS.map((x) => <label key={x.id} className={`flex min-h-[54px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-[15px] font-bold ${org === x.id ? "border-brand bg-paper-tint" : "border-ink-line bg-white hover:bg-paper-sub"}`}><input type="radio" name="ze-org" checked={org === x.id} onChange={() => setOrg(x.id)} className="h-4 w-4 accent-brand" />{x.label}</label>)}</fieldset>
-            : step === 2 ? <fieldset className="mt-5 grid gap-2 sm:grid-cols-2"><legend className="sr-only">{cfg.q2}</legend>{ZE_EQUIP[kind].map((x) => <label key={x.id} className={`flex min-h-[54px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-[15px] font-bold ${equip.includes(x.id) ? "border-brand bg-paper-tint" : "border-ink-line bg-white hover:bg-paper-sub"}`}><input type="checkbox" checked={equip.includes(x.id)} onChange={() => toggleEquip(x.id)} className="h-4 w-4 accent-brand" />{x.label}</label>)}</fieldset>
-            : <fieldset className="mt-5 grid gap-2 sm:grid-cols-2"><legend className="sr-only">予算の目安</legend>{ZE_BUDGETS.map((x) => <label key={x.id} className={`flex min-h-[54px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-[15px] font-bold ${budget === x.id ? "border-brand bg-paper-tint" : "border-ink-line bg-white hover:bg-paper-sub"}`}><input type="radio" name="ze-budget" checked={budget === x.id} onChange={() => setBudget(x.id)} className="h-4 w-4 accent-brand" />{x.label}</label>)}</fieldset>}
+            : step === 2 ? <div className="mt-5 space-y-5">{(kind === "kucho" ? (["kucho", "reizo"] as const) : (["reizo", "kucho"] as const)).map((g) => <fieldset key={g}><legend className="mb-2 text-[15px] font-bold text-brand-deep">{g === "kucho" ? "空調・照明など" : "冷凍冷蔵庫・ショーケース"}</legend><div className="grid gap-2 sm:grid-cols-2">{ZE_EQUIP[g].map((x) => <label key={x.id} className={`flex min-h-[54px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-[15px] font-bold ${equip.includes(x.id) ? "border-brand bg-paper-tint" : "border-ink-line bg-white hover:bg-paper-sub"}`}><input type="checkbox" checked={equip.includes(x.id)} onChange={() => toggleEquip(x.id)} className="h-4 w-4 shrink-0 accent-brand" />{x.label}</label>)}</div></fieldset>)}</div>
+            : step === 3 ? <fieldset className="mt-5 grid gap-2 sm:grid-cols-2"><legend className="sr-only">予算の目安</legend>{ZE_BUDGETS.map((x) => <label key={x.id} className={`flex min-h-[54px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-[15px] font-bold ${budget === x.id ? "border-brand bg-paper-tint" : "border-ink-line bg-white hover:bg-paper-sub"}`}><input type="radio" name="ze-budget" checked={budget === x.id} onChange={() => setBudget(x.id)} className="h-4 w-4 accent-brand" />{x.label}</label>)}</fieldset>
+            : <fieldset className="mt-5 grid gap-2"><legend className="sr-only">ほかの補助金の予定</legend>{ZE_OTHERS.map((x) => <label key={x.id} className={`flex min-h-[54px] cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-[15px] font-bold leading-snug ${others.includes(x.id) ? "border-brand bg-paper-tint" : "border-ink-line bg-white hover:bg-paper-sub"}`}><input type="checkbox" checked={others.includes(x.id)} onChange={() => toggleOther(x.id)} className="h-4 w-4 shrink-0 accent-brand" />{x.label}</label>)}</fieldset>}
             {error && <p role="alert" className="mt-4 text-[14px] font-bold text-red-800">{error}</p>}
             {/* スマホは「戻る／次へ」を画面の下に貼り付け、選択肢が長くても押しやすくする */}
-            <div className="sticky bottom-0 z-10 -mx-4 mt-5 flex items-center justify-between gap-3 border-t border-ink-line bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:mt-6 sm:border-0 sm:bg-transparent sm:p-0"><button type="button" onClick={() => { setError(null); if (step) setStep(step - 1); else move("intro"); }} className="min-h-[48px] px-3 text-[15px] font-bold text-ink-soft">戻る</button><button type="button" onClick={next} className={`${PRIMARY} flex-1 sm:flex-none`}>{step === 3 ? "結果を見る" : "次へ"}<ArrowRight className="h-4 w-4" aria-hidden /></button></div>
+            <div className="sticky bottom-0 z-10 -mx-4 mt-5 flex items-center justify-between gap-3 border-t border-ink-line bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:mt-6 sm:border-0 sm:bg-transparent sm:p-0"><button type="button" onClick={() => { setError(null); if (step) setStep(step - 1); else move("intro"); }} className="min-h-[48px] px-3 text-[15px] font-bold text-ink-soft">戻る</button><button type="button" onClick={next} className={`${PRIMARY} flex-1 sm:flex-none`}>{step === 4 ? "結果を見る" : "次へ"}<ArrowRight className="h-4 w-4" aria-hidden /></button></div>
           </div> : phase === "result" && judge ? <div className="mx-auto max-w-2xl">
             <p className="text-[13px] font-bold text-brand">簡易診断の結果（確定ではありません）</p>
             <h2 className="mt-2 text-[22px] font-bold leading-[1.45] sm:text-[24px]">{judge.title}</h2>
             <p className="mt-3 text-[15px] leading-[1.9]">{judge.reason}</p>
             <ul className="mt-4 space-y-2">{judge.marks.map((m) => <li key={m.name} className="flex items-start gap-3 rounded-xl bg-paper-sub px-4 py-3"><span className="text-[22px] font-bold leading-none" style={{ color: markColor(m.mark) }}>{m.mark}</span><span className="text-[14px] leading-relaxed"><b>{m.name}</b><br /><span className="text-ink-soft">{m.note}</span></span></li>)}</ul>
             {judge.estimate && <div className="mt-4 rounded-2xl bg-brand-deep p-5 text-white"><p className="text-[13px] font-bold text-brand-lime">助成の目安（予算が「{ZE_BUDGETS.find((x) => x.id === budget)?.label}」の場合）</p><p className="mt-1 text-[32px] font-bold leading-tight">{judge.estimate.text}</p><p className="mt-2 text-[13px] leading-[1.75] text-white/85 sm:text-[12px] sm:leading-[1.8]">{judge.estimate.note} 採択と金額は審査で決まります。</p></div>}
+            {judge.combos.length > 0 && <div className="mt-5 rounded-2xl border border-ink-line p-4">
+              <p className="text-[15px] font-bold">併用の判定（どちらかを使うと、もう一方が使えない など）</p>
+              <ul className="mt-2 divide-y divide-ink-line">{judge.combos.map((c) => <li key={c.title} className="flex items-start gap-3 py-3"><span aria-hidden className="w-6 shrink-0 text-center text-[20px] font-bold leading-none" style={{ color: markColor(c.mark) }}>{c.mark}</span><div className="min-w-0"><p className="text-[15px] font-bold leading-snug"><span className="sr-only">{c.mark === "×" ? "できない：" : c.mark === "△" ? "条件つき・要確認：" : "できる見込み："}</span>{c.title}</p><p className="mt-1 text-[14px] leading-relaxed text-ink-soft">{c.note}</p><p className="mt-1 text-[12px] text-ink-soft">根拠：{c.src}</p></div></li>)}</ul>
+              <p className="mt-1 text-[12px] leading-relaxed text-ink-soft">×＝できない　△＝条件つき・確認が必要　○＝機械を分ければ使える見込み。最終的な可否は、それぞれの事務局の確認で決まります。</p>
+            </div>}
+            {judge.compare && <div className="mt-4 overflow-hidden rounded-2xl border border-ink-line">
+              <p className="bg-paper-sub px-4 py-2 text-[14px] font-bold">冷凍冷蔵の機械は、どちらか一方。ちがいの目安</p>
+              {/* スマホは「項目名」の下に2列、PCは「項目名｜ゼロエミ｜ノンフロン」の3列 */}
+              <div className="hidden grid-cols-[110px_1fr_1fr] gap-3 border-b border-ink-line px-4 py-2 text-[13px] font-bold sm:grid"><span /><span style={{ color: "#1E8E5A" }}>ゼロエミ</span><span style={{ color: "#0E7490" }}>ノンフロン</span></div>
+              <div className="divide-y divide-ink-line text-[14px] leading-snug">{COMPARE_ROWS.map((r) => <div key={r.k} className="px-4 py-2.5 sm:grid sm:grid-cols-[110px_1fr_1fr] sm:gap-3"><p className="text-[13px] font-bold text-ink-soft">{r.k}</p><div className="mt-1 grid grid-cols-2 gap-3 sm:contents"><p><span className="block text-[12px] font-bold sm:hidden" style={{ color: "#1E8E5A" }}>ゼロエミ</span>{org === "large" ? r.zeLarge ?? r.ze : r.ze}</p><p><span className="block text-[12px] font-bold sm:hidden" style={{ color: "#0E7490" }}>ノンフロン</span>{org === "large" ? r.nfLarge ?? r.nf : r.nf}</p></div></div>)}</div>
+            </div>}
             {target && judge.level !== "other" && <p className="mt-4 rounded-xl border-2 p-3 text-[14px] font-bold leading-relaxed" style={{ borderColor: RED, color: RED }}>これから準備するなら{target.short.replace("（最終回）", "")}：締切 {jaDate(target.end)} 17時。準備（現地調査・見積・書類）に1か月ほどかかります。</p>}
             <button ref={panelCta} type="button" onClick={() => move("form")} className={`${PRIMARY} mt-6 w-full sm:w-auto`}>このまま相談する<ArrowRight className="h-4 w-4" aria-hidden /></button>
             <button type="button" onClick={() => { setStep(0); move("check"); }} className="mt-3 block min-h-[44px] text-[14px] font-bold text-ink-soft underline">答えを見直す</button>
@@ -368,12 +409,12 @@ export function ZeroemiPage({ kind, today }: { kind: ZeroemiKind; today: string 
         </div>
       </section>
 
-      {kind === "kucho" ? <section className="mt-10 sm:mt-12"><h2 className={H2}>こんな入れ替え工事に使えます</h2><div className="mt-4 grid gap-2 sm:grid-cols-5 sm:gap-3">{KUCHO_WORKS.map((w) => <div key={w.t} className="flex items-center gap-3 rounded-2xl border border-ink-line bg-white px-4 py-3 sm:block sm:p-4 sm:text-center"><w.icon className="h-7 w-7 shrink-0 text-brand sm:mx-auto sm:h-8 sm:w-8" aria-hidden /><div><p className="text-[16px] font-bold sm:mt-2 sm:text-[15px]">{w.t}</p><p className="mt-0.5 text-[14px] leading-snug text-ink-soft sm:mt-1 sm:text-[12px]">{w.d}</p></div></div>)}</div><p className="mt-2 text-[13px] leading-relaxed text-ink-soft sm:text-[12px]">冷凍冷蔵設備も対象です（<Link href="/zeroemi/reizo" className="font-bold text-brand underline">冷凍冷蔵庫・ショーケースのページ</Link>）。対象外：撤去・処分費、中古品、新しく足すだけの設備。</p></section>
+      {kind === "kucho" ? <section className="mt-10 sm:mt-12"><h2 className={H2}>こんな入れ替え工事に使えます</h2><div className="mt-4 grid gap-2 sm:grid-cols-5 sm:gap-3">{KUCHO_WORKS.map((w) => <div key={w.t} className="flex items-center gap-3 rounded-2xl border border-ink-line bg-white px-4 py-3 sm:block sm:p-4 sm:text-center"><w.icon className="h-7 w-7 shrink-0 text-brand sm:mx-auto sm:h-8 sm:w-8" aria-hidden /><div><p className="text-[16px] font-bold sm:mt-2 sm:text-[15px]">{w.t}</p><p className="mt-0.5 text-[14px] leading-snug text-ink-soft sm:mt-1 sm:text-[12px]">{w.d}</p></div></div>)}</div><p className="mt-2 text-[13px] leading-relaxed text-ink-soft sm:text-[12px]">冷凍冷蔵設備も対象です（<button type="button" onClick={() => { switchKind("reizo"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="font-bold text-brand underline">冷凍冷蔵庫・ショーケースの表示に切り替える</button>）。対象外：撤去・処分費、中古品、新しく足すだけの設備。</p></section>
       : <section className="mt-10 sm:mt-12"><h2 className={H2}>どっちを使う？<br className="sm:hidden" />入れ替える機械で決まります</h2>
         {/* スマホは横スクロールの表をやめ、機械ごとのカードにする */}
         <p className="mt-2 text-[14px] leading-relaxed text-ink-soft sm:hidden"><span className="block"><b style={{ color: "#1E8E5A" }}>【1】ゼロエミ</b>＝省エネの機械へ</span><span className="block"><b style={{ color: "#0E7490" }}>【2】ノンフロン</b>＝フロンを使わない機械へ</span></p>
         <ul className="mt-3 space-y-2 sm:hidden">{REIZO_MATRIX.map((r) => <li key={r.name} className="rounded-2xl border border-ink-line bg-white px-4 py-3"><p className="text-[16px] font-bold leading-snug">{r.name}</p><div className="mt-1 divide-y divide-ink-line text-[14px] leading-snug">{([["【1】", "#1E8E5A", r.ze], ["【2】", "#0E7490", r.nf]] as const).map(([label, col, v]) => <div key={label} className="flex items-start gap-2 py-2"><b aria-hidden className="w-5 shrink-0 text-center text-[18px] leading-[1.1]" style={{ color: markColor(v[0]) }}>{v[0]}</b><p><b style={{ color: col }}>{label}<span className="sr-only">{label === "【1】" ? "ゼロエミ" : "ノンフロン"}：{v[0] === "○" ? "対象" : v[0] === "△" ? "条件しだい" : "対象外"}　</span></b>{v[1]}</p></div>)}</div></li>)}</ul>
-        <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-ink-line bg-white sm:block"><table className="w-full min-w-[640px] text-left text-[14px]"><thead><tr className="border-b border-ink-line text-[13px] text-ink-soft"><th className="px-4 py-3">入れ替える機械</th><th className="px-4 py-3" style={{ color: "#1E8E5A" }}>【1】ゼロエミ（省エネの機械へ）</th><th className="px-4 py-3" style={{ color: "#0E7490" }}>【2】ノンフロン機器（フロンを使わない機械へ）</th></tr></thead><tbody>{REIZO_MATRIX.map((r) => <tr key={r.name} className="border-b border-ink-line last:border-0"><td className="px-4 py-3 font-bold">{r.name}</td><td className="px-4 py-3"><b className="mr-2 text-[18px]" style={{ color: markColor(r.ze[0]) }}>{r.ze[0]}</b>{r.ze[1]}</td><td className="px-4 py-3"><b className="mr-2 text-[18px]" style={{ color: markColor(r.nf[0]) }}>{r.nf[0]}</b>{r.nf[1]}</td></tr>)}</tbody></table></div><p className="mt-2 text-[13px] leading-relaxed text-ink-soft sm:text-[12px]">○＝対象 △＝条件しだい（機種ごとに窓口へ確認）×＝対象外。同じ機械に【1】【2】の両方は使えません。冷媒だけの入れ替え（ドロップイン）はどちらも対象外です。空調は<Link href="/zeroemi" className="font-bold text-brand underline">空調のページ</Link>へ。</p></section>}
+        <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-ink-line bg-white sm:block"><table className="w-full min-w-[640px] text-left text-[14px]"><thead><tr className="border-b border-ink-line text-[13px] text-ink-soft"><th className="px-4 py-3">入れ替える機械</th><th className="px-4 py-3" style={{ color: "#1E8E5A" }}>【1】ゼロエミ（省エネの機械へ）</th><th className="px-4 py-3" style={{ color: "#0E7490" }}>【2】ノンフロン機器（フロンを使わない機械へ）</th></tr></thead><tbody>{REIZO_MATRIX.map((r) => <tr key={r.name} className="border-b border-ink-line last:border-0"><td className="px-4 py-3 font-bold">{r.name}</td><td className="px-4 py-3"><b className="mr-2 text-[18px]" style={{ color: markColor(r.ze[0]) }}>{r.ze[0]}</b>{r.ze[1]}</td><td className="px-4 py-3"><b className="mr-2 text-[18px]" style={{ color: markColor(r.nf[0]) }}>{r.nf[0]}</b>{r.nf[1]}</td></tr>)}</tbody></table></div><p className="mt-2 text-[13px] leading-relaxed text-ink-soft sm:text-[12px]">○＝対象 △＝条件しだい（機種ごとに窓口へ確認）×＝対象外。同じ機械に【1】【2】の両方は使えません。冷媒だけの入れ替え（ドロップイン）はどちらも対象外です。空調は<button type="button" onClick={() => { switchKind("kucho"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="font-bold text-brand underline">空調・照明などの表示</button>へ。</p></section>}
 
       <section className="mt-10 sm:mt-12"><h2 className={H2}>{sixth ? <>第6回（今年度の最終回）の<br className="sm:hidden" />スケジュール<span className="hidden sm:inline">　</span></> : "申し込みから入金まで"}{sixth && <span className="mt-1 block text-[18px] sm:mt-0 sm:inline sm:text-[24px]" style={{ color: RED }}>締切 {jaDate(SIXTH_END)} 17時</span>}</h2><p className="mt-1 text-[14px] leading-relaxed text-ink-soft sm:text-[13px]">工事代金はいったんお立て替え（後払い）。公社＝東京都環境公社。</p>
         {/* スマホは縦の時系列（番号・やること・時期が1行）。PCは従来の7列 */}
@@ -405,18 +446,20 @@ export function ZeroemiPage({ kind, today }: { kind: ZeroemiKind; today: string 
       <section className="mt-10 grid gap-3 sm:mt-12 md:grid-cols-[0.6fr_1fr] md:gap-5"><div className="flex items-center gap-2 md:block"><ShieldCheck className="h-6 w-6 text-brand" aria-hidden /><h2 className={`${H2} md:mt-3`}>よくあるご質問</h2></div><div className="divide-y divide-ink-line border-y border-ink-line">{[
         { q: "どの会社・施設が対象ですか？", a: "都内の中小規模事業所を所有・使用する中小企業、医療法人・社会福祉法人・学校法人などです。大企業と、大企業が株式の半分以上を持つ会社などは対象外です。業種だけでは決まりません。" },
         { q: "最大3/4・4,500万円は、誰でも使えますか？", a: "いいえ。CO2を年28トン以上減らす区分の上限です。ほかに2/3・上限2,500万円（東京都の省エネ診断を受ける）と、2/3・上限1,000万円（自分で計画を作る）の区分があります。区分は申し込んだあとに変えられません。" },
+        { q: "空調と冷凍冷蔵の両方を入れ替えたい。補助は重ねられますか？", a: "同じ機械に2つの制度は使えません。ゼロエミは、国や都など（区市町村を除く）ほかの補助を同じ設備に重ねられないためです。空調・照明などはゼロエミ、自然冷媒のショーケース・冷凍機はノンフロン機器の助成のように、機械を分ければ両方を使える見込みです。ゼロエミは同じ事業所で申請1回のため、ゼロエミで入れ替える設備は1つの申請にまとめます。簡易診断の結果に「併用の判定」を出します。" },
+        { q: "店舗・事業所が複数あります。", a: "どちらの制度も、事業所（設置場所）ごとに申請します。ゼロエミは1回の受付で申し込める事業所の数に決まりがあるため、回を分けることがあります（事務局に確認します）。ノンフロン機器の助成は、申請の回数に制限がありません。" },
         { q: "Zoomで面談しないと相談できませんか？", a: `いいえ。「電話かメールで連絡がほしい」を選べば、担当から${COMPANY.replyDays}営業日以内にご連絡します。Zoomを選んだ場合は、空き枠から30分を予約できます。` },
         { q: "申請や工事は、誰が進めますか？", a: "EHCのチームが現地調査・機器選定・見積り・図面や省エネの計算などの準備を進めます。申請者はお客様です。申請書類の作成は行政書士の業務のため、EHCでは作りません。" },
       ].map((x) => <details key={x.q} className="group py-1"><summary className="flex min-h-[60px] cursor-pointer list-none items-center justify-between gap-4 text-[16px] font-bold leading-snug sm:text-[15px]">{x.q}<ChevronDown className="h-5 w-5 shrink-0 transition group-open:rotate-180 sm:h-4 sm:w-4" aria-hidden /></summary><p className="pb-4 text-[15px] leading-[1.85] text-ink-soft sm:text-[14px] sm:leading-[1.95]">{x.a}</p></details>)}</div></section>
 
-      {!receipt && <section className="mt-10 rounded-[24px] bg-paper-tint px-4 py-7 text-center sm:px-5"><CalendarDays className="mx-auto h-7 w-7 text-brand" aria-hidden /><h2 className="mt-2 text-[21px] font-bold">使えるかどうか、まず1分で。</h2><button ref={endCta} type="button" onClick={start} className={`${PRIMARY} mt-5 w-full sm:w-auto`}>使えるか1分で確かめる（4問）<ArrowRight className="h-4 w-4" aria-hidden /></button><p className="mt-3 text-[13px] text-ink-soft sm:text-[12px]">そのまま相談でき、ご希望ならZoom面談も予約できます。</p></section>}
+      {!receipt && <section className="mt-10 rounded-[24px] bg-paper-tint px-4 py-7 text-center sm:px-5"><CalendarDays className="mx-auto h-7 w-7 text-brand" aria-hidden /><h2 className="mt-2 text-[21px] font-bold">使えるかどうか、まず1分で。</h2><button ref={endCta} type="button" onClick={start} className={`${PRIMARY} mt-5 w-full sm:w-auto`}>使えるか1分で確かめる（5問）<ArrowRight className="h-4 w-4" aria-hidden /></button><p className="mt-3 text-[13px] text-ink-soft sm:text-[12px]">そのまま相談でき、ご希望ならZoom面談も予約できます。</p></section>}
       <p className="mt-6 text-[12px] leading-[1.8] text-ink-soft sm:text-[11px]">写真はイメージです。制度：{P.officialName}{kind === "reizo" ? "、省エネ型ノンフロン機器普及促進事業" : ""}。受付期間・締切・最終期限は2026年11月6日に公式の情報で確認しました。募集・要件は変わることがあります。<a href={P.official[0].url} target="_blank" rel="noopener noreferrer" className="underline">クール・ネット東京の公式情報</a>{kind === "reizo" ? <>・<a href={NONFURON_URL} target="_blank" rel="noopener noreferrer" className="underline">東京都環境公社の公式情報</a></> : null}をご確認ください。採択と金額は審査と要綱で決まり、お約束するものではありません。</p>
       <button type="button" onClick={() => setShowChoice(true)} className="mt-3 min-h-[44px] text-[12px] text-ink-soft underline">広告計測の設定{choice ? `（${choice === "granted" ? "許可" : "許可しない"}）` : ""}</button>
     </main>
     <SiteFooterSimple />
     {/* スマホの下に貼り付くボタン：同じ役目のボタンが画面に見えている間は出さない（二重に並ばないように） */}
     {!receipt && !ctaInView && (phase === "intro" || (phase === "result" && judge)) && <div className="fixed inset-x-3 bottom-3 z-30 sm:hidden">{phase === "intro"
-      ? <button type="button" onClick={start} className={`${PRIMARY} w-full`}>使えるか1分で確かめる（4問）<ArrowRight className="h-4 w-4" aria-hidden /></button>
+      ? <button type="button" onClick={start} className={`${PRIMARY} w-full`}>使えるか1分で確かめる（5問）<ArrowRight className="h-4 w-4" aria-hidden /></button>
       : <button type="button" onClick={() => move("form")} className={`${PRIMARY} w-full`}>このまま相談する<ArrowRight className="h-4 w-4" aria-hidden /></button>}</div>}
     {showChoice && <aside aria-label="広告計測の確認" className="fixed inset-x-2 bottom-2 z-40 mx-auto max-w-3xl rounded-2xl border border-ink-line bg-white p-3 shadow-lift sm:inset-x-3 sm:bottom-3 sm:p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3"><p className="flex-1 text-[12px] leading-[1.7] sm:leading-[1.8]">広告の効果を確認するため、許可された場合にCookieを使い、広告のクリック情報と受付番号をGoogleに送ります。お名前・連絡先・ご相談の内容は計測に送りません。許可しなくても相談できます。<Link href="/privacy" target="_blank" className="ml-1 underline">詳細</Link></p><div className="flex shrink-0 gap-2"><button type="button" onClick={() => choose("denied")} className="min-h-[44px] flex-1 rounded-xl border border-ink-line px-4 text-[12px] font-bold">許可しない</button><button type="button" onClick={() => choose("granted")} className="min-h-[44px] flex-1 rounded-xl bg-brand-deep px-4 text-[12px] font-bold text-white">計測を許可</button></div></div></aside>}
   </div>;

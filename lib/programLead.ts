@@ -22,7 +22,7 @@ import { CONSULT_NOTE_MAX, CONSULT_SITES_MAX, consultFlagLabels, readConsultFlag
 import { readAdConsultation, adConsultationLines, type AdConsultation } from "./adConsultation";
 import { readConsultation, consultationLines, type ConsultationRequest } from "./consultation";
 import { readLeadContext, readRequestId, leadContextLines, type LeadContext } from "./leadContext";
-import { readZeroemiLead, zeroemiLines, type ZeroemiLead } from "./zeroemiFlow";
+import { readZeroemiLead, zeroemiLines, zeroemiSubjectTag, type ZeroemiLead } from "./zeroemiFlow";
 
 export const PROGRAM_LEAD_SOURCES = ["top", "shindan", "tokyo", "kaigo", "team", "dropin", "zeroemi", "zeroemiReizo"] as const;
 export type ProgramLeadSource = (typeof PROGRAM_LEAD_SOURCES)[number];
@@ -34,9 +34,9 @@ const SOURCE_JA: Record<ProgramLeadSource, string> = {
   kaigo: "介護施設の制度（/kaigo）",
   team: "メンバーと実績（/team）",
   dropin: "ドロップイン（/dropin）",
-  /* 2026-11-06 EHC-0150: ゼロエミ専用ページ（広告の遷移先） */
-  zeroemi: "ゼロエミ専用ページ・空調（/zeroemi）",
-  zeroemiReizo: "ゼロエミ専用ページ・冷凍冷蔵（/zeroemi/reizo）",
+  /* 2026-11-06 EHC-0150: ゼロエミ専用ページ（広告の遷移先）。1ページ＋切り替え。どちらの表示で送ったかで分ける */
+  zeroemi: "ゼロエミ専用ページ（/zeroemi・空調・照明などの表示）",
+  zeroemiReizo: "ゼロエミ専用ページ（/zeroemi・冷凍冷蔵の表示）",
 };
 
 export interface ProgramLeadInput {
@@ -269,7 +269,7 @@ export function programStaffMail(
   const urgent = input.flags?.includes("urgent");
   const mailOnly = input.flags?.includes("mailOnly");
   return {
-    subject: `${input.ad?.test || input.zeroemi?.test || input.context?.test ? "【営業対象外・公開確認】" : ""}${input.zeroemi ? `【ゼロエミ${input.zeroemi.kind === "reizo" ? "・冷凍冷蔵" : "・空調"}】${input.consultation?.booking ? "【Zoom予約済み】" : "【折り返し希望】"}` : input.ad || input.consultation ? "【Zoom候補日時】" : ""}${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : input.source === "dropin" ? "（ドロップイン）" : ""}${tag ? `［${tag}］` : ""}`,
+    subject: `${input.ad?.test || input.zeroemi?.test || input.context?.test ? "【営業対象外・公開確認】" : ""}${input.zeroemi ? `【ゼロエミ・${zeroemiSubjectTag(input.zeroemi.answers)}】${input.consultation?.booking ? "【Zoom予約済み】" : "【折り返し希望】"}` : input.ad || input.consultation ? "【Zoom候補日時】" : ""}${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : input.source === "dropin" ? "（ドロップイン）" : ""}${tag ? `［${tag}］` : ""}`,
     text: [
       "補助金サイト（ehcjpn.com）の制度カードから、相談がありました。",
       opts.notionSaved === false
