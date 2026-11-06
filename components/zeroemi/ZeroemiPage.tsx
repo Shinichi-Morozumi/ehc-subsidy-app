@@ -46,9 +46,11 @@ const CFG = {
   kucho: {
     path: "/zeroemi" as const,
     source: "zeroemi" as const,
-    hero: "/zeroemi/kucho-hero.webp",
-    heroAlt: "天井に業務用エアコンが並ぶ明るいオフィス（イメージ）",
-    heroPos: "50% 6%",
+    /* v4 2026-11-06：本人の指示「空調照明のメイン画像がしょぼすぎるから生成して」→ Figma「nene 制作」で生成（gpt-image-2.5-flare）。
+       夕方の都内オフィスで天井カセットエアコンを入れ替える作業員とLED照明。スマホでもエアコンと作業員が上の見える範囲に入る */
+    hero: "/zeroemi/kucho-hero-v2.webp",
+    heroAlt: "夕方のオフィスで、天井の業務用エアコンを入れ替える作業員とLED照明（イメージ）",
+    heroPos: "50% 12%",
     over: "空調・照明などを入れ替える、都内の事業所さまへ（業種は問いません）",
     titleA: "空調の入れ替え費用の",
     sub: "古い空調・照明などを省エネ型に入れ替える工事に使える、東京都の補助金「ゼロエミ」",
@@ -299,13 +301,15 @@ export function ZeroemiPage({ kind: initialKind, today }: { kind: ZeroemiKind; t
 
     <section className="relative h-[460px] overflow-hidden sm:h-[520px]" aria-label="ゼロエミのご案内">
       <Image src={cfg.hero} alt={cfg.heroAlt} fill priority sizes="100vw" className="object-cover" style={{ objectPosition: cfg.heroPos }} />
-      <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(8,44,30,.30) 0%, rgba(8,44,30,0) 22%, rgba(8,44,30,.22) 40%, rgba(8,44,30,.95) 78%)" }} />
+      {/* スマホは下を暗く（文字が下に来る）。PCは文字のある左を暗くし、右側は写真をそのまま見せる */}
+      <div className="absolute inset-0 sm:hidden" style={{ background: "linear-gradient(180deg, rgba(8,44,30,.30) 0%, rgba(8,44,30,0) 22%, rgba(8,44,30,.22) 40%, rgba(8,44,30,.95) 78%)" }} />
+      <div className="absolute inset-0 hidden sm:block" style={{ background: "linear-gradient(90deg, rgba(8,44,30,.94) 0%, rgba(8,44,30,.86) 45%, rgba(8,44,30,.35) 70%, rgba(8,44,30,0) 100%), linear-gradient(0deg, rgba(8,44,30,.55) 0%, rgba(8,44,30,0) 35%)" }} />
       <div className="absolute inset-x-0 bottom-0 mx-auto max-w-6xl px-4 pb-6 text-white sm:px-5 sm:pb-7">
         {/* スマホは1行に収まるよう年を省く（年は下の締切の枠に出す） */}
         {target && <p className="inline-block rounded-md bg-amber-400 px-3 py-1 text-[14px] font-bold text-amber-950"><span className="sm:hidden">{kind === "reizo" ? "【1】" : ""}{target.short}の締切 {jaDate(target.end, false)} 17時</span><span className="hidden sm:inline">{sixth ? "今年度の最終回 ｜ " : ""}{kind === "reizo" ? "【1】" : ""}{target.short.replace("（最終回）", "")}の締切 {jaDate(target.end)} 17時</span></p>}
         <p className="mt-3 text-[14px] font-bold leading-snug opacity-95 sm:text-[15px]">{cfg.over}</p>
-        <h1 className="mt-1.5 text-[28px] font-bold leading-[1.32] sm:text-[44px]">{cfg.titleA}<span className="text-[#86EFAC]">最大3/4</span>を<br className="hidden sm:block" />東京都が助成します</h1>
-        <p className="mt-2 text-[15px] font-bold leading-relaxed opacity-95 sm:text-[16px]">{cfg.sub}</p>
+        <h1 className="mt-1.5 text-[28px] font-bold leading-[1.32] sm:max-w-[700px] sm:text-[44px]">{cfg.titleA}<span className="text-[#86EFAC]">最大3/4</span>を<br className="hidden sm:block" />東京都が助成します</h1>
+        <p className="mt-2 text-[15px] font-bold leading-relaxed opacity-95 sm:max-w-[640px] sm:text-[16px]">{cfg.sub}</p>
         <button ref={heroCta} type="button" onClick={start} className="mt-5 inline-flex min-h-[54px] w-full items-center justify-center gap-3 rounded-full bg-brand-lime px-6 py-3 text-[16px] font-bold text-ink hover:brightness-95 sm:w-auto">使えるか1分で確かめる（5問）<ArrowRight className="h-5 w-5" aria-hidden /></button>
       </div>
     </section>

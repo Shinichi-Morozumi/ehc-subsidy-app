@@ -14,8 +14,8 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: "/zeroemi" },
-  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: ["/zeroemi/kucho-hero.webp"] },
-  openGraph: { title: TITLE, description: DESCRIPTION, type: "website", locale: "ja_JP", url: "/zeroemi", images: [{ url: "/zeroemi/kucho-hero.webp", width: 1536, height: 1024, alt: "天井に業務用エアコンが並ぶ明るいオフィス（イメージ）" }] },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: ["/zeroemi/kucho-hero-v2.webp"] },
+  openGraph: { title: TITLE, description: DESCRIPTION, type: "website", locale: "ja_JP", url: "/zeroemi", images: [{ url: "/zeroemi/kucho-hero-v2.webp", width: 1536, height: 1024, alt: "夕方のオフィスで、天井の業務用エアコンを入れ替える作業員とLED照明（イメージ）" }] },
 };
 
 export default function ZeroemiKuchoPage() {
