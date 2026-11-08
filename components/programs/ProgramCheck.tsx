@@ -17,7 +17,7 @@ import { AlertTriangle, ChevronLeft, Printer, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
 import { useTodayJst } from "@/lib/useToday";
-import { COMMON_CAUTIONS, countdownLabel, type ProgramId } from "@/lib/programs";
+import { COMMON_CAUTIONS, countdownLabel, upcomingWindowItems, windowRangeText, PROGRAMS, type ProgramId } from "@/lib/programs";
 import {
   CAPACITY_Q, CHECK_CAPACITIES, CHECK_CORPS, CHECK_FACILITIES, CHECK_PREFS, CHECK_STAFF, CHECK_STEPS, CHECK_WORKS, FACILITY_GROUPS, STAFF_HINT,
   asksCapacity, labelOfOpt, matchPrograms,
@@ -299,6 +299,13 @@ export function ProgramCheck({ initialToday }: { initialToday: string }) {
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-paper-sub" aria-hidden>
         <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${((step + 1) / n) * 100}%` }} />
       </div>
+      {/* EHC-0151 P1：答えると何が出るかを約束し、いま一番近い締切を細い帯で見せる */}
+      {step === 0 && !focus && <p className="mt-3 text-[15px] font-bold leading-[1.7] text-brand-deep">答えると、使えそうな制度を締切の近い順に、補助とご負担の目安つきで出します。</p>}
+      {(() => {
+        const it = upcomingWindowItems(today)[0];
+        if (!it) return null;
+        return <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[13px] leading-[1.6] text-amber-950"><b>{it.state === "open" ? "受付中" : "もうすぐ受付"}：</b>{PROGRAMS[it.programId].tag} {it.window.short}　{windowRangeText(it.window, today)}（{countdownLabel(it)}）</p>;
+      })()}
       <h1 id={`${id}-q`} ref={headRef} tabIndex={-1} className="mt-5 scroll-mt-40 text-[23px] font-bold leading-[1.45] outline-none sm:text-[26px]">{cur.q}</h1>
       <p className="mt-1 text-[15px] leading-[1.8] text-ink-soft">{cur.hint}</p>
 

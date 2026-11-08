@@ -1,4 +1,4 @@
-// v3 / 2026-11-06 / EHC-0150 ゼロエミ専用ページ（1ページ＋切り替え）の簡易診断・併用の判定・相談の受け口・Zoom予約の照合の検査。
+// v4 / 2026-11-06 / EHC-0150 ゼロエミ専用ページ（1ページ＋切り替え）の簡易診断・併用の判定・相談の受け口・Zoom予約の照合の検査。
 // SMTP・Notion・Zoom はすべて差し替え。外部への送信なし。
 const test = require("node:test"), assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), vm = require("node:vm"), ts = require("typescript");
 const { createRequire } = require("node:module");
@@ -202,4 +202,41 @@ test("入口：トップ（上の細い入口・案内）・締切ボード・/t
   assert.match(read("components/programs/ProgramCard.tsx"), /p\.id === "tokyoZeroemi" && <ZeroemiLinks/);
   assert.match(read("app/tokyo/page.tsx"), /<ZeroemiLinks place="tokyo-hero"/);
   assert.match(read("lib/track.ts"), /\| "ze_entry"/);
+});
+
+
+test("EHC-0151：共通の相談フォームは「電話かメールで連絡がほしい」を選べる（日程なしで受け付け、件名に折り返し希望）", () => {
+  const P = harness().load("lib/programLead.ts");
+  const base = { company: "営業対象外", name: "試験", reach: "03-1234-5678", consent: true, source: "top", requestId: RID };
+  assert.equal(P.readProgramSubmit(base).ok, false); // 連絡の方法が無ければ従来どおり日程が要る
+  const r = P.readProgramSubmit({ ...base, contact: "callback" });
+  assert.equal(r.ok, true, r.error);
+  const mail = P.programStaffMail(r.input, `EHC-${RID}`, "2026-11-06");
+  assert.match(mail.subject, /【折り返し希望】/);
+  assert.match(mail.text, /連絡の方法: 電話かメールで折り返し/);
+  // 折り返しなのに日程が付いていたら受け付けない
+  const withDates = P.readProgramSubmit({ ...base, contact: "callback", consultation: { mode: "zoom", timezone: "Asia/Tokyo", preferredDates: ["2026-11-20T10:00", "2026-11-21T10:00", "2026-11-24T10:00"] } });
+  assert.equal(withDates.ok, false);
+});
+
+test("EHC-0151：ゼロエミの結果に「ご負担の目安」（予算−助成）を出す", () => {
+  const Z = harness().load("lib/zeroemiFlow.ts");
+  const j = Z.judgeZeroemi({ ...kuchoAnswers, budget: "1000" });
+  assert.equal(j.estimate.text, "667万〜2,250万円");
+  assert.equal(j.self.text, "250万〜2,000万円");
+  assert.ok(Z.zeroemiLines({ kind: "kucho", answers: { ...kuchoAnswers, budget: "1000" }, contact: "callback", campaign: null, test: true }).some((l) => /ご負担の目安: 250万〜2,000万円/.test(l)));
+});
+
+test("EHC-0151：決めたこと（旧診断の入口を外す・旧広告LPを転送・同意文と費用の書き方をそろえる・確認日・見出し）", () => {
+  const read = (f) => fs.readFileSync(path.resolve(root, f), "utf8");
+  assert.doesNotMatch(read("components/home/HomeV18.tsx"), /label: "設備から詳しく計算する"|onSii/);
+  const cfg = read("next.config.mjs");
+  assert.match(cfg, /key: "adflow", value: "lp" \}\], destination: "\/zeroemi"/);
+  assert.match(cfg, /key: "adflow", value: "diagnosis" \}\], destination: "\/zeroemi"/);
+  for (const f of ["components/programs/ConsultForm.tsx", "components/kaigo/KaigoChat.tsx"]) assert.match(read(f), /施工連携先の株式会社プロジェクトネオが使うことに同意します/);
+  assert.match(read("lib/company.ts"), /CONSULT_COST_NOTE = "見積り・図面・省エネの計算などの資料づくりは、工事に至らなかった場合も、規模により費用がかかることがあります。費用は事前にご案内します。"/);
+  for (const f of ["components/programs/ConsultForm.tsx", "components/kaigo/KaigoChat.tsx", "components/zeroemi/ZeroemiPage.tsx"]) assert.match(read(f), /CONSULT_COST_NOTE/);
+  assert.match(read("app/layout.tsx"), /alternates: \{ canonical: "\/" \}/);
+  assert.match(read("app/page.tsx"), /started \? <h1>空調更新の診断<\/h1>/);
+  assert.match(read("components/programs/DeadlineBoard.tsx"), /verifiedRange\(ids\)/);
 });

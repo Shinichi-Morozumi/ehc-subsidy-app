@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { todayJst } from "@/lib/programClock";
 import { COLORS, PROGRAMS } from "@/lib/programs";
 import { ProgramsBoard } from "@/components/programs/ProgramsBoard";
@@ -28,7 +29,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/tokyo" },
   /* 2026-10-29 ブラッシュアップ6：SNS で共有したときに、トップの説明文ではなくこのページの説明文を出す */
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: ["/og.jpg"] },
-  openGraph: { title: TITLE, description: DESCRIPTION, type: "website", locale: "ja_JP", url: "/tokyo", images: [{ url: "/kaigo/hero.jpg", width: 1600, height: 900, alt: "猛暑の日の介護施設と、涼しい室内のイラスト" }] },
+  openGraph: { title: TITLE, description: DESCRIPTION, type: "website", locale: "ja_JP", url: "/tokyo", images: [{ url: "/og.jpg" }] },
 };
 
 const IDS = ["tokyoZeroemi", "tokyoChiiki", "tokyoKaishu"] as const;
@@ -50,6 +51,8 @@ export default function TokyoPage({ searchParams }: { searchParams?: { adflow?: 
             <p className="mt-3 text-[16px] leading-[1.9] text-ink-soft">
               都内の事業所なら業種を問わず使える省エネ設備の入れ替え（通称ゼロエミ）と、介護施設向けの改修の補助が2つ。都の補助は、国より補助率が高いものがあります。締切・対象・要件・流れ・「結局いくら」の目安まで1枚のカードにまとめました。
             </p>
+            {/* EHC-0151 P1：最初の画面に主ボタン（介護施設向けの2制度の人も、押す所が分かるように） */}
+            <Link href="/shindan?for=tokyo" className="mt-4 inline-flex min-h-[56px] w-full items-center justify-center gap-1 rounded-2xl bg-brand-deep px-6 text-[17px] font-bold text-white hover:bg-brand sm:w-auto">使えるものを調べる（約1分）</Link>
             <ul className="mt-4 grid gap-2 sm:grid-cols-3">
               {IDS.map((id) => {
                 const p = PROGRAMS[id];

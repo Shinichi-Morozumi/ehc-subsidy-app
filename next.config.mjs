@@ -45,6 +45,10 @@ const nextConfig = {
       /* 2026-10-29 EHC-0102: ドロップインのチラシの QR（/?ref=krh01-dropin）は、刷り直さずに専用ページへ送る。?ref= はそのまま付いていく */
       { source: "/", has: [{ type: "query", key: "ref", value: "krh01-dropin" }], destination: "/dropin", permanent: false },
       { source: "/", has: [{ type: "query", key: "ref", value: "krh01-clinic" }], destination: "/tokyo", permanent: false },
+      /* 2026-11-06 EHC-0151 決めたこと2：旧広告LP（/tokyo?adflow=lp・diagnosis）は、ゼロエミ専用ページへ送る。
+         広告のクリック情報（gclid・utm_*）などの ?以下はそのまま付いていく。広告の行き先を /zeroemi に替えた後も、古いURLから来た人を迷わせない */
+      { source: "/tokyo", has: [{ type: "query", key: "adflow", value: "lp" }], destination: "/zeroemi", permanent: false },
+      { source: "/tokyo", has: [{ type: "query", key: "adflow", value: "diagnosis" }], destination: "/zeroemi", permanent: false },
     ];
   },
   /* 2026-09-26 改善1: 旧URL（ehc-subsidy-app.vercel.app）は検索に出さない。

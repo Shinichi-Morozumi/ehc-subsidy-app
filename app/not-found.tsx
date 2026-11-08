@@ -1,5 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { COMPANY } from "@/lib/company";
+
+/* EHC-0151：タイトルがトップと同じだったので分ける（検索には出ない） */
+export const metadata: Metadata = { title: "ページが見つかりません", alternates: { canonical: null }, robots: { index: false, follow: true } };
 
 /* ───────────────────────────────────────────────────────────
    ページが見つからないとき（2026-09-26 改善2）

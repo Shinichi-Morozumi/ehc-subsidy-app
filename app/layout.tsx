@@ -26,6 +26,8 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: SITE_TITLE, template: `%s｜${COMPANY.name}` },
   description: SITE_DESCRIPTION,
+  /* EHC-0151：トップ（/）の正規URL。各ページは自分の canonical で上書きする */
+  alternates: { canonical: "/" },
   keywords: ["業務用エアコン", "空調更新", "補助金", "省エネ補助金", "SII", "ドロップイン", "冷媒", "EHCソリューションズ"],
   openGraph: {
     title: SITE_TITLE,

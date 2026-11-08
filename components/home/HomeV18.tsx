@@ -17,13 +17,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback } from "react";
 import { ArrowDown, ArrowRight, ClipboardCheck, FileText, HandCoins, Phone } from "lucide-react";
-import { OPEN_HEARING_EVENT } from "../HowItWorks";
 import { COMPANY } from "@/lib/company";
 import { track } from "@/lib/track";
 import { useTodayJst } from "@/lib/useToday";
-import { COLORS, EHC_ROLE, GYOSEI_ROLE, PROGRAMS, VERIFIED_AT, countdownLabel, upcomingWindowItems, windowRangeText, type ProgramColor, type ProgramId } from "@/lib/programs";
+import { COLORS, EHC_ROLE, GYOSEI_ROLE, PROGRAMS, countdownLabel, upcomingWindowItems, windowRangeText, type ProgramColor, type ProgramId } from "@/lib/programs";
 import { cn } from "@/lib/utils";
 import { DeadlineBoard } from "../programs/DeadlineBoard";
 import { ConsultForm } from "../programs/ConsultForm";
@@ -32,27 +30,26 @@ import { WHY } from "@/lib/team";
 import { CONSULT_MULTI_EVENT } from "@/lib/consultOptions";
 import { ZeroemiLinks } from "../programs/ZeroemiLinks";
 
-type PillarDef = { pillar: "tokyo" | "kaigo" | "sii"; color: ProgramColor; icon: string; title: string; lead: string; ids: ProgramId[]; cta: string; more: { label: string; href?: string } };
+type PillarDef = { pillar: "tokyo" | "kaigo" | "sii"; color: ProgramColor; icon: string; title: string; lead: string; ids: ProgramId[]; cta: string; more?: { label: string; href: string } };
 
 /* ご指示（2026-10-29）：どの入口から入っても、6問で振り分け → 制度カード → 相談 */
 const PILLARS: PillarDef[] = [
   { pillar: "tokyo", color: "tokyo", icon: "survey", title: "東京都の補助（全業種）", lead: "都内の事務所・店舗・飲食店・工場・病院・介護施設など。省エネ設備の入れ替えから介護施設の改修まで。", ids: ["tokyoZeroemi", "tokyoChiiki", "tokyoKaishu"], cta: "東京都の補助で使えるものを調べる", more: { label: "制度の説明を先に読む", href: "/tokyo" } },
   { pillar: "kaigo", color: "care", icon: "ac", title: "介護施設の補助（全国）", lead: "全国の介護施設。空調だけでなく、建物と設備の大規模修繕に。", ids: ["kokuKaigo", "kokuKaigo30"], cta: "介護施設の補助で使えるものを調べる", more: { label: "制度の説明を先に読む", href: "/kaigo" } },
-  { pillar: "sii", color: "sii", icon: "build", title: "国の省エネ補助金 SII（全業種・全国）", lead: "全国の事業所。指定された高効率な機種への入れ替えに（SII は国の事務局の名前です）。", ids: ["sii"], cta: "SII が使えるか調べる", more: { label: "設備から詳しく計算する" } },
+  { pillar: "sii", color: "sii", icon: "build", title: "国の省エネ補助金 SII（全業種・全国）", lead: "全国の事業所。指定された高効率な機種への入れ替えに（SII は国の事務局の名前です）。", ids: ["sii"], cta: "SII が使えるか調べる" },
+  /* EHC-0151 決めたこと1：旧「設備から詳しく計算する」（7問→5段階）はトップから外す。国の省エネは /shindan?for=sii に一本化（担当者用の ?staff=1・共有リンク ?d= は従来どおり開ける） */
 ];
 
 /** 3つの入口：制度ごとに「何に使える・いつからいつまで・いくら」（ご指示 2026-10-29） */
-function PillarCard({ def, today, onSii }: { def: PillarDef; today: string | null; onSii: () => void }) {
+function PillarCard({ def, today }: { def: PillarDef; today: string | null }) {
   const c = COLORS[def.color];
   const items = today ? upcomingWindowItems(today, def.ids) : [];
   const btnCls = "inline-flex min-h-[52px] w-full items-center justify-center gap-1 rounded-2xl px-5 text-[16px] font-bold text-white";
   const button = (
     <div className="space-y-2">
       <Link href={`/shindan?for=${def.pillar}`} onClick={() => track("pillar_open", { pillar: def.pillar })} className={btnCls} style={{ background: c.head }}>{def.cta}<ArrowRight aria-hidden className="h-4 w-4" /></Link>
-      {def.more.href ? (
+      {def.more && (
         <Link href={def.more.href} className="flex min-h-[44px] items-center justify-center text-[14px] font-bold underline underline-offset-4" style={{ color: c.num }}>{def.more.label}</Link>
-      ) : (
-        <button type="button" onClick={onSii} className="flex min-h-[44px] w-full items-center justify-center text-[14px] font-bold underline underline-offset-4" style={{ color: c.num }}>{def.more.label}</button>
       )}
     </div>
   );
@@ -137,9 +134,6 @@ function ZeroemiBanner({ today }: { today: string | null }) {
 
 export function HomeV18() {
   const today = useTodayJst(null);
-  const openSii = useCallback(() => {
-    window.dispatchEvent(new CustomEvent(OPEN_HEARING_EVENT));
-  }, []);
 
   return (
     <div className="min-h-screen bg-paper text-ink">
@@ -160,9 +154,9 @@ export function HomeV18() {
                 <li key={t} className="rounded-full border border-brand-deep/30 bg-white px-3 py-1 text-[14px] font-bold text-brand-deep">{t}</li>
               ))}
             </ul>
-            <p className="mt-3 text-[16px] leading-[1.9] text-ink-soft">
-              国の制度は全国、東京都の制度は都内が対象です（県・市区町村の独自の補助は、このサイトには載せていません）。工事は全国でお受けします（一都三県のほか、山梨県・福岡県などでも施工しています）。所在地や施設の種類などに答えるだけで（約1分）、使えそうな制度を「何に使えるか・いつ・結局いくら」のカードで出します。
-            </p>
+            {/* EHC-0151 P1：最初の画面の説明を短く。何が分かるかを先に、対象の範囲は小さく */}
+            <p className="mt-3 text-[17px] font-bold leading-[1.7] text-ink">所在地と施設の種類に答えるだけ（約1分）。使える補助と、<span className="whitespace-nowrap">補助・ご負担の目安</span>、締切が分かります。</p>
+            <p className="mt-2 text-[14px] leading-[1.8] text-ink-soft">国の制度は全国、東京都の制度は都内が対象（県・市区町村の独自の補助は載せていません）。工事は全国でお受けします。</p>
             <div className="mt-5 grid gap-2 sm:flex">
               <Link href="/shindan?from=top" className="inline-flex min-h-[56px] items-center justify-center gap-1 rounded-2xl bg-brand-deep px-6 text-[17px] font-bold text-white hover:bg-brand">
                 使える補助金を調べる（約1分）<ArrowRight aria-hidden className="h-5 w-5" />
@@ -171,7 +165,7 @@ export function HomeV18() {
                 <Phone aria-hidden className="h-5 w-5" />{COMPANY.tel}
               </a>
             </div>
-            <p className="mt-2 text-[13px] text-ink-soft">電話の受付 {COMPANY.hours}・制度の公式確認日 {VERIFIED_AT.replace(/-/g, "/")}</p>
+            <p className="mt-2 text-[13px] text-ink-soft">電話の受付 {COMPANY.hours}・制度の内容は公式の資料で確認（確認日は各カードに表示）</p>
             <button type="button" onClick={() => { track("consult_call", { kind: "multi", place: "top-hero" }); window.dispatchEvent(new CustomEvent(CONSULT_MULTI_EVENT)); }} className="mt-3 inline-flex min-h-[44px] items-center gap-1 text-left text-[15px] font-bold text-brand-deep underline underline-offset-4">
               施設や建物が複数ある法人の方は、まとめて相談できます<ArrowRight aria-hidden className="h-4 w-4 shrink-0" />
             </button>
@@ -189,7 +183,7 @@ export function HomeV18() {
           <h2 id="pillars" className="text-[24px] font-bold">3つの入口</h2>
           <p className="mt-1 text-[15px] leading-[1.8] text-ink-soft">施設の場所と種類で、使える制度が変わります。制度ごとに、何に使えるか・いつからいつまでか・いくらまでかを並べました。</p>
           <div className="mt-4 grid gap-5 lg:grid-cols-3 lg:items-start">
-            {PILLARS.map((def) => <PillarCard key={def.pillar} def={def} today={today} onSii={openSii} />)}
+            {PILLARS.map((def) => <PillarCard key={def.pillar} def={def} today={today} />)}
           </div>
           <Link href="/dropin" className="mt-5 flex min-h-[64px] items-center justify-between gap-3 rounded-2xl border-2 border-ink-line bg-white px-4 py-3 text-[16px] font-bold text-brand-deep">
             <span>買い替えの前に：空調機はそのまま、冷媒だけ入れ替える方法（ドロップイン）<span className="block text-[13px] font-normal text-ink-soft">実測の例・費用の目安・すすめ方</span></span>
@@ -229,8 +223,9 @@ export function HomeV18() {
               </div>
             ))}
           </div>
-          <h3 className="mt-6 text-[17px] font-bold">だれが何をするか</h3>
-          <dl className="mt-2 divide-y divide-ink-line rounded-2xl border border-ink-line text-[15px]">
+          <details className="mt-5 rounded-2xl border border-ink-line">
+          <summary className="flex min-h-[48px] cursor-pointer items-center px-4 text-[17px] font-bold">だれが何をするか（施設・EHC・行政書士・事務局）</summary>
+          <dl className="divide-y divide-ink-line border-t border-ink-line text-[15px]">
             {[
               EHC_ROLE,
               { who: "施設（申し込む人）", what: "制度の事務局への相談・申し込み、工事の契約と支払い、完了の報告" },
@@ -240,6 +235,7 @@ export function HomeV18() {
               <div key={r.who} className="grid grid-cols-[8.5em_1fr] gap-3 px-4 py-3"><dt className="font-bold">{r.who}</dt><dd>{r.what}</dd></div>
             ))}
           </dl>
+          </details>
         </section>
 
         <div className="mt-10">

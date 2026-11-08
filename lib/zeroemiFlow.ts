@@ -130,6 +130,8 @@ export interface ZeroemiJudge {
   marks: ZeroemiMark[];
   /** 助成の目安（万円）。予算が分からない・対象外なら null */
   estimate: { min: number; max: number | null; text: string; note: string } | null;
+  /** EHC-0151：ご負担の目安（万円・予算−助成。消費税と対象外の費用は含まない）。予算が分からない・対象外なら null */
+  self?: { min: number; max: number | null; text: string } | null;
   combos: ZeroemiCombo[];
   /** ゼロエミとノンフロンのどちらも候補になる機械がある（比べる表を出す） */
   compare: boolean;
@@ -239,6 +241,10 @@ export function judgeZeroemi(a: ZeroemiAnswers): ZeroemiJudge {
     : zeOk && !nfOk ? { min: Math.min(b.min * 2 / 3, 1000), max: b.max === null ? 4500 : Math.min(b.max * 3 / 4, 4500) }
     : !zeOk ? { min: b.min * rateNf, max: b.max === null ? null : b.max * rateNf }
     : { min: b.min * 2 / 3, max: b.max === null ? null : b.max * 3 / 4 };
+  /* EHC-0151 P2：ご負担の目安＝予算−助成。少ない側は予算の下限に高い割合、多い側は予算の上限に低い割合と上限をあてる（助成の目安と同じ前提） */
+  const subHigh = (c: number) => (zeOk ? Math.min(c * 3 / 4, 4500) : c * rateNf);
+  const subLow = (c: number) => (zeOk && !nfOk ? Math.min(c * 2 / 3, 1000) : zeOk ? c * 2 / 3 : c * rateNf);
+  const self = est && b.min !== null ? { min: b.min - subHigh(b.min), max: b.max === null ? null : b.max - subLow(b.max) } : null;
   const estNote = zeOk && !nfOk
     ? "補助の対象になる費用（税抜）がこの予算の場合の目安です。年28トン以上減らすなら3/4（上限4,500万円）、それ以外は2/3（上限2,500万円か1,000万円）。撤去・処分費と消費税は対象外です。"
     : !zeOk ? `${large ? "大企業はノンフロン機器の助成（1/2）だけです。" : "ノンフロン機器の助成は2/3です。"}上限は機械1台ごとに決まっています。予算が補助の対象になる費用（税抜）の場合の目安です。`
@@ -265,6 +271,7 @@ export function judgeZeroemi(a: ZeroemiAnswers): ZeroemiJudge {
   return {
     level, title, reason, marks,
     estimate: est ? { ...est, text: rangeText(est.min, est.max), note: estNote } : null,
+    self: self ? { ...self, text: rangeText(self.min, self.max) } : null,
     combos,
     compare: both.length > 0 && zeOk,
   };
@@ -346,6 +353,7 @@ export function zeroemiLines(z: ZeroemiLead): string[] {
     `画面に出した結果（確定ではない）: ${j.title}`,
     ...j.marks.map((m) => `・${m.mark} ${m.name}（${m.note}）`),
     ...(j.estimate ? [`・助成の目安: ${j.estimate.text}`] : []),
+    ...(j.self ? [`・ご負担の目安: ${j.self.text}（＋消費税など）`] : []),
     ...(j.combos.length ? ["併用の判定（画面に出したもの）:", ...j.combos.map((c) => `・${c.mark} ${c.title}（根拠: ${c.src}）`)] : []),
     "補助対象・補助額: 未確定。法人規模・所有関係・実機・CO2削減量の確認が必要。",
   ];

@@ -46,6 +46,8 @@ export interface ProgramLeadInput {
   ad?: AdConsultation | null;
   /** ゼロエミ専用ページの簡易診断と連絡の方法（EHC-0150） */
   zeroemi?: ZeroemiLead | null;
+  /** 共通の相談フォームの連絡の方法（EHC-0151）。callback＝電話かメールで折り返し（Zoomの日程は要らない） */
+  contact?: "zoom" | "callback" | null;
   company: string;
   name: string;
   phone: string | null;
@@ -175,7 +177,11 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
   /* ゼロエミ専用ページ：Zoomを選んだら空き枠の予約が必須。電話・メールの折り返しなら日程は要らない */
   if (zeroemi.value?.contact === "zoom" && !consultation.value?.booking) return { ok: false, error: "Zoomの空き枠から予約してから送ってください。予約しない場合は「電話かメールで連絡」をお選びください。" };
   if (zeroemi.value?.contact === "callback" && consultation.value) return { ok: false, error: "連絡の方法を確認できません。ページを開き直してください。" };
-  if (requestId.value && !consultation.value && zeroemi.value?.contact !== "callback") return { ok: false, error: "Zoom相談の候補日時を3つご入力ください。" };
+  /* EHC-0151：共通の相談フォームも「電話かメールで連絡がほしい」を選べる（日程は要らない） */
+  const contact = body.contact === "callback" ? "callback" : body.contact === "zoom" ? "zoom" : null;
+  if (contact === "callback" && consultation.value) return { ok: false, error: "連絡の方法を確認できません。ページを開き直してください。" };
+  const callback = zeroemi.value?.contact === "callback" || contact === "callback";
+  if (requestId.value && !consultation.value && !callback) return { ok: false, error: "Zoom相談の候補日時を3つご入力ください。" };
   const source = (PROGRAM_LEAD_SOURCES as readonly string[]).includes(body.source as string) ? (body.source as ProgramLeadSource) : "top";
   if (zeroemi.value && source !== (zeroemi.value.kind === "kucho" ? "zeroemi" : "zeroemiReizo")) return { ok: false, error: "相談の入口を確認できません。ページを開き直してください。" };
   const fromList = Array.isArray(body.programIds) ? Array.from(new Set(body.programIds.filter(isProgramId))).slice(0, 6) : [];
@@ -189,6 +195,7 @@ export function readProgramSubmit(body: Record<string, unknown>): ProgramLeadRea
       context: readLeadContext(body.context),
       ad: ad.value,
       zeroemi: zeroemi.value,
+      contact,
       company,
       name,
       phone: reach.phone,
@@ -223,7 +230,7 @@ function bodyLines(input: ProgramLeadInput, receiptNo: string, todayYmd: string)
     ...leadContextLines(input.context),
     ...(input.ad ? adConsultationLines(input.ad) : []),
     ...(input.zeroemi ? zeroemiLines(input.zeroemi) : []),
-    ...(input.zeroemi?.contact === "callback" ? ["■ 連絡の方法: 電話かメールで折り返し（Zoom面談は希望なし）"] : !input.ad ? consultationLines(input.consultation) : []),
+    ...(input.zeroemi?.contact === "callback" || input.contact === "callback" ? ["■ 連絡の方法: 電話かメールで折り返し（Zoom面談は希望なし）"] : !input.ad ? consultationLines(input.consultation) : []),
     `入口: ${SOURCE_JA[input.source]}`,
     ids.length
       ? `相談したい制度: ${ids.map((id) => `${PROGRAMS[id].tag} ${PROGRAMS[id].title}（${PROGRAMS[id].officialName}）`).join("／")}`
@@ -269,7 +276,7 @@ export function programStaffMail(
   const urgent = input.flags?.includes("urgent");
   const mailOnly = input.flags?.includes("mailOnly");
   return {
-    subject: `${input.ad?.test || input.zeroemi?.test || input.context?.test ? "【営業対象外・公開確認】" : ""}${input.zeroemi ? `【ゼロエミ・${zeroemiSubjectTag(input.zeroemi.answers)}】${input.consultation?.booking ? "【Zoom予約済み】" : "【折り返し希望】"}` : input.ad || input.consultation ? "【Zoom候補日時】" : ""}${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : input.source === "dropin" ? "（ドロップイン）" : ""}${tag ? `［${tag}］` : ""}`,
+    subject: `${input.ad?.test || input.zeroemi?.test || input.context?.test ? "【営業対象外・公開確認】" : ""}${input.zeroemi ? `【ゼロエミ・${zeroemiSubjectTag(input.zeroemi.answers)}】${input.consultation?.booking ? "【Zoom予約済み】" : "【折り返し希望】"}` : input.ad || input.consultation ? "【Zoom候補日時】" : input.contact === "callback" ? "【折り返し希望】" : ""}${urgent ? "【急ぎ】" : ""}【補助金サイトの相談 ${receiptNo}】${input.company}${p ? `（${p.tag}${ids.length > 1 ? ` ほか${ids.length - 1}件` : ""}）` : input.source === "dropin" ? "（ドロップイン）" : ""}${tag ? `［${tag}］` : ""}`,
     text: [
       "補助金サイト（ehcjpn.com）の制度カードから、相談がありました。",
       opts.notionSaved === false

@@ -18,7 +18,7 @@
    ─────────────────────────────────────────────────────────── */
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Camera, CheckCircle2, FileText, Loader2, Paperclip, Phone, X } from "lucide-react";
+import { CheckCircle2, FileText, Loader2, Paperclip, Phone, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
 import { COMPANY } from "@/lib/company";
@@ -30,6 +30,7 @@ import type { CheckAnswers } from "@/lib/programMatch";
 import type { ProgramLeadSource } from "@/lib/programLead";
 import ConsultationFields from "@/components/ConsultationFields";
 import { readConsultation } from "@/lib/consultation";
+import { CONSULT_COST_NOTE } from "@/lib/company";
 import type { ZoomBooking } from "@/lib/zoomBooking";
 import { currentLeadContext } from "@/lib/leadContextClient";
 import { recordAdConversion, recordQaConversion } from "@/lib/adMeasurement";
@@ -117,6 +118,10 @@ export function ConsultForm({
   const [receiptNo, setReceiptNo] = useState<string | null>(null);
   const [dates, setDates] = useState(["", "", ""]);
   const [booking, setBooking] = useState<ZoomBooking | null>(null);
+  /* EHC-0151：連絡の方法。既定は「電話かメールで連絡がほしい」（日程の入力は要らない）。Zoomを選んだときだけ日程の欄を出す */
+  const [way, setWay] = useState<"callback" | "zoom">("callback");
+  /* 任意の欄（相談したい制度・当てはまるもの・内容・写真）は「詳しく書く」に畳む */
+  const [more, setMore] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const requestId = useRef("");
@@ -146,6 +151,7 @@ export function ConsultForm({
   useEffect(() => {
     const on = () => {
       setFlags((x) => (x.includes("multiSite") ? x : [...x, "multiSite"]));
+      setMore(true);
       sectionRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
     };
     if (new URLSearchParams(window.location.search).get("multi") === "1") on();
@@ -192,7 +198,7 @@ export function ConsultForm({
     setTouched(true);
     setError(null);
     if (!company.trim() || !name.trim() || !reachText || !reachOk || !consent || busy || reading || inFlight.current || uncertain || receiptNo) return;
-    if (consultation.error) { setError(consultation.error); return; }
+    if (way === "zoom" && consultation.error) { setError(consultation.error); return; }
     inFlight.current = true;
     requestId.current ||= crypto.randomUUID();
     submitted.current ||= { referral: currentReferral(), context: currentLeadContext() };
@@ -205,7 +211,7 @@ export function ConsultForm({
           company: company.trim(), name: name.trim(), reach: reachText, consent,
           source, programId: picked[0] ?? null, programIds: picked, flags, note: note.trim(), sites: flags.includes("multiSite") ? sites.trim() : "", answers: answers ?? null,
           attachments: files.map((f) => ({ name: f.name, data: f.data })),
-          requestId: requestId.current, consultation: consultation.value, context: submitted.current.context,
+          requestId: requestId.current, contact: way, consultation: way === "zoom" ? consultation.value : null, context: submitted.current.context,
           referral: submitted.current.referral, hp, elapsedMs: Date.now() - openedAt.current,
         }),
       });
@@ -244,13 +250,15 @@ export function ConsultForm({
 
   return (
     <section ref={sectionRef} id={anchorId} aria-labelledby={`${id}-title`} className="scroll-mt-32 rounded-3xl border border-ink-line bg-white p-5 shadow-card sm:p-6">
-      <h2 id={`${id}-title`} className="text-[22px] font-bold leading-[1.4]">相談する</h2>
+      <h2 id={`${id}-title`} className="text-[22px] font-bold leading-[1.4]">相談する（約1分）</h2>
       <p className="mt-1 text-[15px] leading-[1.8] text-ink-soft">
-        連絡先とZoom相談の日程をお知らせください。写真やPDFも添えて送れます。
+        入力は3つだけです。{COMPANY.replyDays}営業日以内に、担当からご連絡します。お急ぎ（空調が止まった・壊れた）は
+        <a href={COMPANY.telHref} onClick={() => track("consult_call", { kind: "tel", place: source })} className="mx-1 inline-flex min-h-[44px] items-center gap-1 font-bold text-brand-deep underline underline-offset-4"><Phone aria-hidden className="h-4 w-4" />{COMPANY.tel}</a>
+        （{COMPANY.hours}）へ。
       </p>
-      <div className="mt-3 rounded-2xl bg-paper-sub p-4">
-        <p className="text-[15px] font-bold">送ったあとの流れ</p>
-        <ol className="mt-2 grid gap-1.5 text-[14px] leading-[1.6]">
+      <details className="mt-2 rounded-2xl bg-paper-sub px-4 py-2">
+        <summary className="flex min-h-[44px] cursor-pointer items-center text-[15px] font-bold">送ったあとの流れと費用</summary>
+        <ol className="mt-1 grid gap-1.5 pb-1 text-[14px] leading-[1.6]">
           {[
             `担当からご連絡します（${COMPANY.replyDays}営業日以内。電話かメールの、ご希望の方法で）`,
             "写真・図面・電気料金の明細から、工事と補助の目安をお伝えします",
@@ -263,29 +271,8 @@ export function ConsultForm({
             </li>
           ))}
         </ol>
-        <p className="mt-2 text-[13px] leading-[1.7] text-ink-soft">見積り・図面・省エネの計算などの資料づくりは、工事にならなかった場合も、工事の規模によって費用がかかることがあります。申し込みの準備には1か月ほどかかるため、締切の1か月前までのご相談をおすすめします。</p>
-        <p className="mt-1 text-[13px] leading-[1.7] text-ink-soft">お急ぎのとき（空調が止まった・壊れた）は、お電話がいちばん早いです。補助が決まる前に工事を始めると補助は使えないため、待てないときは、補助を使わずに直す方法も含めてご相談ください。</p>
-      </div>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <button
-          type="button"
-          onClick={() => { track("consult_call", { kind: "photo", place: source }); fileRef.current?.click(); }}
-          disabled={!!receiptNo}
-          className="flex min-h-[64px] items-center gap-3 rounded-2xl border-2 border-brand-deep bg-paper-sub px-4 py-3 text-left text-brand-deep disabled:opacity-50"
-        >
-          <Camera aria-hidden className="h-6 w-6 shrink-0" />
-          <span><b className="block text-[16px]">写真・PDFを選ぶ</b><span className="text-[13px] text-ink">押すと、室外機の型番の札（銘板）・電気料金の明細・図面を選べます</span></span>
-        </button>
-        <a
-          href={COMPANY.telHref}
-          onClick={() => track("consult_call", { kind: "tel", place: source })}
-          className="flex min-h-[64px] items-center gap-3 rounded-2xl border-2 border-brand-deep bg-paper-sub px-4 py-3 text-brand-deep"
-        >
-          <Phone aria-hidden className="h-6 w-6 shrink-0" />
-          <span><b className="block text-[16px]">電話 {COMPANY.tel}</b><span className="text-[13px] text-ink">受付 {COMPANY.hours}</span></span>
-        </a>
-      </div>
+        <p className="mt-1 text-[13px] leading-[1.7] text-ink-soft">{CONSULT_COST_NOTE} 申し込みの準備には1か月ほどかかるため、締切の1か月前までのご相談をおすすめします。補助が決まる前に工事を始めると補助は使えないため、待てないときは、補助を使わずに直す方法も含めてご相談ください。</p>
+      </details>
 
       {receiptNo ? (
         <div role="status" className="mt-5 space-y-3 rounded-2xl bg-paper-tint p-4 text-[16px] leading-[1.8]">
@@ -313,7 +300,41 @@ export function ConsultForm({
           )}
         </div>
       ) : (
-        <div className="mt-5 space-y-4">
+        <div className="mt-4 space-y-4">
+          <div>
+            <label htmlFor={`${id}-company`} className="block text-[14px] font-bold text-ink">法人名・施設名<span className="ml-1 text-red-800">必須</span></label>
+            <input id={`${id}-company`} type="text" autoComplete="organization" value={company} onChange={(e) => setCompany(e.target.value)} aria-invalid={!!errs.company || undefined} className={inputCls(!!errs.company)} />
+            {errs.company && <p className="mt-1 text-[14px] font-bold text-red-800">{errs.company}</p>}
+          </div>
+          <div>
+            <label htmlFor={`${id}-name`} className="block text-[14px] font-bold text-ink">お名前<span className="ml-1 text-red-800">必須</span></label>
+            <input id={`${id}-name`} type="text" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} aria-invalid={!!errs.name || undefined} className={inputCls(!!errs.name)} />
+            {errs.name && <p className="mt-1 text-[14px] font-bold text-red-800">{errs.name}</p>}
+          </div>
+          <div>
+            <label htmlFor={`${id}-reach`} className="block text-[14px] font-bold text-ink">ご連絡先（電話かメール）<span className="ml-1 text-red-800">必須</span></label>
+            <input id={`${id}-reach`} type="text" inputMode="email" autoComplete="email" placeholder="03-1234-5678 または name@example.co.jp" value={reach} onChange={(e) => setReach(e.target.value)} aria-invalid={!!errs.reach || undefined} className={inputCls(!!errs.reach)} />
+            {errs.reach && <p className="mt-1 text-[14px] font-bold text-red-800">{errs.reach}</p>}
+          </div>
+
+          <fieldset>
+            <legend className="text-[14px] font-bold text-ink">連絡の方法<span className="ml-1 text-red-800">必須</span></legend>
+            <div className="mt-1 grid gap-2 sm:grid-cols-2">
+              {([["callback", "電話かメールで連絡がほしい", `担当から${COMPANY.replyDays}営業日以内に`], ["zoom", "Zoomで面談したい", "空き枠から30分を予約、または候補日時を3つ"]] as const).map(([v, t, sub]) => (
+                <label key={v} className={cn("flex min-h-[56px] cursor-pointer items-start gap-3 rounded-xl border px-3 py-2", way === v ? "border-brand-deep bg-paper-tint" : "border-ink-line bg-white")}>
+                  <input type="radio" name={`${id}-way`} value={v} checked={way === v} onChange={() => setWay(v)} className="mt-1 h-5 w-5 shrink-0 accent-brand" />
+                  <span><b className="block text-[15px]">{t}</b><span className="text-[13px] text-ink-soft">{sub}</span></span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          {way === "zoom" && <ConsultationFields id={`${id}-consultation`} dates={dates} onChange={setDates} email={reachText} booking={booking} onBooking={setBooking} error={touched ? consultation.error : null} />}
+          {picked.length > 0 && !more && (
+            <p className="rounded-xl bg-paper-tint px-3 py-2 text-[14px] leading-[1.6]">相談したい制度：<b>{picked.map((pid) => PROGRAMS[pid]?.title).filter(Boolean).join("／")}</b></p>
+          )}
+          <details open={more} onToggle={(e) => setMore((e.currentTarget as HTMLDetailsElement).open)} className="rounded-2xl border border-ink-line px-4 py-1">
+            <summary className="flex min-h-[48px] cursor-pointer items-center text-[15px] font-bold text-brand-deep">詳しく書く（任意）：相談したい制度・当てはまるもの・内容・写真</summary>
+            <div className="space-y-4 pb-3 pt-1">
           {choices.length > 0 && (
             <fieldset>
               <legend className="text-[14px] font-bold text-ink">相談したい制度（任意・いくつでも）</legend>
@@ -332,23 +353,6 @@ export function ConsultForm({
               <p className="mt-1 text-[13px] text-ink-soft">選ばなくても大丈夫です（担当がご一緒に決めます）。</p>
             </fieldset>
           )}
-          <div>
-            <label htmlFor={`${id}-company`} className="block text-[14px] font-bold text-ink">法人名・施設名<span className="ml-1 text-red-800">必須</span></label>
-            <input id={`${id}-company`} type="text" autoComplete="organization" value={company} onChange={(e) => setCompany(e.target.value)} aria-invalid={!!errs.company || undefined} className={inputCls(!!errs.company)} />
-            {errs.company && <p className="mt-1 text-[14px] font-bold text-red-800">{errs.company}</p>}
-          </div>
-          <div>
-            <label htmlFor={`${id}-name`} className="block text-[14px] font-bold text-ink">お名前<span className="ml-1 text-red-800">必須</span></label>
-            <input id={`${id}-name`} type="text" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} aria-invalid={!!errs.name || undefined} className={inputCls(!!errs.name)} />
-            {errs.name && <p className="mt-1 text-[14px] font-bold text-red-800">{errs.name}</p>}
-          </div>
-          <div>
-            <label htmlFor={`${id}-reach`} className="block text-[14px] font-bold text-ink">ご連絡先（電話かメール）<span className="ml-1 text-red-800">必須</span></label>
-            <input id={`${id}-reach`} type="text" inputMode="email" autoComplete="email" placeholder="03-1234-5678 または name@example.co.jp" value={reach} onChange={(e) => setReach(e.target.value)} aria-invalid={!!errs.reach || undefined} className={inputCls(!!errs.reach)} />
-            {errs.reach && <p className="mt-1 text-[14px] font-bold text-red-800">{errs.reach}</p>}
-          </div>
-
-          <ConsultationFields id={`${id}-consultation`} dates={dates} onChange={setDates} email={reachText} booking={booking} onBooking={setBooking} error={touched ? consultation.error : null} />
           <fieldset>
             <legend className="text-[14px] font-bold text-ink">当てはまるもの（任意）</legend>
             <div className="mt-1 flex flex-wrap gap-2">
@@ -419,7 +423,8 @@ export function ConsultForm({
             )}
             {files.length > 0 && <p className="mt-1 text-[12px] text-ink-soft">合計 {fmtBytes(total)} ／ {fmtBytes(ATTACH_MAX_TOTAL_BYTES)}</p>}
           </div>
-
+            </div>
+          </details>
           <div style={{ position: "absolute", left: "-10000px", top: "auto", width: 1, height: 1, overflow: "hidden" }} aria-hidden="true">
             <label htmlFor={`${id}-hp`}>この欄は空のままにしてください</label>
             <input id={`${id}-hp`} name="ehc_hp_website" type="text" tabIndex={-1} autoComplete="off" value={hp} onChange={(e) => setHp(e.target.value)} />
@@ -427,7 +432,7 @@ export function ConsultForm({
           <label className="flex min-h-[48px] cursor-pointer items-start gap-3 rounded-xl border border-ink-line bg-paper-sub p-3 text-[15px] leading-[1.7]">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} aria-invalid={!!errs.consent || undefined} className="mt-1 h-5 w-5 shrink-0 accent-brand" />
             <span>
-              ご相談への連絡のために、入力した内容{answers ? "・診断の答え" : ""}{files.length ? "・添えた写真やPDF" : ""}を EHC が使うことに同意します（
+              ご相談への連絡と、現地確認・工事のご案内のために、入力した内容{answers ? "・診断の答え" : ""}{files.length ? "・添えた写真やPDF" : ""}を EHC と施工連携先の株式会社プロジェクトネオが使うことに同意します（
               <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-bold text-brand-deep underline underline-offset-4">
                 プライバシーポリシー<span className="sr-only">（新しいタブで開きます）</span>
               </a>

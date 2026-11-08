@@ -140,6 +140,11 @@ export default function DropinPage() {
               </li>
             ))}
           </ol>
+          {/* EHC-0151 決めたこと5：日数の目安は根拠が無いので数字は出さない。ページに載せている実例の日程だけを書き、あとは現地を見て伝える */}
+          <div className="mt-3 rounded-2xl border border-ink-line bg-white px-4 py-3 text-[15px] leading-[1.75]">
+            <p className="font-bold">かかる日数</p>
+            <p className="mt-1">台数・配管・設置の状態で変わるため、現地を見てからお伝えします。実例では、施工の当日に入れ替えの前と後を計測し（業務用パッケージエアコン7台）、物流倉庫では入れ替えの後に約30日の実測で効果を確かめました（上の「実測の例」）。補助を使わない方法なので、補助が決まる知らせを待つ期間はありません。</p>
+          </div>
         </section>
 
         <section aria-labelledby="achievements" className="mt-10">

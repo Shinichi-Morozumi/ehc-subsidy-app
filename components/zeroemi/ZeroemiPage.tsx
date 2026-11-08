@@ -18,7 +18,7 @@ import { AirVent, ArrowRight, CalendarDays, Check, CheckCircle2, ChevronDown, Dr
 import ZoomBookingPicker from "@/components/ZoomBookingPicker";
 import { ReferralCapture } from "@/components/programs/ReferralCapture";
 import { SiteFooterSimple } from "@/components/programs/SiteShell";
-import { COMPANY } from "@/lib/company";
+import { COMPANY, CONSULT_COST_NOTE } from "@/lib/company";
 import { PROGRAMS, jaDate } from "@/lib/programs";
 import { BUILD_RECORDS, BUILD_RECORDS_NOTE, WHY } from "@/lib/team";
 import { chooseAdMeasurement, enableAdMeasurement, measurementChoice, recordAdConversion, recordQaConversion } from "@/lib/adMeasurement";
@@ -290,8 +290,12 @@ export function ZeroemiPage({ kind: initialKind, today }: { kind: ZeroemiKind; t
     <ReferralCapture pathname={CFG[initialKind].path} />
     <header className="border-b border-ink-line bg-paper">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-5 sm:py-3">
-        <Link href="/" className="flex min-h-[44px] items-center gap-2.5"><Image src="/icon-192.png" width={36} height={36} alt="" /><span className="text-[13px] font-bold leading-snug sm:text-[16px]">EHCソリューションズ<span className="hidden text-[11px] font-normal text-ink-soft sm:block">空調・設備の改修と補助金のご相談</span></span></Link>
-        <a href={COMPANY.telHref} className="inline-flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-ink-line px-3 text-[13px] font-bold"><Phone className="h-4 w-4" aria-hidden /><span className="hidden sm:inline">{COMPANY.tel}</span><span className="sm:hidden">電話で相談</span></a>
+        <Link href="/" className="flex min-h-[44px] items-center gap-2.5"><Image src="/icon-192.png" width={36} height={36} alt="" /><span className="whitespace-nowrap text-[13px] font-bold leading-snug max-[379px]:sr-only sm:text-[16px]">EHCソリューションズ<span className="hidden text-[11px] font-normal text-ink-soft sm:block">空調・設備の改修と補助金のご相談</span></span></Link>
+        <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+          {/* EHC-0151 P1：本体（ほかの補助金）へ戻る道。ロゴだけでは気づきにくい */}
+          <Link href="/" className="inline-flex min-h-[44px] items-center whitespace-nowrap px-1 text-[13px] font-bold text-brand underline underline-offset-4">ほかの補助金</Link>
+        <a href={COMPANY.telHref} className="inline-flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-ink-line px-3 text-[13px] font-bold"><Phone className="h-4 w-4" aria-hidden /><span className="hidden sm:inline">{COMPANY.tel}</span><span className="hidden min-[420px]:inline sm:hidden">電話で相談</span><span className="min-[420px]:hidden">電話</span></a>
+        </div>
       </div>
     </header>
 
@@ -381,10 +385,10 @@ export function ZeroemiPage({ kind: initialKind, today }: { kind: ZeroemiKind; t
             <h2 className="mt-2 text-[22px] font-bold leading-[1.45] sm:text-[24px]">{judge.title}</h2>
             <p className="mt-3 text-[15px] leading-[1.9]">{judge.reason}</p>
             <ul className="mt-4 space-y-2">{judge.marks.map((m) => <li key={m.name} className="flex items-start gap-3 rounded-xl bg-paper-sub px-4 py-3"><span className="text-[22px] font-bold leading-none" style={{ color: markColor(m.mark) }}>{m.mark}</span><span className="text-[14px] leading-relaxed"><b>{m.name}</b><br /><span className="text-ink-soft">{m.note}</span></span></li>)}</ul>
-            {judge.estimate && <div className="mt-4 rounded-2xl bg-brand-deep p-5 text-white"><p className="text-[13px] font-bold text-brand-lime">助成の目安（予算が「{ZE_BUDGETS.find((x) => x.id === budget)?.label}」の場合）</p><p className="mt-1 text-[32px] font-bold leading-tight">{judge.estimate.text}</p><p className="mt-2 text-[13px] leading-[1.75] text-white/85 sm:text-[12px] sm:leading-[1.8]">{judge.estimate.note} 採択と金額は審査で決まります。</p></div>}
+            {judge.estimate && <div className="mt-4 rounded-2xl bg-brand-deep p-5 text-white"><p className="text-[13px] font-bold text-brand-lime">助成の目安（予算が「{ZE_BUDGETS.find((x) => x.id === budget)?.label}」の場合）</p><p className="mt-1 text-[32px] font-bold leading-tight">{judge.estimate.text}</p>{judge.self && <p className="mt-1 text-[16px] font-bold">ご負担の目安 {judge.self.text}<span className="text-[13px] font-normal">＋消費税など</span></p>}<p className="mt-2 text-[13px] leading-[1.75] text-white/85 sm:text-[12px] sm:leading-[1.8]">{judge.estimate.note} 採択と金額は審査で決まります。</p></div>}
             {judge.combos.length > 0 && <div className="mt-5 rounded-2xl border border-ink-line p-4">
-              <p className="text-[15px] font-bold">併用の判定（どちらかを使うと、もう一方が使えない など）</p>
-              <ul className="mt-2 divide-y divide-ink-line">{judge.combos.map((c) => <li key={c.title} className="flex items-start gap-3 py-3"><span aria-hidden className="w-6 shrink-0 text-center text-[20px] font-bold leading-none" style={{ color: markColor(c.mark) }}>{c.mark}</span><div className="min-w-0"><p className="text-[15px] font-bold leading-snug"><span className="sr-only">{c.mark === "×" ? "できない：" : c.mark === "△" ? "条件つき・要確認：" : "できる見込み："}</span>{c.title}</p><p className="mt-1 text-[14px] leading-relaxed text-ink-soft">{c.note}</p><p className="mt-1 text-[12px] text-ink-soft">根拠：{c.src}</p></div></li>)}</ul>
+              <p className="text-[15px] font-bold">申し込む前に知っておくこと（ほかの補助との併用など）</p>
+              <ul className="mt-2 divide-y divide-ink-line">{[...judge.combos].sort((x, y) => "○△×".indexOf(x.mark) - "○△×".indexOf(y.mark)).map((c) => <li key={c.title} className="flex items-start gap-3 py-3"><span aria-hidden className="w-6 shrink-0 text-center text-[20px] font-bold leading-none" style={{ color: markColor(c.mark) }}>{c.mark}</span><div className="min-w-0"><p className="text-[15px] font-bold leading-snug"><span className="sr-only">{c.mark === "×" ? "できない：" : c.mark === "△" ? "条件つき・要確認：" : "できる見込み："}</span>{c.title}</p><p className="mt-1 text-[14px] leading-relaxed text-ink-soft">{c.note}</p><p className="mt-1 text-[12px] text-ink-soft">根拠：{c.src}</p></div></li>)}</ul>
               <p className="mt-1 text-[12px] leading-relaxed text-ink-soft">×＝できない（要綱・募集要項に書かれている）　△＝条件つき・確認が必要　○＝できる見込み。2026年11月6日に各制度の要綱・募集要項・Q&Aで確認しました。最終的な可否は、それぞれの事務局の確認で決まります。</p>
             </div>}
             {judge.compare && <div className="mt-4 overflow-hidden rounded-2xl border border-ink-line">
@@ -414,7 +418,7 @@ export function ZeroemiPage({ kind: initialKind, today }: { kind: ZeroemiKind; t
               <label className="block text-[14px] font-bold">ご相談の内容（任意）<textarea maxLength={600} rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder={kind === "kucho" ? "例：天井のエアコン8台が15年目。夏に効きが悪い" : "例：別置型ショーケース5台と冷凍機1台を入れ替えたい"} className={`${INPUT} min-h-[96px]`} /></label>
               <div aria-hidden="true" className="hidden"><label>website<input value={hp} onChange={(e) => setHp(e.target.value)} tabIndex={-1} autoComplete="off" /></label></div>
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-ink-line p-4 text-[13px] leading-[1.8]"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-brand" /><span><Link href="/privacy" target="_blank" rel="noopener" className="font-bold text-brand underline">個人情報の取扱い</Link>を確認し、EHCと施工連携先の株式会社プロジェクトネオへの共有に同意します。</span></label>
-              <p className="text-[13px] leading-[1.75] text-ink-soft sm:text-[12px] sm:leading-[1.8]">見積り・図面・省エネの計算などの資料づくりは、工事に至らなかった場合も規模により費用がかかることがあります。費用は事前にご案内します。申請書類の作成は行政書士の業務のため、EHCでは作りません。</p>
+              <p className="text-[13px] leading-[1.75] text-ink-soft sm:text-[12px] sm:leading-[1.8]">{CONSULT_COST_NOTE}申請書類の作成は行政書士の業務のため、EHCでは作りません。</p>
               {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-[14px] font-bold leading-relaxed text-red-800">{error}</p>}
               <button type="submit" disabled={busy || uncertain} className={`${PRIMARY} w-full`}>{busy ? "受け付けを確認しています…" : "この内容で相談する"}{!busy && <ArrowRight className="h-4 w-4" aria-hidden />}</button>
               <p className="text-center text-[13px] text-ink-soft sm:text-[12px]">自動返信のメールはありません。送信後に受付番号を表示します。</p>

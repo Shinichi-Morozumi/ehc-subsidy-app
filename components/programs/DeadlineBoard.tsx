@@ -11,7 +11,10 @@
    ・今日は開いた端末の日本時間（lib/useToday.ts）。日付が決まるまでは数字を出さない。
    ─────────────────────────────────────────────────────────── */
 
-import { COLORS, PREP_DAYS, PROGRAMS, PROGRAM_ORDER, VERIFIED_AT, countdownKind, countdownLabel, jaDate, upcomingWindowItems, windowRangeText, type ProgramId, type WindowItem } from "@/lib/programs";
+import { COLORS, PREP_DAYS, PROGRAMS, PROGRAM_ORDER, countdownKind, countdownLabel, estimateFor, estimateSummary, jaDate, manRange, upcomingWindowItems, windowRangeText, type ProgramId, type WindowItem } from "@/lib/programs";
+
+/** 例の金額（ProgramCard の EXAMPLE_COST と同じ値。循環 import を避けるため写す） */
+const EXAMPLE_COST = { costMan: 1000, equipmentMan: 600 } as const;
 import { ZeroemiLinks } from "./ZeroemiLinks";
 import { daysBetween } from "@/lib/programClock";
 import { cn } from "@/lib/utils";
@@ -91,6 +94,26 @@ export function Timeline({ today, ids = PROGRAM_ORDER }: { today: string; ids?: 
   );
 }
 
+/** EHC-0151：確認日は制度ごとに違うので、並べた制度の古い日〜新しい日で出す */
+function verifiedRange(ids: ProgramId[]): string {
+  const ds = ids.map((id) => PROGRAMS[id].verifiedAt).sort();
+  const f = (d: string) => d.replace(/-/g, "/");
+  return ds[0] === ds[ds.length - 1] ? f(ds[0]) : `${f(ds[0])}〜${f(ds[ds.length - 1]).slice(5)}`;
+}
+
+/** EHC-0151 P2：1件目に「結局いくら」の例（工事費1,000万円なら 補助○万円・ご負担○万円）。数字は lib/programs.ts の計算から */
+function ExampleAmount({ programId }: { programId: ProgramId }) {
+  const p = PROGRAMS[programId];
+  const est = estimateFor(p, p.costBasis === "equipment" ? EXAMPLE_COST : { costMan: EXAMPLE_COST.costMan });
+  const sum = estimateSummary(est);
+  if (est.kind !== "ok" || !sum || (p.capsBy === "facility" && est.lines.length > 1) || sum.selfMin === null || sum.selfMax === null) return null;
+  return (
+    <p className="mt-2 rounded-xl bg-white/70 px-3 py-2 text-[14px] leading-[1.6]">
+      例：{p.costBasis === "equipment" ? "機器代600万円" : "工事費1,000万円"}なら　補助の目安 <b>{manRange(sum.subsidyMin, sum.subsidyMax)}</b>・ご負担 <b>{manRange(sum.selfMin, sum.selfMax)}</b>＋消費税など
+    </p>
+  );
+}
+
 /** 1行の中の「何に使える・いつ・いくら」 */
 export function WhatWhenHowMuch({ programId, item, today, compact = false }: { programId: ProgramId; item: WindowItem | null; today: string; compact?: boolean }) {
   const p = PROGRAMS[programId];
@@ -133,7 +156,7 @@ export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "受付中�
     <section aria-labelledby="deadline-board" className="rounded-3xl border border-ink-line bg-white p-5 shadow-card sm:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="deadline-board" className="text-[20px] font-bold">{title}</h2>
-        <p className="text-[12px] text-ink-soft">公式確認日 {VERIFIED_AT.replace(/-/g, "/")}・今日 {jaDate(today, false)}</p>
+        <p className="text-[12px] text-ink-soft">公式確認日 {verifiedRange(ids)}・今日 {jaDate(today, false)}</p>
       </div>
       <p className="mt-1 text-[13px] leading-[1.7] text-ink-soft">申し込みの準備（現地調査・見積・図面・省エネの計算）には1か月ほどかかります。締切の1か月前までにご相談ください。</p>
 
@@ -147,6 +170,7 @@ export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "受付中�
               <p className="text-[13px] font-bold" style={{ color: c.num }}>{p.tag}</p>
               <p className="mt-0.5 text-[18px] font-bold leading-[1.45]">{p.title}</p>
               <WhatWhenHowMuch programId={first.programId} item={first} today={today} />
+              <ExampleAmount programId={first.programId} />
               {first.programId === "tokyoZeroemi" && <ZeroemiLinks place="board-first" variant="inline" color={c.num} className="mt-1" />}
             </div>
             <p className="whitespace-nowrap text-right leading-none">
@@ -214,7 +238,11 @@ export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "受付中�
         </div>
       )}
 
-      <Timeline today={today} ids={ids} />
+      {/* EHC-0151 P1：日程の図は畳む（スマホで長くなるため） */}
+      <details className="mt-4">
+        <summary className="flex min-h-[44px] cursor-pointer items-center text-[15px] font-bold text-brand-deep">日程を図で見る</summary>
+        <Timeline today={today} ids={ids} />
+      </details>
     </section>
   );
 }

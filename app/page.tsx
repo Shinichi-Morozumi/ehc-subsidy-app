@@ -120,7 +120,8 @@ export default function Page() {
         </header>
         <div className="ehc-workspace-intro no-print">
           <div>
-            <h1>空調更新の診断</h1>
+            {/* EHC-0151：開くまでは隠れているので、見出し（h1）はトップのものだけにする */}
+            {started ? <h1>空調更新の診断</h1> : <p className="ehc-workspace-title">空調更新の診断</p>}
           </div>
           <button type="button" className="ehc-review-answers" onClick={() => window.dispatchEvent(new CustomEvent(OPEN_HEARING_EVENT))}>
             <ClipboardList size={18} aria-hidden="true" /> 基本条件を確認・変更

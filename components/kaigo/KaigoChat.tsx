@@ -9,7 +9,9 @@ import type { ZoomBooking } from "@/lib/zoomBooking";
 import { CheckCircle2, ChevronLeft, Loader2, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
-import { COMPANY } from "@/lib/company";
+import { COMPANY, CONSULT_COST_NOTE } from "@/lib/company";
+import { NotifySignup } from "@/components/NotifySignup";
+import { PROGRAMS } from "@/lib/programs";
 import { readConsultation } from "@/lib/consultation";
 import ConsultationFields from "@/components/ConsultationFields";
 import { captureReferral, currentReferral } from "@/lib/referralClient";
@@ -362,17 +364,21 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
     <main className="min-h-screen bg-paper pb-16 text-ink">
       <header className="sticky top-0 z-10 border-b border-ink-line bg-paper/95 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-2">
-          <Link href="/" className="text-[15px] font-bold leading-tight text-brand-deep">
+          <Link href="/" className="whitespace-nowrap text-[15px] font-bold leading-tight text-brand-deep">
             EHCソリューションズ
             <span className="block text-[12px] font-normal text-ink-soft">介護施設の補助金 事前確認</span>
           </Link>
+          <div className="flex shrink-0 items-center gap-2">
+          {/* EHC-0151 P1：本体（ほかの補助金）へ戻る道 */}
+          <Link href="/" className="inline-flex min-h-[44px] items-center whitespace-nowrap text-[13px] font-bold text-brand-deep underline underline-offset-4">ほかの補助金</Link>
           <a
             href={COMPANY.telHref}
             onClick={() => track("kaigo_call", { place: "header" })}
             className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-brand-deep px-3 text-[14px] font-bold text-brand-deep"
           >
-            <Phone aria-hidden className="h-4 w-4" />電話で相談
+            <Phone aria-hidden className="h-4 w-4" /><span className="hidden min-[420px]:inline">電話で相談</span><span className="min-[420px]:hidden">電話</span>
           </a>
+          </div>
         </div>
       </header>
 
@@ -401,6 +407,8 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
             定員29人以下の介護施設は、建物と設備をまとめて直す大規模修繕に、1施設あたり最大1,660万円まで（施設の種類により833万円）。市区町村を通じた国の交付金です。どの工事も EHC のチームでまとめてお受けします。
             上限を超える分と消費税は施設の負担です。補助金は工事のあとが基本です。市区町村によっては、工事の前に受け取れる場合もあります（前払い＝概算払）。
           </p>
+          {/* EHC-0151 P4：役割を最初に書く（チャットの終盤まで出なかった） */}
+          <p className="mt-2 text-[15px] leading-[1.8]">市区町村への申し込みは施設が行います。申請書類の作成は行政書士の業務のため EHC では作らず、EHC は工事と、見積り・図面などの資料づくりを担当します。</p>
           <p className="mt-3 text-[15px] leading-[1.8]">
             定員30人以上の施設や、都内の特養・養護老人ホームには、ほかの補助もあります。
             <Link href="/shindan?for=kaigo" className="ml-1 font-bold text-brand-deep underline underline-offset-4">使える補助金を調べる</Link>
@@ -452,6 +460,8 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
                 <ul className="list-disc space-y-1 rounded-2xl bg-paper-sub p-4 pl-8 text-[14px] leading-[1.7] text-ink-soft">
                   {estimate.cautions.map((c) => <li key={c}>{c}</li>)}
                 </ul>
+                {/* EHC-0151 P4：結局いくら（工事費から補助と施設の負担の目安）は、下の制度カードの計算へ */}
+                <a href="#program-kokuKaigo" className="flex min-h-[44px] items-center text-[15px] font-bold text-brand-deep underline underline-offset-4">工事費から、補助と施設の負担の目安を計算する（下の制度カード）</a>
               </div>
               <Bot>
                 このあと EHC が、所在地の募集の時期を確かめ、<b>現地調査</b>の日程をご相談します。
@@ -500,10 +510,11 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
                     <label htmlFor={`${id}-hp`}>この欄は空のままにしてください</label>
                     <input id={`${id}-hp`} name="ehc_hp_website" type="text" tabIndex={-1} autoComplete="off" value={hp} onChange={(e) => setHp(e.target.value)} />
                   </div>
+                  <p className="text-[14px] leading-[1.7] text-ink-soft">{CONSULT_COST_NOTE}</p>
                   <label className="flex min-h-[48px] cursor-pointer items-start gap-3 rounded-xl border border-ink-line bg-paper-sub p-3 text-[16px] leading-[1.7]">
                     <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} aria-invalid={!!errs.consent || undefined} className="mt-1 h-5 w-5 shrink-0 accent-brand" />
                     <span>
-                      ご相談への連絡のために、入力した内容を EHC が使うことに同意します（
+                      ご相談への連絡と、現地確認・工事のご案内のために、入力した内容を EHC と施工連携先の株式会社プロジェクトネオが使うことに同意します（
                       <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-bold text-brand-deep underline underline-offset-4">
                         プライバシーポリシー<span className="sr-only">（新しいタブで開きます）</span>
                       </a>
@@ -558,6 +569,11 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
         )}
 
         {children}
+
+        {/* EHC-0151 P4：募集が未発表の制度なので、次の募集が出たらお知らせする（/shindan の結果と同じ部品） */}
+        <div className="mt-8">
+          <NotifySignup programNames={[`${PROGRAMS.kokuKaigo.tag} ${PROGRAMS.kokuKaigo.title}`, `${PROGRAMS.kokuKaigo30.tag} ${PROGRAMS.kokuKaigo30.title}`]} pref={null} building="介護施設" timing={null} />
+        </div>
 
         <footer className="mt-10 border-t border-ink-line pt-4 text-[13px] leading-[1.8] text-ink-soft">
           <p className="font-bold text-ink">{COMPANY.name}</p>

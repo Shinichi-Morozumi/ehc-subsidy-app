@@ -23,7 +23,7 @@ export const ZEROEMI_PAGES = [
  *  - "buttons"：見出し＋2つのボタン（cols=2 なら幅640px以上で横並び）
  *  - "inline" ：1行の文字リンク（締切ボードの行の中など、場所をとらない所）
  */
-export function ZeroemiLinks({ place, color, variant = "buttons", cols = 1, className }: { place: string; color?: string; variant?: "buttons" | "inline"; cols?: 1 | 2; className?: string }) {
+export function ZeroemiLinks({ place, color, variant = "buttons", cols = 1, className, lead }: { place: string; color?: string; variant?: "buttons" | "inline"; cols?: 1 | 2; className?: string; lead?: string }) {
   const go = (kind: string) => track("ze_entry", { place, kind });
   if (variant === "inline") {
     return (
@@ -39,7 +39,7 @@ export function ZeroemiLinks({ place, color, variant = "buttons", cols = 1, clas
   }
   return (
     <div className={cn("no-print", className)}>
-      <p className="text-[13px] font-bold" style={color ? { color } : undefined}>ゼロエミの専用ページ（5問で使えるかを確かめられます）</p>
+      <p className="text-[13px] font-bold" style={color ? { color } : undefined}>{lead ?? "ゼロエミの専用ページ（5問で使えるかを確かめられます）"}</p>
       <div className={cn("mt-1.5 grid gap-2", cols === 2 && "sm:grid-cols-2")}>
         {ZEROEMI_PAGES.map((z) => (
           <Link key={z.href} href={z.href} onClick={() => go(z.kind)} className="inline-flex min-h-[48px] items-center justify-between gap-2 rounded-xl border-2 bg-white px-4 text-[15px] font-bold" style={{ borderColor: color ?? "#254d39", color: color ?? "#254d39" }}>
