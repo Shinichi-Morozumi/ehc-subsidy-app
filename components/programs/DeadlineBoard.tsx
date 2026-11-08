@@ -144,7 +144,7 @@ function Pill({ item }: { item: WindowItem }) {
   );
 }
 
-export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "受付中・もうすぐ受付の補助" }: { today: string | null; ids?: ProgramId[]; title?: string }) {
+export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "受付中・もうすぐ受付の補助", zeLinks = true }: { today: string | null; ids?: ProgramId[]; title?: string; /** ゼロエミの行に専用ページへの文字リンクを出すか（トップは上に案内があるので出さない） */ zeLinks?: boolean }) {
   if (!today) {
     return <div className="h-[420px] animate-pulse rounded-3xl bg-white/70" aria-hidden />;
   }
@@ -171,7 +171,7 @@ export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "受付中�
               <p className="mt-0.5 text-[18px] font-bold leading-[1.45]">{p.title}</p>
               <WhatWhenHowMuch programId={first.programId} item={first} today={today} />
               <ExampleAmount programId={first.programId} />
-              {first.programId === "tokyoZeroemi" && <ZeroemiLinks place="board-first" variant="inline" color={c.num} className="mt-1" />}
+              {zeLinks && first.programId === "tokyoZeroemi" && <ZeroemiLinks place="board-first" variant="inline" color={c.num} className="mt-1" />}
             </div>
             <p className="whitespace-nowrap text-right leading-none">
               {first.state === "open" && first.daysToEnd <= 1 ? (
@@ -207,7 +207,7 @@ export function DeadlineBoard({ today, ids = PROGRAM_ORDER, title = "受付中�
                     <Pill item={it} />
                   </div>
                   <WhatWhenHowMuch programId={it.programId} item={it} today={today} compact />
-                  {it.programId === "tokyoZeroemi" && <ZeroemiLinks place="board-row" variant="inline" color={c.num} />}
+                  {zeLinks && it.programId === "tokyoZeroemi" && <ZeroemiLinks place="board-row" variant="inline" color={c.num} />}
                 </div>
               </li>
             );

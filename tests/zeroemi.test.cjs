@@ -197,7 +197,8 @@ test("入口：トップ（上の細い入口・案内）・締切ボード・/t
   assert.match(home, /href="#ze-banner"/);
   assert.match(home, /href="\/zeroemi"/);
   assert.match(home, /href="\/zeroemi\/reizo"/);
-  assert.match(home, /id === "tokyoZeroemi" && <ZeroemiLinks place="top-pillar"/);
+  // EHC-0153：トップは案内（ZeroemiBanner）だけにし、入口カード・締切ボードの重なるリンクは出さない
+  assert.match(home, /<DeadlineBoard today=\{today\} zeLinks=\{false\} \/>/);
   assert.match(read("components/programs/DeadlineBoard.tsx"), /programId === "tokyoZeroemi" && <ZeroemiLinks place="board-/);
   assert.match(read("components/programs/ProgramCard.tsx"), /p\.id === "tokyoZeroemi" && <ZeroemiLinks/);
   assert.match(read("app/tokyo/page.tsx"), /<ZeroemiLinks place="tokyo-hero"/);
@@ -239,4 +240,21 @@ test("EHC-0151：決めたこと（旧診断の入口を外す・旧広告LPを�
   assert.match(read("app/layout.tsx"), /alternates: \{ canonical: "\/" \}/);
   assert.match(read("app/page.tsx"), /started \? <h1>空調更新の診断<\/h1>/);
   assert.match(read("components/programs/DeadlineBoard.tsx"), /verifiedRange\(ids\)/);
+});
+
+test("EHC-0153：介護チャットの結果で工事費から補助と施設の負担を出す（グループホーム・1,000万円→補助833万円・負担167万円）、お知らせへの案内、押しやすさ", () => {
+  const G = harness().load("lib/programs.ts");
+  const est = G.estimateFor(G.PROGRAMS.kokuKaigo, { costMan: 1000, kaigoGroup: "B" });
+  const sum = G.estimateSummary(est);
+  assert.equal(sum.subsidyMin, 833);
+  assert.equal(sum.selfMax, 167);
+  const read = (f) => fs.readFileSync(path.resolve(root, f), "utf8");
+  const chat = read("components/kaigo/KaigoChat.tsx");
+  assert.match(chat, /<KaigoCostCalc answers=\{answers\} \/>/);
+  assert.match(chat, /href="#kaigo-notify"/);
+  assert.match(chat, /id="kaigo-notify"/);
+  assert.doesNotMatch(read("components/kaigo/KaigoCostCalc.tsx"), /自己負担ゼロ|実質0円|無料/);
+  const shell = read("components/programs/SiteShell.tsx");
+  assert.match(shell, /inline-flex min-h-\[44px\] shrink-0 items-center whitespace-nowrap rounded-full/);
+  assert.doesNotMatch(read("components/home/HomeV18.tsx"), /place: "top-hero" \}\); window\.dispatchEvent\(new CustomEvent\(CONSULT_MULTI_EVENT/);
 });

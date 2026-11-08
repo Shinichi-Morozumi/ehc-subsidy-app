@@ -28,7 +28,6 @@ import { ConsultForm } from "../programs/ConsultForm";
 import { SiteFooterSimple, SiteHeader } from "../programs/SiteShell";
 import { WHY } from "@/lib/team";
 import { CONSULT_MULTI_EVENT } from "@/lib/consultOptions";
-import { ZeroemiLinks } from "../programs/ZeroemiLinks";
 
 type PillarDef = { pillar: "tokyo" | "kaigo" | "sii"; color: ProgramColor; icon: string; title: string; lead: string; ids: ProgramId[]; cta: string; more?: { label: string; href: string } };
 
@@ -81,7 +80,8 @@ function PillarCard({ def, today }: { def: PillarDef; today: string | null }) {
                 )}
               </div>
               <dl className="mt-2 grid gap-1.5 text-[14px] leading-[1.65]">
-                <div className="grid grid-cols-[5.5em_minmax(0,1fr)] gap-2"><dt className="font-bold" style={{ color: c.num }}>何に使える</dt><dd>{p.useShort}</dd></div>
+                {/* EHC-0153：「何に使える」は上の締切ボードと重なるので、入口カードではスマホで省く（PCは残す） */}
+                <div className="hidden grid-cols-[5.5em_minmax(0,1fr)] gap-2 sm:grid"><dt className="font-bold" style={{ color: c.num }}>何に使える</dt><dd>{p.useShort}</dd></div>
                 <div className="grid grid-cols-[5.5em_minmax(0,1fr)] gap-2">
                   <dt className="font-bold" style={{ color: c.num }}>いつ</dt>
                   <dd>
@@ -92,7 +92,6 @@ function PillarCard({ def, today }: { def: PillarDef; today: string | null }) {
                 </div>
                 <div className="grid grid-cols-[5.5em_minmax(0,1fr)] gap-2"><dt className="font-bold" style={{ color: c.num }}>いくら</dt><dd><b>{p.amountShort}</b></dd></div>
               </dl>
-              {id === "tokyoZeroemi" && <ZeroemiLinks place="top-pillar" color={c.num} className="mt-3" />}
             </li>
           );
         })}
@@ -166,9 +165,7 @@ export function HomeV18() {
               </a>
             </div>
             <p className="mt-2 text-[13px] text-ink-soft">電話の受付 {COMPANY.hours}・制度の内容は公式の資料で確認（確認日は各カードに表示）</p>
-            <button type="button" onClick={() => { track("consult_call", { kind: "multi", place: "top-hero" }); window.dispatchEvent(new CustomEvent(CONSULT_MULTI_EVENT)); }} className="mt-3 inline-flex min-h-[44px] items-center gap-1 text-left text-[15px] font-bold text-brand-deep underline underline-offset-4">
-              施設や建物が複数ある法人の方は、まとめて相談できます<ArrowRight aria-hidden className="h-4 w-4 shrink-0" />
-            </button>
+
           </div>
           <Image src="/v17/hero-scene.webp" alt="事務所と店舗の天井の空調と、室外機の前で確かめる作業員のイラスト" width={1536} height={1024} priority sizes="(max-width: 1024px) 100vw, 560px" className="h-auto w-full rounded-3xl" />
         </section>
@@ -176,7 +173,7 @@ export function HomeV18() {
         <ZeroemiBanner today={today} />
 
         <div className="mt-8">
-          <DeadlineBoard today={today} />
+          <DeadlineBoard today={today} zeLinks={false} />
         </div>
 
         <section aria-labelledby="pillars" className="mt-10">
@@ -239,6 +236,10 @@ export function HomeV18() {
         </section>
 
         <div className="mt-10">
+          {/* EHC-0153：最初の画面の押す所を絞るため、複数施設のまとめ相談は相談フォームのすぐ上へ */}
+          <button type="button" onClick={() => { track("consult_call", { kind: "multi", place: "top-consult" }); window.dispatchEvent(new CustomEvent(CONSULT_MULTI_EVENT)); }} className="mb-3 inline-flex min-h-[44px] items-center gap-1 text-left text-[15px] font-bold text-brand-deep underline underline-offset-4">
+              施設や建物が複数ある法人の方は、まとめて相談できます<ArrowRight aria-hidden className="h-4 w-4 shrink-0" />
+            </button>
           <ConsultForm source="top" options={["tokyoZeroemi", "tokyoKaishu", "tokyoChiiki", "kokuKaigo", "kokuKaigo30", "sii"]} />
         </div>
       </main>

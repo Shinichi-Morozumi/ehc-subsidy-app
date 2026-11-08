@@ -137,7 +137,7 @@ export default function TeamPage() {
         <section aria-label="出典" className="mt-8 text-[13px] leading-[1.8] text-ink-soft">
           <p className="font-bold text-ink">出典（{TEAM_VERIFIED_AT.replace(/-/g, "/")} に確認）</p>
           <ul className="mt-1 list-disc pl-5">
-            {TEAM_SOURCES.map((s) => <li key={s.url}><a href={s.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">{s.label}</a></li>)}
+            {TEAM_SOURCES.map((s) => <li key={s.url}><a href={s.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center underline underline-offset-4">{s.label}</a></li>)}
             <li>役職・担当：EHC 提供情報</li>
           </ul>
         </section>

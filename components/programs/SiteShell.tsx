@@ -25,7 +25,7 @@ export function SiteHeader({ page }: { page: ShellPage; onSii?: () => void }) {
   return (
     <header className="no-print sticky top-0 z-20 border-b border-ink-line bg-paper/95 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2">
-        <Link href="/" className="text-[16px] font-bold leading-tight text-brand-deep">
+        <Link href="/" className="inline-flex min-h-[44px] flex-col justify-center text-[16px] font-bold leading-tight text-brand-deep">
           EHCソリューションズ
           <span className="block text-[12px] font-normal text-ink-soft">空調の入れ替えと補助金</span>
         </Link>
@@ -43,7 +43,7 @@ export function SiteHeader({ page }: { page: ShellPage; onSii?: () => void }) {
       </div>
       <nav aria-label="ページ（スマホ）" className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-3 pb-2 lg:hidden">
         {NAV.map((n) => (
-          <Link key={n.href} href={n.href} aria-current={n.page === page ? "page" : undefined} className={cn("shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-[13px] font-bold", n.page === page ? "border-brand-deep bg-brand-deep text-white" : "border-ink-line bg-white text-ink")}>
+          <Link key={n.href} href={n.href} aria-current={n.page === page ? "page" : undefined} className={cn("inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-full border px-3 text-[13px] font-bold", n.page === page ? "border-brand-deep bg-brand-deep text-white" : "border-ink-line bg-white text-ink")}>
             {n.short}
           </Link>
         ))}
@@ -59,12 +59,12 @@ export function SiteFooterSimple() {
         <p className="font-bold text-ink">{COMPANY.name}</p>
         <p>{COMPANY.address}</p>
         <p>
-          電話 <a href={COMPANY.telHref} className="font-bold text-brand-deep underline underline-offset-4">{COMPANY.tel}</a>（受付 {COMPANY.hours}）／ <a href={`mailto:${COMPANY.email}`} className="underline underline-offset-4">{COMPANY.email}</a>
+          電話 <a href={COMPANY.telHref} className="inline-flex min-h-[44px] items-center font-bold text-brand-deep underline underline-offset-4">{COMPANY.tel}</a>（受付 {COMPANY.hours}）／ <a href={`mailto:${COMPANY.email}`} className="inline-flex min-h-[44px] items-center underline underline-offset-4">{COMPANY.email}</a>
         </p>
         <p>
-          <Link href="/company" className="underline underline-offset-4">会社概要</Link>
+          <Link href="/company" className="inline-flex min-h-[44px] items-center underline underline-offset-4">会社概要</Link>
           <span aria-hidden>　</span>
-          <Link href="/privacy" className="underline underline-offset-4">プライバシーポリシー</Link>
+          <Link href="/privacy" className="inline-flex min-h-[44px] items-center underline underline-offset-4">プライバシーポリシー</Link>
         </p>
         <p>
           制度の内容は公式の資料（カードに確認日を表示）によります。補助率・上限・締切は変わることがあり、予算に達して早く終わることもあります。

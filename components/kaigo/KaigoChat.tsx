@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { track } from "@/lib/track";
 import { COMPANY, CONSULT_COST_NOTE } from "@/lib/company";
 import { NotifySignup } from "@/components/NotifySignup";
+import { KaigoCostCalc } from "@/components/kaigo/KaigoCostCalc";
 import { PROGRAMS } from "@/lib/programs";
 import { readConsultation } from "@/lib/consultation";
 import ConsultationFields from "@/components/ConsultationFields";
@@ -364,7 +365,7 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
     <main className="min-h-screen bg-paper pb-16 text-ink">
       <header className="sticky top-0 z-10 border-b border-ink-line bg-paper/95 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-2">
-          <Link href="/" className="whitespace-nowrap text-[15px] font-bold leading-tight text-brand-deep">
+          <Link href="/" className="inline-flex min-h-[44px] flex-col justify-center whitespace-nowrap text-[15px] font-bold leading-tight text-brand-deep">
             EHCソリューションズ
             <span className="block text-[12px] font-normal text-ink-soft">介護施設の補助金 事前確認</span>
           </Link>
@@ -460,8 +461,9 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
                 <ul className="list-disc space-y-1 rounded-2xl bg-paper-sub p-4 pl-8 text-[14px] leading-[1.7] text-ink-soft">
                   {estimate.cautions.map((c) => <li key={c}>{c}</li>)}
                 </ul>
-                {/* EHC-0151 P4：結局いくら（工事費から補助と施設の負担の目安）は、下の制度カードの計算へ */}
-                <a href="#program-kokuKaigo" className="flex min-h-[44px] items-center text-[15px] font-bold text-brand-deep underline underline-offset-4">工事費から、補助と施設の負担の目安を計算する（下の制度カード）</a>
+                {/* EHC-0153：結局いくら（工事費は任意）をチャットの結果の中で出す。次の募集はお知らせ登録へ */}
+                {answers && <KaigoCostCalc answers={answers} />}
+                <a href="#kaigo-notify" className="flex min-h-[44px] items-center text-[15px] font-bold text-brand-deep underline underline-offset-4">次の募集が出たら、メールでお知らせを受け取る（下へ）</a>
               </div>
               <Bot>
                 このあと EHC が、所在地の募集の時期を確かめ、<b>現地調査</b>の日程をご相談します。
@@ -571,7 +573,7 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
         {children}
 
         {/* EHC-0151 P4：募集が未発表の制度なので、次の募集が出たらお知らせする（/shindan の結果と同じ部品） */}
-        <div className="mt-8">
+        <div id="kaigo-notify" className="mt-8 scroll-mt-24">
           <NotifySignup programNames={[`${PROGRAMS.kokuKaigo.tag} ${PROGRAMS.kokuKaigo.title}`, `${PROGRAMS.kokuKaigo30.tag} ${PROGRAMS.kokuKaigo30.title}`]} pref={null} building="介護施設" timing={null} />
         </div>
 
@@ -579,7 +581,7 @@ export function KaigoChat({ children }: { children?: React.ReactNode } = {}) {
           <p className="font-bold text-ink">{COMPANY.name}</p>
           <p>{COMPANY.address}</p>
           <p>
-            電話 <a href={COMPANY.telHref} onClick={() => track("kaigo_call", { place: "footer" })} className="font-bold text-brand-deep underline underline-offset-4">{COMPANY.tel}</a>（受付 {COMPANY.hours}）／ <a href={`mailto:${COMPANY.email}`} className="underline underline-offset-4">{COMPANY.email}</a>
+            電話 <a href={COMPANY.telHref} onClick={() => track("kaigo_call", { place: "footer" })} className="inline-flex min-h-[44px] items-center font-bold text-brand-deep underline underline-offset-4">{COMPANY.tel}</a>（受付 {COMPANY.hours}）／ <a href={`mailto:${COMPANY.email}`} className="inline-flex min-h-[44px] items-center underline underline-offset-4">{COMPANY.email}</a>
           </p>
           <p className="mt-2">
             制度の内容は2026年10月29日に確かめた公表資料によります。採択と金額は審査と自治体の要綱で決まり、お約束するものではありません。

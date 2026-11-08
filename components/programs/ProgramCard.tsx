@@ -65,11 +65,11 @@ function EstimateBox({ p, est: estAll, onAskCost, example }: { p: Program; est: 
           <legend className="text-[13px] font-bold text-ink">申し込む区分を選ぶと、1つの数字になります</legend>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {estAll.lines.map((l, i) => (
-              <button key={l.label} type="button" aria-pressed={tier === i} onClick={() => setTier(i)} className={cn("min-h-[40px] rounded-full border px-3 text-left text-[13px] font-bold", tier === i ? "border-transparent text-white" : "border-ink-line bg-white text-ink")} style={tier === i ? { background: c.head } : undefined}>
+              <button key={l.label} type="button" aria-pressed={tier === i} onClick={() => setTier(i)} className={cn("min-h-[44px] rounded-full border px-3 text-left text-[13px] font-bold", tier === i ? "border-transparent text-white" : "border-ink-line bg-white text-ink")} style={tier === i ? { background: c.head } : undefined}>
                 {l.label}（{p.caps.find((cap) => cap.label === l.label)?.rateLabel}）
               </button>
             ))}
-            <button type="button" aria-pressed={tier === null} onClick={() => setTier(null)} className={cn("min-h-[40px] rounded-full border px-3 text-[13px] font-bold", tier === null ? "border-transparent text-white" : "border-ink-line bg-white text-ink")} style={tier === null ? { background: c.head } : undefined}>
+            <button type="button" aria-pressed={tier === null} onClick={() => setTier(null)} className={cn("min-h-[44px] rounded-full border px-3 text-[13px] font-bold", tier === null ? "border-transparent text-white" : "border-ink-line bg-white text-ink")} style={tier === null ? { background: c.head } : undefined}>
               分からない（幅で見る）
             </button>
           </div>
